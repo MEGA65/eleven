@@ -100,6 +100,7 @@
  2300        xi=1:cursor 0,yc-ct:cl$=li$(yc):a$=cl$:gosub1
  2310        if t$=chr$(13) thencursor 0,yc-ct-1:a$=li$(yc-1):gosub1
  2320     bend
+ 2325     if t$="p" thengosub9300:rem post current file to pc
  2330     if t$="f" thengosub8000:fr%=0: rem find
  2340     if t$="r" thengosub8000:fr%=1: rem find and replace
  2350     if t$="{f3}" thengosub5990: rem save
@@ -554,3 +555,24 @@
  9180   cl=cl+1
  9190 loop
  9200 return
+ 9300 bload "b65support.bin":sys $1600
+ 9310 a=usr(0):rem set issue# to zero
+ 9320 l$="/file:"+cf$:gosub 9450:rem post filename
+ 9330 dopen#2,(cf$)
+ 9340 l$=""
+ 9350 get#2,c$
+ 9360 l$=l$+c$
+ 9370 if len(l$)=128 then gosub 9450:rem post chunk
+ 9380 print n$;
+ 9390 if not st and 64 then 9350
+ 9400 dclose#2
+ 9410 if len(l$)<>0 then gosub 9450:rem post remaining chunk
+ 9420 gosub 9450:rem post empty chunk to declare we've finished
+ 9430 print "finished posting!"
+ 9440 return
+ 9450 rem *** post chunk ***
+ 9460 l$=chr$(len(l$)+1) + l$:rem prepend the length of string+1
+ 9470 a=usr("/"+l$)
+ 9480 print "posting chunk..."
+ 9490 l$=""
+ 9500 return
