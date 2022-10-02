@@ -19,6 +19,7 @@
   220 key off               : rem enable raw fn keys
   230 :
   240 mx=2000               : rem max number of lines
+  242 es%=0                 : rem escape flag
   245 t$="                                                                               ":bl$=t$+t$+t$:t$=""
   250 q$=chr$(34)           : rem fast access to quote char
   260 fo$=chr$(27)+chr$(27) : rem escape flash etc.
@@ -152,7 +153,13 @@
  2800     gosub5490:print "{rvon}";r$(abs(de=0));de$;" ";:foreground sb
  2810     ns=1
  2820   bend
- 2830 bend:elsebegin : rem -- insert char
+ 2830 bend:else begin:if t$=chr$(27) then begin: rem -- check escape flag
+ 2831   t$="":if es%=0 then es%=1:else es%=0
+ 2832 bend:else begin:if es%=1 then begin : rem -- check escape characters
+ 2833   if t$="k" then xc=len(cl$)
+ 2834   if t$="j" then xc=0
+ 2835   es%=0
+ 2839 bend:elsebegin : rem -- insert char
  2840     ch=1
  2850     if xc=79 thenxi=xi+1
  2860     do while len(cl$)<xc:cl$=cl$+" ":loop: rem fill up spaces if needed
@@ -160,7 +167,9 @@
  2880     li$(yc)=cl$
  2890     cursor 0,yc-ct:a$=cl$:gosub1
  2900     xc=xc+1 : if xc>79 thenxc=79
- 2910   bend
+ 2910   bend:rem endif es%=1
+ 2912   bend:rem endif t$=chr$(27)
+ 2914   bend:rem endif co (ctrl-char)
  2920 loop until qu=1
  2930 stop
  2940 :
