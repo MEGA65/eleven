@@ -136,7 +136,7 @@
  2640       if yc-ct<0 thengosub5330: if yc-ct<0 thenyc=yc+1
  2650     bend
  2660     if t$="{f5}" thengosub7790: rem --- f5 - compile
- 2670     if t$=chr$(20) thenbegin
+ 2670     if t$=chr$(20) thenbegin:rem delete
  2680       ch=1
  2690       if xc=0 or ak thengosub5840:elsebegin : rem merge with last line
  2700       cl$=left$(cl$,xc+xi-2)+mid$(cl$,xc+xi)
@@ -158,7 +158,8 @@
  2832 bend:else begin:if es%=1 then begin : rem -- check escape characters
  2833   if t$="k" then xc=len(cl$)
  2834   if t$="j" then xc=0
- 2835   es%=0
+ 2835   if t$="d" then ak=1:gosub 5840:ch=1
+ 2838   es%=0
  2839 bend:elsebegin : rem -- insert char
  2840     ch=1
  2850     if xc=79 thenxi=xi+1
