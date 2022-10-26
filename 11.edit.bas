@@ -23,7 +23,7 @@
   245 t$="                                                                               ":bl$=t$+t$+t$:t$=""
   250 q$=chr$(34)           : rem fast access to quote char
   260 fo$=chr$(27)+chr$(27) : rem escape flash etc.
-  270 cc$="{home}{clr}{f2}{$84}{left}{up}{down}{rght}{f1}{f3}{f5}{f7}{f4}{CTRL-Z}{CTRL-P}{$83}{CTRL-W}{CTRL-U}"+chr$(22)+chr$(20)+chr$(148)+chr$(13) : rem ctrl chars
+  270 cc$="{home}{clr}{f2}{$84}{left}{up}{down}{rght}{f1}{f3}{f5}{f7}{f4}{CTRL-Z}{CTRL-P}{$83}{CTRL-W}{CTRL-U}{inst}"+chr$(22)+chr$(20)+chr$(148)+chr$(13) : rem ctrl chars
   280 hm$="{left}{rght}"+chr$(20)     : rem horizontal movement characters
   290 ch$(0)=" ":ch$(1)="*" : rem for file changed indicator
   300 cm$(0)="    ":        : rem for control char mode indicator
@@ -103,6 +103,7 @@
  2320     bend
  2321     if t$="{CTRL-W}" then gosub 9510:rem ctrl-w = next word
  2322     if t$="{CTRL-U}" then gosub 9700:rem ctrl-u = previous word
+ 2323     if t$="{inst}" then gosub 9900:rem shift-del = delete current char
  2325     if t$="p" thengosub9300:rem post current file to pc
  2330     if t$="f" thengosub8000:fr%=0: rem find
  2340     if t$="r" thengosub8000:fr%=1: rem find and replace
@@ -626,3 +627,11 @@
  9850 bend
  9855 if ef=1 and len(cl$) and yc>0 then goto 9810
  9860 return
+ 9900 rem delete current char
+ 9910 if xc<len(cl$) then begin
+ 9920   ch=1
+ 9930   cl$=left$(cl$,xc+xi-1)+mid$(cl$,xc+xi+1)
+ 9940   li$(yc)=cl$
+ 9945   cursor0,yc-ct:a$=cl$:gosub 1:iflen(cl$)<=79thenprint" ";
+ 9950 bend
+ 9960 return
