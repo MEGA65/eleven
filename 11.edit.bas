@@ -23,7 +23,7 @@
   245 t$="                                                                               ":bl$=t$+t$+t$:t$=""
   250 q$=chr$(34)           : rem fast access to quote char
   260 fo$=chr$(27)+chr$(27) : rem escape flash etc.
-  270 cc$="{home}{clr}{f2}{$84}{left}{up}{down}{rght}{f1}{f3}{f5}{f7}{f4}{CTRL-Z}{CTRL-P}{$83}"+chr$(22)+chr$(20)+chr$(148)+chr$(13) : rem ctrl chars
+  270 cc$="{home}{clr}{f2}{$84}{left}{up}{down}{rght}{f1}{f3}{f5}{f7}{f4}{CTRL-Z}{CTRL-P}{$83}{CTRL-W}{CTRL-U}"+chr$(22)+chr$(20)+chr$(148)+chr$(13) : rem ctrl chars
   280 hm$="{left}{rght}"+chr$(20)     : rem horizontal movement characters
   290 ch$(0)=" ":ch$(1)="*" : rem for file changed indicator
   300 cm$(0)="    ":        : rem for control char mode indicator
@@ -101,6 +101,8 @@
  2300        xi=1:cursor 0,yc-ct:cl$=li$(yc):a$=cl$:gosub1
  2310        if t$=chr$(13) thencursor 0,yc-ct-1:a$=li$(yc-1):gosub1
  2320     bend
+ 2321     if t$="{CTRL-W}" then gosub 9510:rem ctrl-w = next word
+ 2322     if t$="{CTRL-U}" then gosub 9700:rem ctrl-u = previous word
  2325     if t$="p" thengosub9300:rem post current file to pc
  2330     if t$="f" thengosub8000:fr%=0: rem find
  2340     if t$="r" thengosub8000:fr%=1: rem find and replace
@@ -586,3 +588,41 @@
  9480 print "posting chunk..."
  9490 l$=""
  9500 return
+ 9505 rem move to next word
+ 9510 do while mid$(cl$,xc+xi,1) <> " "
+ 9520   gosub 9600
+ 9530   if ef then exit
+ 9540 loop
+ 9550 do while mid$(cl$,xc+xi,1) = " "
+ 9560   gosub 9600
+ 9570   if ef then exit
+ 9580 loop
+ 9590 return
+ 9600 rem move to next char
+ 9610 ef=0:xc=xc+1
+ 9620 if xc>len(cl$) then begin
+ 9630   if yc< nl then xc=0:yc=yc+1:cl$=li$(yc):if yc-ct>20 then gosub 5250
+ 9635   ef=1
+ 9640 bend
+ 9650 return
+ 9700 rem move to previous word
+ 9705 gosub 9800:rem prev char
+ 9710 do while mid$(cl$,xc+xi,1) = " "
+ 9720   gosub 9800
+ 9730   if ef then exit
+ 9740 loop
+ 9750 do while mid$(cl$,xc+xi,1) <> " "
+ 9760   gosub 9800
+ 9770   if ef then exit
+ 9780 loop
+ 9785 gosub 9600:rem next char
+ 9790 return
+ 9800 rem move to prev char
+ 9810 ef=0:xc=xc-1
+ 9820 if xc<0 then begin
+ 9830   if yc>0 then yc=yc-1:cl$=li$(yc):xc=len(cl$)-1:if yc-ct<0then gosub 5330
+ 9835   if xc<0 then xc=0
+ 9840   ef=1
+ 9850 bend
+ 9855 if ef=1 and len(cl$) and yc>0 then goto 9810
+ 9860 return
