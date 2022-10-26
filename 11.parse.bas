@@ -80,6 +80,7 @@
   735 :   bend
   740 : bend
   750 : sl=sl+1 : rem increase source code line (for error msgs...)
+  755 if vb then print "sl=";sl:getkey z$
   760 loop
   765 if l$<>"" thenli$(ln)=l$:ln=ln+1
   780 close 1
@@ -270,7 +271,7 @@
  4520 if c$=lb$(id) thenc$=str$(ll(id)):id=lc:dr=1
  4530 next id
  4540 if dr thenreturn
- 4550 print "?unresolved label: "+c$;" in line";ln%(si-1)
+ 4550 print "?unresolved label: "+c$;" in line";ln%(si-1):sleep 1
  4560 bank 4:poke dec("ff08"),130 : rem set unresolved label
  4562 poke dec("ff09"),mod(ln%(si-1),256):poke dec("ff0a"),ln%(si-1)/256
  4563 poke dec("ff07"),peek(dec("ff07"))or2 : rem set autojump flag
@@ -329,7 +330,8 @@
  7190 forr=1tolen(tf$):pokead+r-1,asc(mid$(tf$,r,1)):nextr
  7200 return
  7210 rem chain editor
- 7220 print"{home}{home}{clr}{down}{down}edma 0,$3fff,$8001000,$2001:new restore{down}{down}":print"run{home}";
+ 7220 get a$:if a$<>"" then input zz:if zz=1 then adfsdf
+ 7225 print"{home}{home}{clr}{down}{down}edma 0,$3fff,$8001000,$2001:new restore{down}{down}":print"run{home}";
  7230 bank 128
  7240 poke 208,2     : rem no of chars in keyboard buffer
  7250 poke 688,13,13 : rem return

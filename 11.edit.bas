@@ -23,7 +23,7 @@
   245 t$="                                                                               ":bl$=t$+t$+t$:t$=""
   250 q$=chr$(34)           : rem fast access to quote char
   260 fo$=chr$(27)+chr$(27) : rem escape flash etc.
-  270 cc$="{home}{clr}{f2}{$84}{left}{up}{down}{rght}{f1}{f3}{f5}{f7}{f4}{CTRL-Z}{CTRL-P}{$83}{CTRL-W}{CTRL-U}{inst}"+chr$(22)+chr$(20)+chr$(148)+chr$(13) : rem ctrl chars
+  270 cc$="{home}{clr}{f2}{$84}{left}{up}{down}{rght}{f1}{f3}{f5}{f7}{f4}{CTRL-Z}{CTRL-P}{$83}{CTRL-W}{CTRL-U}{inst}{blu}"+chr$(22)+chr$(20)+chr$(148)+chr$(13) : rem ctrl chars
   280 hm$="{left}{rght}"+chr$(20)     : rem horizontal movement characters
   290 ch$(0)=" ":ch$(1)="*" : rem for file changed indicator
   300 cm$(0)="    ":        : rem for control char mode indicator
@@ -104,6 +104,7 @@
  2321     if t$="{CTRL-W}" then gosub 9510:rem ctrl-w = next word
  2322     if t$="{CTRL-U}" then gosub 9700:rem ctrl-u = previous word
  2323     if t$="{inst}" then gosub 9900:rem shift-del = delete current char
+ 2324     if t$="{blu}" then poke $4ff07,peek($4ff07) xor 8:if peek($4ff07)and8 then play "t0o5sg"
  2325     if t$="p" thengosub9300:rem post current file to pc
  2330     if t$="f" thengosub8000:fr%=0: rem find
  2340     if t$="r" thengosub8000:fr%=1: rem find and replace
@@ -261,15 +262,15 @@
  5810 return
  5820 :
  5830 rem --- merge lines
- 5840 if yc<1 thenreturn
- 5850 if ak thensx=xc:xc=0:li$(yc)=""
+ 5840 if ak=0 and yc<1 thenreturn
+ 5850 if ak thensx=xc:xc=0:yc=yc-1:goto 5880
  5860 yc=yc-1:xc=len(li$(yc))
  5870 li$(yc)=li$(yc)+li$(yc+1)
  5880 fora=yc+1tonl-1:li$(a)=li$(a+1):nexta
  5890 if yc<=nl thenli$(nl)=""
  5900 if nl>0 thennl=nl+1
  5910 :
- 5920 cursor 0,yc-ct:a$=li$(yc):gosub1
+ 5920 if ak=0 then cursor 0,yc-ct:a$=li$(yc):gosub1
  5930 cursor 0,yc-ct+1:printchr$(27)+"d";
  5940 cursor 0,sl:a$=li$(ct+sl):gosub1
  5950 if ct+sl>nl-1 thencursor 0,23:print chr$(27)+"q";
