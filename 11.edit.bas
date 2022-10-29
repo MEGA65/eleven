@@ -160,8 +160,8 @@
  2830 bend:else begin:if t$=chr$(27) then begin: rem -- check escape flag
  2831   t$="":if es%=0 then es%=1:else es%=0
  2832 bend:else begin:if es%=1 then begin : rem -- check escape characters
- 2833   if t$="k" then xc=len(cl$)
- 2834   if t$="j" then xc=0
+ 2833   if t$="k" then xc=len(cl$):if xc>78 then xi=xc-78:xc=78:gosub 9970
+ 2834   if t$="j" then xc=0:if xi>1 then xi=1:gosub 9970
  2835   if t$="d" then ak=1:gosub 5840:ch=1
  2838   es%=0
  2839 bend:elsebegin : rem -- insert char
@@ -633,6 +633,9 @@
  9920   ch=1
  9930   cl$=left$(cl$,xc+xi-1)+mid$(cl$,xc+xi+1)
  9940   li$(yc)=cl$
- 9945   cursor0,yc-ct:a$=cl$:gosub 1:iflen(cl$)<=79thenprint" ";
+ 9945   gosub9970
  9950 bend
  9960 return
+ 9970 rem *** redraw line ***
+ 9980 cursor 0,yc-ct:a$=cl$:gosub 1:iflen(cl$)<=79thenprint" ";
+ 9990 return
