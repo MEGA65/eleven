@@ -20,8 +20,9 @@
   112 b(0)=1:for i=1 to 16:b(i)=b(i-1)+b(i-1):next i
   115 dim ln%(1000)             : rem src file line nr <-> internal idx mapping
   120 dim li$(1000)             : rem post processed lines
-  121 dim ec(3)                 : rem element count per type
-  122 dim vt$(3,200)            : rem variable table per type
+  121 dim ec(4)                 : rem element count per type
+  122 dim vt$(4,200)            : rem variable table per type
+  123 dim df$(200)              : rem define values table
   125 dim lb$(200),ll(200):lc=0 : rem label table & count
   126 dim al$(32)               : rem argument list
   130 :
@@ -59,7 +60,8 @@
   600     if left$(cl$,1)="." thennl=1:gosub1500: rem label
   645     if left$(cl$,1)="#" thenbegin
   648       cc=1
-  650       if instr(cl$,"declare")=2 thengosub1000
+  649       if instr(cl$,"define")=2 thendf=1:gosub1000
+  650       if instr(cl$,"declare")=2 thendf=0:gosub1000
   651       if instr(cl$,"output")=2 thengosub1200
   652     bend
   655     if dl=0 thenbegin
@@ -116,7 +118,7 @@
   950 end
   999 :
  1000 rem declare var(s) in s$
- 1010 s$=mid$(cl$,10):d$=",;":ib=1:gosub2100:ib=0: rem split parameters
+ 1010 s$=mid$(cl$,10-df):d$=",;":ib=1:gosub2100:ib=0: rem split parameters
  1012 rem (ib=ignore brackets)
  1015 nl$="" : rem new line if dimensioning...
  1020 if ac<0 thenprint "?declare parameter missing in line ";sl:goto1800
@@ -138,18 +140,20 @@
  1064 : t$=right$(p$,1) : rem type (if any) in t$
  1066 : if vb thenprint "adding {rvon}";
  1068 : if instr("%&$",t$)=0 thent$="":ty=0
+ 1069 : if df=1 thenty=4:print "p$=";p$
  1070 : if t$="%" thenty=1
  1072 : if t$="$" thenty=2
  1073 : if t$="&" thenty=3
  1074 : vt$(ty,ec(ty)) = p$
  1076 : if di$<>"" thenbegin
  1078 :   id=ec(ty):gosub5000: rem fetch varname in vn$
- 1084 :   nl$=nl$+"dim "+vn$+t$+"("+di$+"):"
+ 1084 :   if df=0 then nl$=nl$+"dim "+vn$+t$+"("+di$+"):"
  1085 : bend
  1088 : if vl$<>"" thenbegin
  1089 :   id=ec(ty):gosub5000
- 1090 :   nl$=nl$+vn$+t$+"="+vl$+":"
+ 1090 :   if df=0 then nl$=nl$+vn$+t$+"="+vl$+":"
  1092 : bend
+ 1093 : if df=1 then df$(ec(ty))=vl$
  1099 : if vb thenprint p$;"{rvof}: ";ec(ty)
  1100 : ec(ty)=ec(ty)+1
  1120 next i
@@ -255,6 +259,10 @@
  4025 if c$=vt$(ty,id) thengosub5000:c$=vn$+pf$(ty):id=ec(ty):dr=1
  4030 next id
  4070 if dr=1 thenreturn
+ 4071 for id=0 to ec(4):rem check defines table too
+ 4072   if c$=vt$(4,id) then c$=df$(id):return
+ 4073 next id
+ 4074 asdf
  4080 print "?unresolved identifier: ";+c$;" in line ";sl
  4081 bank 4:poke dec("ff08"),128 : rem set error mailbox flag
  4082 poke dec("ff09"),mod(sl,256):poke dec("ff0a"),sl/256
