@@ -1,9 +1,10 @@
     0 goto130
     1 a$=mid$(a$,xi):b=len(a$):o=b>80:print"{rvof}";:ifothenb=79
-    2 p=pointer(a$):bank0:m=peek(p+1)+256*peek(p+2):c=m+b-1:ifb=0then5
-    3 bank1:fora=mtoc:printa$(peek(a));:next
-    4 bank128:ifothenforeground hl:printtab(79);"$";:foreground fg
-    5 return
+    2 p=pointer(a$):bank0:m=peek(p+1)+256*peek(p+2):c=m+b-1:ifb=0then6
+    3 if iv=1 then print "{rvon}";
+    4 bank1:fora=mtoc:printa$(peek(a));:next
+    5 bank128:ifothenforeground hl:printtab(79);"$";:foreground fg
+    6 return
   100 :
   110 rem --- general initializations ---
   120 :
@@ -32,6 +33,7 @@
   330 co(1)=sb:co(0)=hl                 : rem disc operation result colors
   340 df$="11.defaults"                 : rem defaults file name
   350 dim li$(mx)           : rem line buffer
+  355 dim cb$(50)          : rem clipboard of lines
   360 dim mk$(72),mk(72)   : rem marker table
   370 ee$(0)="variable not declared"
   380 ee$(1)="variable missing"
@@ -89,6 +91,7 @@
  2180   cl$=li$(yc)
  2190   cursor xc,yc-ct
  2200   foreground sb:cursor on: getkey t$ : cursor off:foreground fg
+ 2201   if mf=1 then gosub 10050:goto 2160:rem mark-mode handling
  2210   if ns=1 thengosub5540: bank128:sysv4: ns=0
  2220   bank 128:ak = peek(54801) and 16 : rem check alt key
  2230   if t$=chr$(22) or (ak and t$="c") thencm=abs(cm-1) : goto2170
@@ -163,6 +166,8 @@
  2833   if t$="k" then xc=len(cl$):if xc>78 then xi=xc-78:xc=78:gosub 9970
  2834   if t$="j" then xc=0:if xi>1 then xi=1:gosub 9970
  2835   if t$="d" then ak=1:gosub 5840:ch=1
+ 2836   if t$="m" then mf=1:ms=yc:me=yc:gosub 9970
+ 2837   if t$="p" then gosub 10200
  2838   es%=0
  2839 bend:elsebegin : rem -- insert char
  2840     ch=1
@@ -199,7 +204,7 @@
  5180 for i=0 to sl
  5190   cursor 0,i
  5200   a$=li$(ct+i)
- 5210   print chr$(27)+"q";:gosub1
+ 5210   print chr$(27)+"q";:gosub10000:gosub1
  5220 next i
  5230 return
  5240 :
@@ -637,5 +642,35 @@
  9950 bend
  9960 return
  9970 rem *** redraw line ***
+ 9975 iv=0:gosub 10000
  9980 cursor 0,yc-ct:a$=cl$:gosub 1:iflen(cl$)<=79thenprint" ";
+ 9985 iv=0
  9990 return
+10000 rem *** invert if marked line
+10010 if mf=0 then return
+10020 if ms<me and ms<=yc and yc<=me then iv=1:return
+10030 if me<=yc and yc<=ms then iv=1
+10040 return
+10050 rem *** mark-mode handling ***
+10060 if t$="{down}" then me=yc+1:cl$=li$(yc):gosub 9970:yc=yc+1:cl$=li$(yc):gosub 9970:return
+10070 if t$="{up}" then me=yc-1:cl$=li$(yc):gosub 9970:yc=yc-1:cl$=li$(yc):gosub 9970:return
+10080 if t$="x" or t$="c" then begin
+10090   if ms>me then iv=ms:ms=me:me=iv
+10100   for iv=me to ms step -1
+10110     cb$(iv-ms) = li$(iv)
+10120     if t$="x" then yc=iv:ak=1:gosub 5840:ch=1
+10130   next iv
+10140   iv=0:mf=0:cs=me-ms+1:ms=0:me=0
+10150 bend
+10155 gosub 5150
+10160 return
+10200 rem *** paste ***
+10210 for iv=cs-1 to 0 step -1
+10220   rem insert a line at yc
+10230   mf=yc:rem temp
+10240   ch=1:gosub 5650
+10250   yc=mf:mf=0
+10260   li$(yc)=cb$(iv)
+10270 next iv
+10280 gosub 5150
+10290 return
