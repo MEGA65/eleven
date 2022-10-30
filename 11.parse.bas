@@ -140,7 +140,7 @@
  1064 : t$=right$(p$,1) : rem type (if any) in t$
  1066 : if vb thenprint "adding {rvon}";
  1068 : if instr("%&$",t$)=0 thent$="":ty=0
- 1069 : if df=1 thenty=4:print "p$=";p$
+ 1069 : if df=1 thenty=4
  1070 : if t$="%" thenty=1
  1072 : if t$="$" thenty=2
  1073 : if t$="&" thenty=3
