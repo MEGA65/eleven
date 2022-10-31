@@ -68,13 +68,14 @@
   656       if vb=0 thenprint ".";
   660 :     s$=cl$
   670 :     gosub3007
+  672 if right$(l$,1)="_" then l$=left$(l$,len(l$)-1):nl=0:cn=1:else cn=0
   675 :     if len(l$)+len(s$)+len(str$(ln))>=159 thennl=1
   700 :     if nl=1 thenbegin
   705 :       li$(ln)=l$:l$=s$
   710 :       ln%(ln)=sl:
   720 :       ln=ln+1 : nl=0
   721 :     bend : elsebegin rem -- add to l$
-  722 :       if l$<>"" and right$(l$,1)<>":" thenl$=l$+":"
+  722 :       if l$<>"" and cn=0 and right$(l$,1)<>":" thenl$=l$+":"
   725 :       l$=l$+s$
   730 :     bend
   731 :     if vb thenprint "<<"ln;s$
@@ -239,7 +240,7 @@
  3210 s$=a$+c$
  3220 return
  3900 end
- 4000 if c$="" thenreturn
+ 4000 if c$="" or c$="_" thenreturn
  4001 if val(c$)<>0 thentg=0: return     : rem never change numbers
  4002 if c$="0" thenc$=".":return        : rem stupid ms basic optimization
  4005 if tg thengosub4500:tg=0:return   : rem replace label
@@ -262,8 +263,7 @@
  4071 for id=0 to ec(4):rem check defines table too
  4072   if c$=vt$(4,id) then c$=df$(id):return
  4073 next id
- 4074 asdf
- 4080 print "?unresolved identifier: ";+c$;" in line ";sl
+ 4080 print "?unresolved identifier: '";+c$;"' in line ";sl:sleep 11
  4081 bank 4:poke dec("ff08"),128 : rem set error mailbox flag
  4082 poke dec("ff09"),mod(sl,256):poke dec("ff0a"),sl/256
  4083 poke dec("ff07"),peek(dec("ff07"))or2 : rem set autojump flag
