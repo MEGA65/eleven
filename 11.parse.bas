@@ -64,6 +64,7 @@
   650       if instr(cl$,"declare")=2 thendf=0:gosub1000
   651       if instr(cl$,"output")=2 thengosub1200
   652     bend
+  653     if left$(cl$,4)="data" then nl=1
   655     if dl=0 thenbegin
   656       if vb=0 thenprint ".";
   660 :     s$=cl$
@@ -263,7 +264,7 @@
  4071 for id=0 to ec(4):rem check defines table too
  4072   if c$=vt$(4,id) then c$=df$(id):return
  4073 next id
- 4080 print "?unresolved identifier: '";+c$;"' in line ";sl:sleep 11
+ 4080 print "?unresolved identifier: '";+c$;"' in line ";sl:sleep 1
  4081 bank 4:poke dec("ff08"),128 : rem set error mailbox flag
  4082 poke dec("ff09"),mod(sl,256):poke dec("ff0a"),sl/256
  4083 poke dec("ff07"),peek(dec("ff07"))or2 : rem set autojump flag
