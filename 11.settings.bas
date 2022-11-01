@@ -57,7 +57,7 @@
   490 gosub 6000
   500 loop until t$="{ensh}"
   510 clr
-  520  print"{home}{home}{clr}{down}{down}edma 0,$3fff,$8001000,$2001:run{home}";
+  520  print"{home}{home}{clr}{down}{down}edma 0,$4fff,$8000000,$2001:run{home}";
   530  bank 128
   540  poke 208,1   : rem no of chars in keyboard buffer
   550  poke 688,13  : rem return

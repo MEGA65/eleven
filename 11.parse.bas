@@ -340,7 +340,7 @@
  7200 return
  7210 rem chain editor
  7220 get a$:if a$<>"" then input zz:if zz=1 then adfsdf
- 7225 print"{home}{home}{clr}{down}{down}edma 0,$3fff,$8001000,$2001:new restore{down}{down}":print"run{home}";
+ 7225 print"{home}{home}{clr}{down}{down}edma 0,$4fff,$8000000,$2001:new restore{down}{down}":print"run{home}";
  7230 bank 128
  7240 poke 208,2     : rem no of chars in keyboard buffer
  7250 poke 688,13,13 : rem return

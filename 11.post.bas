@@ -6,7 +6,7 @@
    45 scratch("11temp"):scratch(f$)
    50 rename ("11tokenized") to (f$)
    60 print"{home}{down}{down}{down}{down}run"+chr$(34)+f$:print"{home}{down}{down}";
-   65 key on:key16,"edma 0,$3fff,$8001000,$2001:new restore"+chr$(13)+"run"+chr$(13)
+   65 key on:key16,"edma 0,$4fff,$8000000,$2001:new restore"+chr$(13)+"run"+chr$(13)
    66 bank 128
    68 poke 208,1:poke 688,13
    70 new

@@ -45,7 +45,7 @@
   530 bank 0
   540 do:gett$:loopwhilet$<>""
   550 gosub 1030: rem load modules
-  555 key on:key16,"edma 0,$3fff,$8001000,$2001:new restore"+chr$(13)+"run"+chr$(13)
+  555 key on:key16,"edma 0,$4fff,$8000000,$2001:new restore"+chr$(13)+"run"+chr$(13)
   560 if lp=0 then goto 1160: else goto 1300: rem load editor or prefs
   570 rem --- load settings to mailbox ram
   580 t$=chr$(peek($4ff00))+chr$(peek($4ff01))
@@ -96,7 +96,7 @@
  1030 rem --- load modules
  1040 :
  1050 print"installing editor..."
- 1060 bload "11.edit",p($8001000)
+ 1060 bload "11.edit",p($8000000)
  1070 print"installing parser..."
  1080 bload "11.parse",p($8005000)
  1090 print"installing prefs..."
@@ -108,7 +108,7 @@
  1150 return
  1160 rem --- chain load editor
  1170 :
- 1180 print"{home}{home}{clr}{down}{down}edma 0,$3fff,$8001000,$2001:new restore":print"{down}{down}run{home}";
+ 1180 print"{home}{home}{clr}{down}{down}edma 0,$4fff,$8000000,$2001:new restore":print"{down}{down}run{home}";
  1190 bank 128
  1200 :
  1210 rem hack: load next module in direct mode
