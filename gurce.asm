@@ -7,7 +7,7 @@
 "farRptrb = $e0"
 ""
 "             .bank 4"
-"             *=$2000 ; so it doesn't collide with mega assembler in bank0"
+"             *=$2000 ;,'gurce'"
 ""
 "             ; basic needs to feed in pointers to tr$ and s$ here"
 "             ; --------------------------------------------------"

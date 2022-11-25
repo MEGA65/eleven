@@ -59,12 +59,15 @@
   590     if vb thenprint ">>"ln;sl;cl$
   600     if left$(cl$,1)="." thennl=1:gosub1500: rem label
   645     if left$(cl$,1)="#" thenbegin
-  648       cc=1
+  646       cc=1
+  647       if instr(cl$,"ifdef")=2 then s$=mid$(cl$,8):gosub 9210:dl=1
+  648       if instr(cl$,"endif")=2 then sh=0:dl=1
   649       if instr(cl$,"define")=2 thendf=1:gosub1000
   650       if instr(cl$,"declare")=2 thendf=0:gosub1000
   651       if instr(cl$,"output")=2 thengosub1200
   652     bend
-  653     if left$(cl$,4)="data" then nl=1
+  653   if sh=1 then goto 750
+  654     if left$(cl$,4)="data" then nl=1
   655     if dl=0 thenbegin
   656       if vb=0 thenprint ".";
   660 :     s$=cl$
@@ -356,3 +359,9 @@
  9180   cl=cl+1
  9190 loop
  9200 return
+ 9210 rem --- define in s$ exists?
+ 9220 sh = 1
+ 9230 fork=0toec(4)
+ 9240 if vt$(4,k) = s$ then sh=0
+ 9250 nextk
+ 9260 return
