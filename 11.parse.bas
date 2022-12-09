@@ -58,14 +58,14 @@
   586     dl=0 : rem delete line flag
   590     if vb thenprint ">>"ln;sl;cl$
   600     if left$(cl$,1)="." thennl=1:gosub1500: rem label
-  645     if left$(cl$,1)="#" thenbegin
-  646       cc=1
-  647       if instr(cl$,"ifdef")=2 then s$=mid$(cl$,8):gosub 9210:dl=1
-  648       if instr(cl$,"endif")=2 then sh=0:dl=1
-  649       if instr(cl$,"define")=2 thendf=1:gosub1000
-  650       if instr(cl$,"declare")=2 thendf=0:gosub1000
-  651       if instr(cl$,"output")=2 thengosub1200
-  652     bend
+  601     if left$(cl$,1)="#" thenbegin
+  602       cc=1
+  603       if instr(cl$,"ifdef")=2 then s$=mid$(cl$,8):gosub 9210:dl=1
+  604       if instr(cl$,"endif")=2 then sh=0:dl=1
+  605       if instr(cl$,"define")=2 thendf=1:gosub1000
+  606       if instr(cl$,"declare")=2 thendf=0:gosub1000
+  607       if instr(cl$,"output")=2 thengosub1200
+  650     bend
   653   if sh=1 then goto 750
   654     if left$(cl$,4)="data" then nl=1
   655     if dl=0 thenbegin
@@ -138,7 +138,7 @@
  1048 : bend
  1050 : if b1<>0 and b2<>0 thenbegin : rem --- dimension
  1052 :   di$=mid$(p$,b1+1,b2-b1-1) : p$=left$(p$,b1-1)
- 1054 :   if val(di$)=0 thenprint "??":stop
+ 1054 :   s$=di$:gosub 3000:di$=s$ : rem check for define tokens
  1058 :   dl=0
  1060 : bend
  1062 : ty=0 : rem var type
