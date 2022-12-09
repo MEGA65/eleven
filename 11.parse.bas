@@ -137,12 +137,12 @@
  1046 :   if left$(vl$,1)="%"thenbi$=mid$(vl$,2):gosub4800:vl$=c$
  1048 : bend
  1050 : if b1<>0 and b2<>0 thenbegin : rem --- dimension
- 1052 :   di$=mid$(p$,b1+1,b2-b1-1) : p$=left$(p$,b1-1)
- 1054 :   s$=di$:gosub 3000:di$=s$ : rem check for define tokens
+ 1052 :   di$=mid$(p$,b1+1,b2-b1-1) : pp$=left$(p$,b1-1)
+ 1054 :   s$=di$:gosub 3000:di$=s$:p$=pp$: rem check for define tokens
  1058 :   dl=0
  1060 : bend
  1062 : ty=0 : rem var type
- 1064 : t$=right$(p$,1) : rem type (if any) in t$
+ 1064 : t$=right$(p$,1): rem type (if any) in t$
  1066 : if vb thenprint "adding {rvon}";
  1068 : if instr("%&$",t$)=0 thent$="":ty=0
  1069 : if df=1 thenty=4
