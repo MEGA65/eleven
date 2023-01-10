@@ -8,8 +8,7 @@ assignees: ''
 ---
 
 **Test Environment (required)**
- - Tools Platform: (Linux, MacOS, Windows)
- - Tools Version: (m65 -h)
+ - Eleven Version: 
  - MEGA65 Platform: (DevKit, MEGA65, NexysA7, xemu)
  - ROM Release: (i.e. 920XXX)
  - Core Commit: (7 digit hex number, press MEGA-TAB)
