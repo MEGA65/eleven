@@ -25,6 +25,9 @@
   123 dim df$(200)              : rem define values table
   125 dim lb$(200),ll(200):lc=0 : rem label table & count
   126 dim al$(32)               : rem argument list
+  127 dim sn$(30)               : rem struct names
+  128 dim sv$(30)               : rem struct vars (each entry has string of vars)
+  129 ss=0                      : rem index to next free struct definition
   130 :
   131 rem ------------------------- pass 1 ------------------------------------
   135 :
@@ -36,15 +39,7 @@
   195 clr ti: rem keep start time for timing
   198 cb=$8010000:ca=cb:tl=peek(ca)+256*peek(ca+1):ca=ca+2
   200 do while rl<>tl : rem until target lines is reached
-  207   bank 0
-  210   l=peek(ca):cl$=left$(bl$,l):p=pointer(cl$):ca=ca+1
-  220   b=$10000+peek(p+1)+256*peek(p+2)
-  230   if l<>0 then edma 0,l,ca,b : ca=ca+l
-  240   rl=rl+1
-  340   tr$=wh$:s$=cl$:gosub2000:cl$=s$
-  400   q = 0 : rem quotes on
-  420   ct = 0 : rem cut chars from tail
-  421   bank 1
+  207   gosub 9500:rem read next line into cl$
   422   ct=instr(cl$,"'"): if ct=0 thengoto580
   423   if instr(cl$,chr$(34))=0 thengoto540
   424   ct=0
@@ -62,32 +57,26 @@
   602       cc=1
   603       if instr(cl$,"ifdef")=2 then s$=mid$(cl$,8):gosub 9210:dl=1
   604       if instr(cl$,"endif")=2 then sh=0:dl=1
-  605       if instr(cl$,"define")=2 thendf=1:gosub1000
+  605       if instr(cl$,"define")=2 thendf=1:gosub1000:df=0
   606       if instr(cl$,"declare")=2 thendf=0:gosub1000
   607       if instr(cl$,"output")=2 thengosub1200
+  608       if instr(cl$,"struct")=2 then gosub9300:dl=1
   650     bend
-  653   if sh=1 then goto 750
+  653     if sh=1 then goto 750
   654     if left$(cl$,4)="data" then nl=1
   655     if dl=0 thenbegin
   656       if vb=0 thenprint ".";
-  660 :     s$=cl$
-  670 :     gosub3007
-  672 if right$(l$,1)="_" then l$=left$(l$,len(l$)-1):nl=0:cn=1:else cn=0
-  675 :     if len(l$)+len(s$)+len(str$(ln))>=159 thennl=1
-  700 :     if nl=1 thenbegin
-  705 :       li$(ln)=l$:l$=s$
-  710 :       ln%(ln)=sl:
-  720 :       ln=ln+1 : nl=0
-  721 :     bend : elsebegin rem -- add to l$
-  722 :       if l$<>"" and cn=0 and right$(l$,1)<>":" thenl$=l$+":"
-  725 :       l$=l$+s$
-  730 :     bend
-  731 :     if vb thenprint "<<"ln;s$
-  732 :     if right$(s$,4)="bend" or right$(s$,6)="return" or left$(s$,2)="if" thennl=1
-  735 :   bend
-  740 : bend
-  750 : sl=sl+1 : rem increase source code line (for error msgs...)
-  755 if vb then print "sl=";sl:getkey z$
+  660       s$=cl$
+  670       gosub3007:rem replace vars & labels in s$
+  671       gosub9600:rem check for creation of struct object
+  672       if right$(l$,1)="_" then l$=left$(l$,len(l$)-1):nl=0:cn=1:else cn=0
+  675       gosub 9800:rem safe add l$ to current or next li$(ln)
+  731       if vb thenprint "<<"ln;s$
+  732       if right$(s$,4)="bend" or right$(s$,6)="return" or left$(s$,2)="if" thennl=1
+  735     bend : rem endif dl=0
+  740   bend : rem endif c$<>""
+  750   sl=sl+1 : rem increase source code line (for error msgs...)
+  755   if vb then print "sl=";sl:getkey z$
   760 loop
   765 if l$<>"" thenli$(ln)=l$:ln=ln+1
   780 close 1
@@ -127,8 +116,13 @@
  1012 rem (ib=ignore brackets)
  1015 nl$="" : rem new line if dimensioning...
  1020 if ac<0 thenprint "?declare parameter missing in line ";sl:goto1800
- 1030 for i=0 to ac
- 1031 : p$=al$(i) : di$="" : vl$=""
+ 1021 for i=0 to ac
+ 1022   p$=al$(i):gosub 1030:rem parse declared var
+ 1023 next i
+ 1024 if nl$<>"" thendl=0:cl$="^^":else dl=1
+ 1025 return
+ 1030 rem --- parse declared var
+ 1031 : di$="" : vl$=""
  1032 : b1=instr(p$,"("):b2=instr(p$,")"):eq=instr(p$,"=")
  1035 : if eq<>0 thenbegin : rem --- assignment
  1036 :   vl$=mid$(p$,eq+1):p$=left$(p$,eq-1):tr$=wh$:s$=p$:gosub2050:p$=s$
@@ -138,7 +132,7 @@
  1048 : bend
  1050 : if b1<>0 and b2<>0 thenbegin : rem --- dimension
  1052 :   di$=mid$(p$,b1+1,b2-b1-1) : pp$=left$(p$,b1-1)
- 1054 :   s$=di$:gosub 3000:di$=s$:p$=pp$: rem check for define tokens
+ 1054 :   s$=di$:dz=1:gosub 3000:dz=0:di$=s$:p$=pp$: rem check for define tokens
  1058 :   dl=0
  1060 : bend
  1062 : ty=0 : rem var type
@@ -161,9 +155,7 @@
  1093 : if df=1 then df$(ec(ty))=vl$
  1099 : if vb thenprint p$;"{rvof}: ";ec(ty)
  1100 : ec(ty)=ec(ty)+1
- 1120 next i
- 1125 if nl$<>"" thendl=0:cl$="^^"+nl$:elsedl=1
- 1130 return
+ 1120 return
  1200 s$=mid$(cl$,8):d$=",;":gosub2100
  1210 if ac<>0 thenprint "?invalid parameters in line ";ln%(sl):end
  1220 s$=al$(0):tr$=q$:gosub2000:gosub2050: rem trim quotes left & right
@@ -230,9 +222,9 @@
  3007 if left$(s$,2)="^^" thens$=right$(s$,len(s$)-2):return
  3010 q=0:a$="":c$=""
  3012 d$="<>=+-#*/^,.:;() "
- 3020 for i=1 to len(s$):b$=mid$(s$,i,1)
- 3040 if b$=q$ thenbegin : q=abs(q-1)
- 3042 if q=1 thengosub4000:a$=a$+c$:c$="":elsea$=a$+b$:b$=""
+ 3020 for ii=1 to len(s$):b$=mid$(s$,ii,1)
+ 3040   if b$=q$ thenbegin : q=abs(q-1)
+ 3042   if q=1 thengosub4000:a$=a$+c$:c$="":elsea$=a$+b$:b$=""
  3044 bend
  3050 if q=1 thena$=a$+b$:goto3200
  3060 if instr(d$,b$)<>0 thenbegin
@@ -247,7 +239,7 @@
  4000 if c$="" or c$="_" thenreturn
  4001 if val(c$)<>0 thentg=0: return     : rem never change numbers
  4002 if c$="0" thenc$=".":return        : rem stupid ms basic optimization
- 4005 if tg thengosub4500:tg=0:return   : rem replace label
+ 4005 if tg and dz=0 thengosub4500:tg=0:return   : rem replace label
  4006 if c$="goto" thennl=1
  4007 if c$="goto" or c$="gosub" or c$="trap" thentg=1
  4008 dr=0 : rem did replace flag
@@ -267,6 +259,11 @@
  4071 for id=0 to ec(4):rem check defines table too
  4072   if c$=vt$(4,id) then c$=df$(id):return
  4073 next id
+ 4074 ci=-1
+ 4075 for id=0 to ss-1:rem check struct names
+ 4076   if c$=sn$(id) then gosub 9600:ci=id:id=ss-1:rem create new struct object
+ 4077 next id
+ 4078 if ci<>-1 then return
  4080 print "?unresolved identifier: '";+c$;"' in line ";sl:sleep 1
  4081 bank 4:poke dec("ff08"),128 : rem set error mailbox flag
  4082 poke dec("ff09"),mod(sl,256):poke dec("ff0a"),sl/256
@@ -277,7 +274,7 @@
  4090 return
  4091 :
  4092 :
- 4500 c$=mk$+c$+mk$  : return : rem mark label
+ 4500 c$=mk$+c$+mk$ : return : rem mark label
  4505 dr=0
  4510 for id=0 to lc-1
  4520 if c$=lb$(id) thenc$=str$(ll(id)):id=lc:dr=1
@@ -365,3 +362,63 @@
  9240 if vt$(4,k) = s$ then sh=0
  9250 nextk
  9260 return
+ 9300 rem --- read in struct details
+ 9305 cl$=mid$(cl$,9):gosub 9400:rem get next token in s$
+ 9307 if s$="" then print "error: no struct name found":sleep 1:return
+ 9310 sn$(ss) = s$
+ 9320 sv$(ss) = cl$
+ 9325 ss=ss+1
+ 9330 return
+ 9400 rem --- read next token from cl$ into s$
+ 9410 s$=cl$:gosub2000:gosub 2050:cl$=s$
+ 9415 a=instr(cl$," ")
+ 9420 if a<>0 then s$=mid$(cl$,1,instr(cl$," ")-1):cl$=mid$(cl$,instr(cl$," ")+1)
+ 9430 if a=0 then s$=cl$:cl$=""
+ 9440 return
+ 9500 rem --- read next line
+ 9510 bank 0
+ 9520 l=peek(ca):cl$=left$(bl$,l):p=pointer(cl$):ca=ca+1
+ 9530 b=$10000+peek(p+1)+256*peek(p+2)
+ 9540 if l<>0 then edma 0,l,ca,b : ca=ca+l
+ 9550 rl=rl+1
+ 9560 tr$=wh$:s$=cl$:gosub2000:cl$=s$
+ 9570 q = 0 : rem quotes on
+ 9580 ct = 0 : rem cut chars from tail
+ 9590 bank 1
+ 9595 return
+ 9600 rem --- check for creation of struct object
+ 9610 co$=cl$:zz=-1:rem preserve original string
+ 9620 gosub 9400:rem read next token from cl$ into s$
+ 9625 print "s$=";s$
+ 9630 for zi=0 to ss
+ 9640   if s$=sn$(zi) then zz=zi:zi=ss
+ 9650 next zi
+ 9660 if zz=-1 then cl$=co$:return
+ 9662 gosub 9400:sk$=s$:rem get struct object name
+ 9664 print "sk$=";sk$:bl=instr(sk$,"(")
+ 9670 rem *** found it, so make dim's for each member var
+ 9680 s$=sv$(zz):gosub 2100:rem parse args into al$(), ac
+ 9685 getkey a$:zz=1
+ 9690 for zi=0 to ac
+ 9691   if al$(zi)<>"" then begin
+ 9692     print "al$(";zi;")=";al$(zi):getkey a$
+ 9693     if bl=0 then s$=sk$+"{CBM-P}"+al$(zi):print "struct: ";s$:p$=s$:gosub 1030
+ 9694     if bl<>0 then s$=left$(sk$,bl-1)+"{CBM-P}"+al$(zi)+mid$(sk$,bl):print "struct: ";s$:p$=s$:gosub 1030
+ 9695     rem if nl$<>"" then dl=0:cl$="^^"+nl$:else dl=1
+ 9696   bend
+ 9700 next zi
+ 9702 getkey a$
+ 9705 rem *** todo: read name of object, then members ***
+ 9709 cl$=co$
+ 9710 return
+ 9800 rem --- safe add l$ to current orclosenext li$(ln)
+ 9810 if len(l$)+len(s$)+len(str$(ln))>=159 thennl=1
+ 9820 if nl=1 thenbegin
+ 9830   li$(ln)=l$:l$=s$
+ 9840   ln%(ln)=sl:
+ 9850   ln=ln+1 : nl=0
+ 9860 bend : elsebegin rem -- add to l$
+ 9870   if l$<>"" and cn=0 and right$(l$,1)<>":" thenl$=l$+":"
+ 9880   l$=l$+s$
+ 9890 bend
+ 9895 return
