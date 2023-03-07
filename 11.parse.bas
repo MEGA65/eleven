@@ -25,7 +25,7 @@
   123 dim df$(200)              : rem define values table
   125 dim lb$(200),ll(200):lc=0 : rem label table & count
   126 dim al$(32)               : rem argument list
-  127 dim sn$(30)               : rem struct names
+  127 dim sn$(30),sk$(30)       : rem struct names, fields
   128 dim sv$(30)               : rem struct vars (each entry has string of vars)
   129 ss=0                      : rem index to next free struct definition
   130 :
@@ -70,8 +70,7 @@
   670       gosub3007:rem replace vars & labels in s$
   671       gosub9600:rem check for creation of struct object
   672       if right$(l$,1)="_" then l$=left$(l$,len(l$)-1):nl=0:cn=1:else cn=0
-  675       gosub 9800:rem safe add l$ to current or next li$(ln)
-  731       if vb thenprint "<<"ln;s$
+  675       gosub 9800:rem safe add l$+s$ to current or next li$(ln)
   732       if right$(s$,4)="bend" or right$(s$,6)="return" or left$(s$,2)="if" thennl=1
   735     bend : rem endif dl=0
   740   bend : rem endif c$<>""
@@ -119,7 +118,7 @@
  1021 for i=0 to ac
  1022   p$=al$(i):gosub 1030:rem parse declared var
  1023 next i
- 1024 if nl$<>"" thendl=0:cl$="^^":else dl=1
+ 1024 if nl$<>"" thendl=0:cl$="^^"+nl$:else dl=1
  1025 return
  1030 rem --- parse declared var
  1031 : di$="" : vl$=""
@@ -387,32 +386,47 @@
  9590 bank 1
  9595 return
  9600 rem --- check for creation of struct object
- 9610 co$=cl$:zz=-1:rem preserve original string
+ 9610 co$=s$:cl$=s$:zz=-1:rem preserve original string
  9620 gosub 9400:rem read next token from cl$ into s$
- 9625 print "s$=";s$
  9630 for zi=0 to ss
  9640   if s$=sn$(zi) then zz=zi:zi=ss
  9650 next zi
  9660 if zz=-1 then cl$=co$:return
  9662 gosub 9400:sk$=s$:rem get struct object name
- 9664 print "sk$=";sk$:bl=instr(sk$,"(")
+ 9664 bl=instr(sk$,"(")
  9670 rem *** found it, so make dim's for each member var
  9680 s$=sv$(zz):gosub 2100:rem parse args into al$(), ac
- 9685 getkey a$:zz=1
+ 9685 zz=1:sz=0
  9690 for zi=0 to ac
  9691   if al$(zi)<>"" then begin
- 9692     print "al$(";zi;")=";al$(zi):getkey a$
+ 9692     print "al$(";zi;")=";al$(zi)
  9693     if bl=0 then s$=sk$+"{CBM-P}"+al$(zi):print "struct: ";s$:p$=s$:gosub 1030
- 9694     if bl<>0 then s$=left$(sk$,bl-1)+"{CBM-P}"+al$(zi)+mid$(sk$,bl):print "struct: ";s$:p$=s$:gosub 1030
+ 9694     if bl<>0 then s$=left$(sk$,bl-1)+"{CBM-P}"+al$(zi)+mid$(sk$,bl):print "struct: ";s$:p$=s$:gosub 1030:sk$(sz)=p$:sz=sz+1
  9695     rem if nl$<>"" then dl=0:cl$="^^"+nl$:else dl=1
  9696   bend
  9700 next zi
- 9702 getkey a$
- 9705 rem *** todo: read name of object, then members ***
- 9709 cl$=co$
- 9710 return
- 9800 rem --- safe add l$ to current orclosenext li$(ln)
+ 9701 s$=nl$:gosub 9800:nl$="":rem safe add l$+s$ to current li$(ln)
+ 9702 gosub 9400:if s$<>"=" then cl$="":return
+ 9703 gosub 9400:sz=0:sr=0:sm=0:rem read next token from cl$ into s$
+ 9704 do while s$<>""
+ 9705     if s$="_" then sl=sl+1:gosub 9500:goto 9716:rem read next line
+ 9706   if sm=0 and s$<>"[" then print "error: expected [":sleep 1:stop
+ 9707   if sm=0 and s$="[" then sm=1:goto 9716
+ 9708   if sm=1 and s$<>"[" and s$<>"]" then print "error: expected [ or ]":sleep 1:stop
+ 9709   if sm=2 then begin
+ 9710     if left$(s$,1)="]" then sr=sr+1:sz=0:sm=1:s$="":goto 9713:rem next row
+ 9711     if right$(s$,1)="," then s$=left$(s$,len(s$)-1)
+ 9712     s$=sk$(sz)+"("+str$(sr)+")="+s$:gosub 3007:gosub 9800:s$="":sz=sz+1:rem safe add to li$(ln)
+ 9713   bend
+ 9714   if sm=1 and s$="[" then sm=2:sz=0
+ 9715   if sm=1 and s$="]" then sm=0
+ 9716   gosub 9400:rem read next token from cl$ into s$
+ 9720 loop
+ 9730 s$="":cl$="":nl$=""::zz$="z"
+ 9790 return
+ 9800 rem --- safe add l$+s$ to current orclosenext li$(ln)
  9810 if len(l$)+len(s$)+len(str$(ln))>=159 thennl=1
+ 9815 if zz$<>"" then s$="":zz$="":return:rem force s$ to empty
  9820 if nl=1 thenbegin
  9830   li$(ln)=l$:l$=s$
  9840   ln%(ln)=sl:
@@ -421,4 +435,5 @@
  9870   if l$<>"" and cn=0 and right$(l$,1)<>":" thenl$=l$+":"
  9880   l$=l$+s$
  9890 bend
+ 9892 if vb then print "<<"ln;s$
  9895 return
