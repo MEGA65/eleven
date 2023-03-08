@@ -4,7 +4,7 @@
     5 print "{rvon}ELEVEN preprocessor v0.4.6{rvof}":print
     6 key7,"scratch"+q$+pn$+q$+":dsave"+chr$(34)+pn$+q$+":dverify"+q$+pn$
     8 t$="                                                                               ":bl$=t$+t$+t$:t$=""
-   10 rw$(0)=" print input if then else do loop while until gosub goto open close dopen dclose for next getkey hex$ dim peek poke wait dec chr$ asc sgn sqr"
+   10 rw$(0)=" print input if then else do loop while until gosub goto open close dopen dclose for next getkey hex$ dim peek poke wait dec chr$ asc sgn sqr str$"
    20 rw$(0)=rw$(0)+" graphic clr screen def begin bend len mid$ right$ left$ instr for next step trap border and foreground "
    30 rw$(1)=" background set abs sin cos tan log fre cursor pixel window rwindow line box circle ellipse palette restore data err$ er el cursor on off"
    35 rw$(1)=rw$(1)+" val scratch return rnd stop bank ti do or st if el er on to pen get end int not ds run using "
@@ -391,7 +391,7 @@
  9630 for zi=0 to ss
  9640   if s$=sn$(zi) then zz=zi:zi=ss
  9650 next zi
- 9660 if zz=-1 then cl$=co$:return
+ 9660 if zz=-1 then cl$=co$:s$=co$:return
  9662 gosub 9400:sk$=s$:rem get struct object name
  9664 bl=instr(sk$,"(")
  9670 rem *** found it, so make dim's for each member var
