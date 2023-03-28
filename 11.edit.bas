@@ -557,20 +557,20 @@
  8610 end
  9000 rem --- copy line buffer to attic ram
  9020 cb=$8010000 : c=cb
- 9025 sprdef c,nl+1 : c=c+2 : rem store no of lines
+ 9025 wpoke c,nl+1 : c=c+2 : rem store no of lines
  9030 for a=0 to nl
- 9040   p=pointer(li$(a)):l=len(li$(a)):b=$10000+($ce10)(p+1)
+ 9040   p=pointer(li$(a)):l=len(li$(a)):b=$10000+wpeek(p+1)
  9050   poke c,l : c=c+1
  9060   if l<>0 thenedma 0,l,b,c:c=c+l
  9070 next
  9080 return
  9100 rem --- copy attic ram to line buffer
  9110 cb=$8010000 : c=cb
- 9120 nl=($ce10)(c):c=c+2
+ 9120 nl=wpeek(c):c=c+2
  9130 cl=0
  9140 do while cl<>nl
  9150   l=peek(c):li$(cl)=left$(bl$,l):p=pointer(li$(cl))
- 9155   b=$10000+($ce10)(p+1):c=c+1
+ 9155   b=$10000+wpeek(p+1):c=c+1
  9165   if l<>0 then edma 0,l,c,b : c=c+l
  9180   cl=cl+1
  9190 loop
