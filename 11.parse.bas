@@ -63,7 +63,7 @@
   608       if instr(cl$,"struct")=2 then gosub9300:dl=1
   650     bend
   653     if sh=1 then goto 750
-  654     if left$(cl$,4)="data" then nl=1
+  654     if left$(cl$,4)="data" or right$(cl$,5)="begin" then nl=1
   655     if dl=0 thenbegin
   656       if vb=0 thenprint ".";
   660       s$=cl$
