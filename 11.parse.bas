@@ -369,9 +369,11 @@
  9325 ss=ss+1
  9330 return
  9400 rem --- read next token from cl$ into s$
- 9410 s$=cl$:gosub2000:gosub 2050:cl$=s$
- 9415 a=instr(cl$," ")
- 9420 if a<>0 then s$=mid$(cl$,1,instr(cl$," ")-1):cl$=mid$(cl$,instr(cl$," ")+1)
+ 9410 s$=cl$:gosub 2000:gosub 2050:cl$=s$
+ 9411 sf$=" ":sf=0
+ 9412 if left$(s$,1)=q$ then sf$=q$+", ":sf=2
+ 9415 a=instr(cl$,sf$)
+ 9420 if a<>0 then s$=mid$(cl$,1,instr(cl$,sf$)+sf-1):cl$=mid$(cl$,instr(cl$,sf$)+sf+1)
  9430 if a=0 then s$=cl$:cl$=""
  9440 return
  9500 rem --- read next line
@@ -409,18 +411,19 @@
  9702 gosub 9400:if s$<>"=" then cl$="":return
  9703 gosub 9400:sz=0:sr=0:sm=0:rem read next token from cl$ into s$
  9704 do while s$<>""
- 9705     if s$="_" then sl=sl+1:gosub 9500:goto 9716:rem read next line
+ 9705     if s$="_" then sl=sl+1:gosub 9500:goto 9717:rem read next line
  9706   if sm=0 and s$<>"[" then print "error: expected [":sleep 1:stop
- 9707   if sm=0 and s$="[" then sm=1:goto 9716
+ 9707   if sm=0 and s$="[" then sm=1:goto 9717
  9708   if sm=1 and s$<>"[" and s$<>"]" then print "error: expected [ or ]":sleep 1:stop
  9709   if sm=2 then begin
- 9710     if left$(s$,1)="]" then sr=sr+1:sz=0:sm=1:s$="":goto 9713:rem next row
- 9711     if right$(s$,1)="," then s$=left$(s$,len(s$)-1)
- 9712     s$=sk$(sz)+"("+str$(sr)+")="+s$:gosub 3007:gosub 9800:s$="":sz=sz+1:rem safe add to li$(ln)
- 9713   bend
- 9714   if sm=1 and s$="[" then sm=2:sz=0
- 9715   if sm=1 and s$="]" then sm=0
- 9716   gosub 9400:rem read next token from cl$ into s$
+ 9710     if left$(s$,1)="]" then sr=sr+1:sz=0:sm=1:s$="":goto 9714:rem next row
+ 9711 rem if left$(s$,1)=q$ then ss$=s$:tr$="":do while right$(ss$,2)<>(q$+","):gosub9400:ss$=ss$+s$:printss$:loop:s$=ss$:tr$=wh$:stop
+ 9712     if right$(s$,1)="," then s$=left$(s$,len(s$)-1)
+ 9713     s$=sk$(sz)+"("+str$(sr)+")="+s$:gosub 3007:gosub 9800:s$="":sz=sz+1:rem safe add to li$(ln)
+ 9714   bend
+ 9715   if sm=1 and s$="[" then sm=2:sz=0
+ 9716   if sm=1 and s$="]" then sm=0
+ 9717   gosub 9400:rem read next token from cl$ into s$
  9720 loop
  9730 s$="":cl$="":nl$=""::zz$="z"
  9790 return
