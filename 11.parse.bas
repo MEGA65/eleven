@@ -245,7 +245,7 @@
  4009 if left$(c$,1)="$" thenhx$=mid$(c$,2):gosub4900:return
  4010 if left$(c$,1)="%" thenbi$=mid$(c$,2):gosub4800:return
  4011 p$=" "+c$+" "
- 4012 for t=0 to 6:if instr(rw$(t),p$)<>0 thenreturn
+ 4012 for t=0 to 6:if instr(rw$(t),p$)<>0 then lc$=c$:return
  4013 next
  4014 t$=right$(c$,1):ty=0
  4015 if t$="%" thenty=1
@@ -263,6 +263,7 @@
  4076   if c$=sn$(id) then gosub 9600:ci=id:id=ss-1:rem create new struct object
  4077 next id
  4078 if ci<>-1 then return
+ 4079 if lc$="dopen" and (c$="r" or c$="u8") then r
  4080 print "?unresolved identifier: '";+c$;"' in line ";sl:sleep 1
  4081 bank 4:poke dec("ff08"),128 : rem set error mailbox flag
  4082 poke dec("ff09"),mod(sl,256):poke dec("ff0a"),sl/256
