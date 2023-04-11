@@ -1,18 +1,24 @@
     1 clr
     2 pn$="11.parse":mk$="@~":q$=chr$(34):h=34:y=39
     4 key on
-    5 print "{rvon}ELEVEN preprocessor v0.4.6{rvof}":print
+    5 print "{rvon}ELEVEN preprocessor v0.5.0{rvof}":print
     6 key7,"scratch"+q$+pn$+q$+":dsave"+chr$(34)+pn$+q$+":dverify"+q$+pn$
     8 t$="                                                                               ":bl$=t$+t$+t$:t$=""
    10 rw$(0)=" print input if then else do loop while until gosub goto open close dopen dclose for next getkey hex$ dim peek poke wait dec chr$ asc sgn sqr"
-   20 rw$(0)=rw$(0)+" graphic clr screen def begin bend len mid$ right$ left$ instr for next step trap border and foreground "
-   30 rw$(1)=" background set abs sin cos tan log fre cursor pixel window rwindow line box circle ellipse palette restore data err$ er el cursor on off"
-   35 rw$(1)=rw$(1)+" val scratch return rnd stop bank ti do or st if el er on to pen get end int not ds run using "
-   70 rw$(2)=" append atn auto backup bload boot bsave bump bverify catalog change char cmd collision color conat cont copy"
-   71 rw$(3)=" dclear deffn delete fn dir disk dload dma dmode dpat dsave dverify envelope erase exit exp fast filter find go64 header help highlight "
-   72 rw$(4)=" joy list load locate lpen mod monitor mouse movspr new paint play pointer polygon pos pot pudef "
-   73 rw$(5)=" rclr rdot read record rem rename resume rgr rmouse rreg rspcolor rsppos rsprite save scnclr sleep slow sond spc sprcolor "
-   75 rw$(6)=" sprite sprsav sys tab tempo troff tron type usr verify vol xor key "
+   20 rw$(1)=" graphic clr screen def begin bend len mid$ right$ left$ instr for next step trap border and foreground "
+   30 rw$(2)=" background set abs sin cos tan log fre cursor pixel window rwindow line box circle ellipse palette restore data err$ er el cursor on off"
+   35 rw$(3)=" val scratch return rnd stop bank ti do or st if el er on to pen get end int not ds run using "
+   70 rw$(4)=" append atn auto backup bload boot bsave bump bverify catalog change char cmd collision color conat cont copy"
+   71 rw$(5)=" dclear deffn delete fn dir disk dload dma dmode dpat dot dsave dverify envelope erase exit exp fast filter find go64 header help highlight "
+   72 rw$(6)=" joy list load locate lpen mod monitor mouse movspr new paint play pointer polygon pos pot pudef "
+   73 rw$(7)=" rclr rdot read record rem rename resume rgr rmouse rreg rspcolor rsppos rsprite save scnclr sleep slow sond spc sprcolor "
+   75 rw$(8)=" sprite sprsav sys tab tempo troff tron type usr verify vol xor key vsync wpeek wpoke edma "
+   76 rw$(0)=rw$(0)+rw$(1)
+   77 rw$(1)=rw$(2)+rw$(3)
+   78 rw$(2)=rw$(4)+rw$(5)
+   79 rw$(3)=rw$(6)+rw$(7)
+   80 rw$(4)=rw$(8):forr=5to8:rw$(r)="":nextr
+   85 dc$=" bload bsave dload save dir collect dopen dclose backup "
    90 gosub7020: rem get filename
   100 bank128:poke 0,65
   110 pf$(0)="":pf$(1)="%":pf$(2)="$":pf$(3)="&"
@@ -64,22 +70,22 @@
   652     bend
   655     if dl=0 thenbegin
   656       if vb=0 thenprint ".";
-  660 :     s$=cl$
-  670 :     gosub3007
-  675 :     if len(l$)+len(s$)+len(str$(ln))>=159 thennl=1
-  700 :     if nl=1 thenbegin
-  705 :       li$(ln)=l$:l$=s$
-  710 :       ln%(ln)=sl:
-  720 :       ln=ln+1 : nl=0
-  721 :     bend : elsebegin rem -- add to l$
-  722 :       if l$<>"" and right$(l$,1)<>":" thenl$=l$+":"
-  725 :       l$=l$+s$
-  730 :     bend
-  731 :     if vb thenprint "<<"ln;s$
-  732 :     if right$(s$,4)="bend" or right$(s$,6)="return" or left$(s$,2)="if" thennl=1
-  735 :   bend
-  740 : bend
-  750 : sl=sl+1 : rem increase source code line (for error msgs...)
+  660       s$=cl$
+  670       gosub3007
+  675      if len(l$)+len(s$)+len(str$(ln))>=159 thennl=1
+  700      if nl=1 thenbegin
+  705        li$(ln)=l$:l$=s$
+  710        ln%(ln)=sl:
+  720         ln=ln+1 : nl=0
+  721       bend : elsebegin rem -- add to l$
+  722        if l$<>"" and right$(l$,1)<>":" thenl$=l$+":"
+  725         l$=l$+s$
+  730      bend
+  731       if vb thenprint "<<"ln;s$
+  732      if right$(s$,4)="bend" or right$(s$,6)="return" or left$(s$,2)="if" thennl=1
+  735     bend
+  740   bend
+  750   sl=sl+1 : rem increase source code line (for error msgs...)
   760 loop
   765 if l$<>"" thenli$(ln)=l$:ln=ln+1
   780 close 1
@@ -118,7 +124,7 @@
  1010 s$=mid$(cl$,10):d$=",;":ib=1:gosub2100:ib=0: rem split parameters
  1012 rem (ib=ignore brackets)
  1015 nl$="" : rem new line if dimensioning...
- 1020 if ac<0 thenprint "?declare parameter missing in line ";sl:goto1800
+ 1020 if ac<0 then pe$="?declare parameter missing in line "+str$(sl):goto1800
  1030 for i=0 to ac
  1031 : p$=al$(i) : di$="" : vl$=""
  1032 : b1=instr(p$,"("):b2=instr(p$,")"):eq=instr(p$,"=")
@@ -170,11 +176,13 @@
  1510 ll(lc)=ln+1
  1520 lc=lc+1 : rem increase label count
  1530 return
- 1800 bank 4:poke dec("ff08"),129 : rem set error mailbox flag
+ 1800 rem return to editor with error
+ 1805 bank 4 : rem set error mailbox
+ 1807 for r=1 to len(pe$):poke $4ff30+r-1,asc(mid$(pe$,r,1)):next r
+ 1808 poke $4ff30+r-1,0
  1810 poke dec("ff09"),mod(sl,256):poke dec("ff0a"),sl/256
  1820 poke dec("ff07"),peek(dec("ff07"))or2 : rem set autojump flag
  1830 dclose
- 1835 clr
  1840 goto7210
  1999 :
  2000 rem -- strip tr$ from beginning of string in s$ --
@@ -218,9 +226,12 @@
  3002 rem    out:  s$ = dest string with replaced items
  3006 :
  3007 if left$(s$,2)="^^" thens$=right$(s$,len(s$)-2):return
- 3010 q=0:a$="":c$=""
- 3012 d$="<>=+-#*/^,.:;() "
+ 3010 q=0:a$="":c$="":ss=0:tg=0
+ 3012 cx$="?<>=+-#*/^,.:;() " : d$=cx$
  3020 for i=1 to len(s$):b$=mid$(s$,i,1)
+ 3025 if b$=":" and q=0 then ss=0:ri=0
+ 3030 if ss and b$="(" then ri=0  : d$=cx$
+ 3035 if ss and b$=")" then ri=-1 : d$=cx$+"dpub"
  3040 if b$=q$ thenbegin : q=abs(q-1)
  3042 if q=1 thengosub4000:a$=a$+c$:c$="":elsea$=a$+b$:b$=""
  3044 bend
@@ -244,7 +255,7 @@
  4009 if left$(c$,1)="$" thenhx$=mid$(c$,2):gosub4900:return
  4010 if left$(c$,1)="%" thenbi$=mid$(c$,2):gosub4800:return
  4011 p$=" "+c$+" "
- 4012 for t=0 to 6:if instr(rw$(t),p$)<>0 thenreturn
+ 4012 for t=0 to 4:if instr(rw$(t),p$)<>0 then gosub4100: return
  4013 next
  4014 t$=right$(c$,1):ty=0
  4015 if t$="%" thenty=1
@@ -254,29 +265,20 @@
  4025 if c$=vt$(ty,id) thengosub5000:c$=vn$+pf$(ty):id=ec(ty):dr=1
  4030 next id
  4070 if dr=1 thenreturn
- 4080 print "?unresolved identifier: ";+c$;" in line ";sl
- 4081 bank 4:poke dec("ff08"),128 : rem set error mailbox flag
- 4082 poke dec("ff09"),mod(sl,256):poke dec("ff0a"),sl/256
- 4083 poke dec("ff07"),peek(dec("ff07"))or2 : rem set autojump flag
- 4085 close1
- 4086 clr
- 4088 goto7210
+ 4080 pe$="?unresolved identifier: "+c$+" in line "+str$(sl):goto 1800
  4090 return
  4091 :
  4092 :
+ 4100 rem check if command triggers shitty syntax mode
+ 4110 if instr(dc$," "+c$+" ") then ss=-1 : ri=-1: d$=cx$+"pub":else ss=0
+ 4120 return
  4500 c$=mk$+c$+mk$  : return : rem mark label
  4505 dr=0
  4510 for id=0 to lc-1
  4520 if c$=lb$(id) thenc$=str$(ll(id)):id=lc:dr=1
  4530 next id
  4540 if dr thenreturn
- 4550 print "?unresolved label: "+c$;" in line";ln%(si-1)
- 4560 bank 4:poke dec("ff08"),130 : rem set unresolved label
- 4562 poke dec("ff09"),mod(ln%(si-1),256):poke dec("ff0a"),ln%(si-1)/256
- 4563 poke dec("ff07"),peek(dec("ff07"))or2 : rem set autojump flag
- 4564 close1
- 4565 clr
- 4566 goto7210
+ 4550 pe$="?unresolved label: "+c$+" in line"+str$(ln%(si-1)):goto1800
  4567 return
  4800 rem --- convert binary
  4810 br=0 : rem result
@@ -311,7 +313,7 @@
  7010 :
  7020 bank 4:ba=dec("ff00")
  7030 if peek(ba+0)=asc("s") and peek(ba+1)=asc("k") thenbegin
- 7040   vb=peek(dec("ff07"))and8
+ 7040   vb=peek(dec("ff07"))and16
  7050   f$="":a=ba+16:dowhilepeek(a)<>0:f$=f$+chr$(peek(a)):a=a+1:loop:
  7060   if peek(dec("ff07"))and1 thenreturn
  7070   print "filename? "+f$:print"{up}";
