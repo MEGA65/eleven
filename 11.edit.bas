@@ -440,10 +440,10 @@
  7520 if mn=0 thenprint"{rvon}{CTRL-O}No labels found{rvof}"+fo$;:ns=1:return
  7530 window 0,0,79,23:print"{clr}"
  7540 fora=0tomn
- 7550 cursor 40*int(a/24),mod(a,24):print mk$(a);:next a
+ 7550 cursor 20*int(a/24),mod(a,24):print mk$(a);:next a
  7560 mp=0
  7570 do
- 7580   sx=40*int(mp/24): sy=mod(mp,24):cursor 0,10
+ 7580   sx=20*int(mp/24): sy=mod(mp,24):cursor 0,10
  7590   cursor sx,sy:print "{rvon}";mk$(mp);"{rvof}";
  7600   getkey t$
  7610   cursor sx,sy:print mk$(mp);

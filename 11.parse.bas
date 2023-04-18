@@ -263,7 +263,7 @@
  4076   if c$=sn$(id) then gosub 9600:ci=id:id=ss-1:rem create new struct object
  4077 next id
  4078 if ci<>-1 then return
- 4079 if lc$="dopen" and (c$="r" or c$="u8") then return
+ 4079 if lc$="dopen" and (c$="r" or c$="u8" or c$="w") then return
  4080 print "?unresolved identifier: '";+c$;"' in line ";sl:sleep 1
  4081 bank 4:poke dec("ff08"),128 : rem set error mailbox flag
  4082 poke dec("ff09"),mod(sl,256):poke dec("ff0a"),sl/256
