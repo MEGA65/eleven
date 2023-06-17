@@ -9,6 +9,7 @@
   110 rem --- general initializations ---
   120 :
   130 trap8560
+  135 palette restore
   140 poke 0,65             : rem m65 fast mode
   150 gosub7940: rem install m/l
   160 pf$="11.edit"
@@ -16,8 +17,8 @@
   180 if rwindow(2)<>80 thenprint chr$(27)+"x";:rem force 80cols mode
   190 gosub7040:rem read defaults
   200 background bg: border bo: foreground fg : print"{home}{home}{clr}{swlc}"+chr$(27)+"m";
-  210 gosub5490:print"{rvon} ee v0.4.6{rvof}";
-  220 key off               : rem enable raw fn keys
+  210 gosub5490:print"{rvon} ee v0.5.0{rvof}";
+  220 gosub 10500           : rem enable raw fn keys
   230 :
   240 mx=2000               : rem max number of lines
   242 es%=0                 : rem escape flag
@@ -36,10 +37,6 @@
   355 dim cb$(50)          : rem clipboard of lines
   360 dim mk$(72),mk(72)   : rem marker table
   370 ee$(0)="variable not declared"
-  380 ee$(1)="variable missing"
-  390 ee$(2)="unresolved reference"
-  400 ee$(3)="illegal hex number"
-  410 ee$(4)="illegal binary number"
   420 :
   430 rem --- build char translation table ---
   440 :
@@ -53,7 +50,7 @@
   520 xi=1 : rem horizontal scroll index in current line
   530 bank 128
   540 poke 248,peek(248)or2^6    : rem disable screen editor line linking
-  550 xc=0:yc=0:sl=23 : rem cursor pos, number of screen lines
+  550 xc=0:yc=0:sl=rwindow(1)-2 : rem cursor pos, status line position
   560 if cf$<>"" thenbegin
   565   if peek($4ff70)=55 and peek($4ff71)=77 then begin
   566     gosub 9100
@@ -78,10 +75,10 @@
  2050 bank128:sysv4 : rem enable vic iv
  2060 if jl<>-1 thenbegin
  2070   ly=jl:cl=5:gosub6600: rem bring line in context
- 2080   if ee<>0 thenbegin
- 2090     e$=""
- 2100     if ee>=128 thene$=ee$(ee-128) : elsee$=er$(ee)
- 2110     if e$<>"" thengosub5490:print"{rvon}";e$+" in "+str$(jl);"{rvof}";:ns=1
+ 2080   if peek($4ff30)<>0 thenbegin
+ 2090     r=0:pe$="":do:p=peek($4ff30+r):pe$=pe$+chr$(p):r=r+1:loop while p<>0
+ 2110     gosub 5490:print "{rvon}";pe$;:ns=1
+ 2115     poke $4ff30,0
  2120   bend
  2130   jy=-1:cl=0             : rem clear jump line
  2140 bend
@@ -95,7 +92,8 @@
  2201   if mf=1 then gosub 10050:goto 2160:rem mark-mode handling
  2210   if ns=1 thengosub5540: bank128:sysv4: ns=0
  2220   bank 128:ak = peek(54801) and 16 : rem check alt key
- 2230   if t$=chr$(22) or (ak and t$="c") thencm=abs(cm-1) : goto2170
+ 2225   rem -- if t$=f11 (also ctrl+5/green for xemu?)
+ 2230   if t$="{pur}" or (ak and t$="c") thencm=abs(cm-1) : goto2170
  2240     co=(instr(cc$,t$) and cm=0) or ak
  2250    if co thenbegin
  2260     if t$="g" thent$="{CTRL-P}" : rem workaround for challenged keyboards
@@ -137,7 +135,7 @@
  2570     bend
  2580     if t$="{down}" thenbegin
  2590       if ak thenly=yc+sl:gosub6600:elseyc=yc+1
- 2600       if yc-ct>20 thengosub5250: if yc-ct>sl thenyc=yc-1
+ 2600       if yc-ct>sl-3 thengosub5250: if yc-ct>sl thenyc=yc-1
  2610     bend
  2620     if t$="{up}" thenbegin
  2630       if ak thenly=yc-sl:gosub6600:elseyc=yc-1
@@ -226,24 +224,24 @@
  5390 :
  5400 rem --- display status in st$
  5410 foreground sb
- 5420 print"{home}{home}";:cursor 20,24:print"{rvon}"+po$;
- 5430 cursor 75,24:printcm$(cm);
- 5440 cursor 0,24:print"{rvon}"+ch$(ch)+"{rvof}";
+ 5420 print"{home}{home}";:cursor 20,sl+1:print"{rvon}"+po$;
+ 5430 cursor 75,sl+1:printcm$(cm);
+ 5440 cursor 0,sl+1:print"{rvon}"+ch$(ch)+"{rvof}";
  5450 window 0,0,79,sl
  5460 foreground fg
  5470 return
  5480 :
- 5490 dma 3,80,160,0,3968,0 : rem  --- clear status bar
- 5500 dma 3,80,sb,0,65408,1
- 5510 print"{home}{home}";:cursor 0,24
+ 5490 if rwindow(1)=25 then cb=2048+(24*80) : fb=$ff80000 + (24*80)
+ 5492 if rwindow(1)=50 then cb=$40800+(49*80) : fb=$ff80000 + (49*80)
+ 5495 edma 3,80,160,cb       : rem  --- clear status bar
+ 5500 edma 3,80,sb,fb        : rem  set status bar colour
+ 5510 print"{home}{home}";:cursor 0,sl+1
  5520 foreground sb
  5530 return
  5540 rem --- clear status
- 5550 dma 3,80,160,0,3968,0
- 5560 dma 3,80,sb,0,65408,1
- 5570 foreground sb
- 5580 print"{home}{home}";:cursor 18,24:print"{rvon}{SHIFT--}       {SHIFT--} {rvof}f1{rvon}load {rvof}f3{rvon}save {rvof}f5{rvon}compile {rvof}f7{rvon}lbls {rvof}f9{rvon}go {rvof}f11{rvon}cmode {SHIFT--}";
- 5590 cursor 2,24:if cf$<>"" thenprint cf$;:elseprint "<untitled>";
+ 5550 gosub 5490
+ 5580 print"{home}{home}";:cursor 18,sl+1:print"{rvon}{SHIFT--}       {SHIFT--} {rvof}f1{rvon}load {rvof}f3{rvon}save {rvof}f5{rvon}compile {rvof}f7{rvon}lbls {rvof}f9{rvon}go {rvof}f11{rvon}cmode {SHIFT--}";
+ 5590 cursor 2,sl+1:if cf$<>"" thenprint cf$;:elseprint "<untitled>";
  5600 window 0,0,79,sl
  5610 foreground fg
  5620 return
@@ -279,7 +277,7 @@
  5920 if ak=0 then cursor 0,yc-ct:a$=li$(yc):gosub1
  5930 cursor 0,yc-ct+1:printchr$(27)+"d";
  5940 cursor 0,sl:a$=li$(ct+sl):gosub1
- 5950 if ct+sl>nl-1 thencursor 0,23:print chr$(27)+"q";
+ 5950 if ct+sl>nl-1 thencursor 0,sl:print chr$(27)+"q";
  5960 if ak thenxc=sx:yc=yc+1
  5970 return
  5980 :
@@ -323,7 +321,7 @@
  6350 gosub5490:print "{rvon}load file name ($ for directory, return to cancel) "+chr$(27)+"t{clr}";
  6360 nf$=""
  6370 line input "";nf$
- 6380 if nf$="$" thenwindow0,0,79,23:print"{clr}";:foreground fg:dir:goto6350
+ 6380 if nf$="$" thenwindow0,0,79,sl:print"{clr}";:foreground fg:dir:goto6350
  6390 print"{home}{home}";:gosub5490
  6400 if nf$="" thengosub5540:gosub5150:return
  6410 cf$=nf$:print "{rvon}loading "+cf$+"...";
@@ -345,7 +343,9 @@
  6570 cf$=nf$
  6580 return
  6590 :
- 6600 rem --- make line ly the current line
+ 6600 rem --- ensure ly is at sane position end
+ 6602 rem     make line ly the current line
+ 6605 if ly>nl-sl then ly=nl-sl
  6610 ct=ly : yc=ly
  6620 if ct>cl thenct=ct-cl
  6630 goto6690
@@ -405,6 +405,7 @@
  7170 bo=peek(dec("ff02")):bg=peek(dec("ff03")):fg=peek(dec("ff04"))
  7180 hl=peek(dec("ff05")):sb=peek(dec("ff06"))
  7190 bu=peek(dec("ff07"))and4 : rem backup flag
+ 7195 sm=peek($4ff07)and8:if sm then print chr$(27)+"5";:else print chr$(27)+"8"
  7200 bank 128
  7210 return
  7220 :
@@ -438,19 +439,20 @@
  7500 gosub5490
  7510 if mn<>0 thenprint"{rvon}Label list. Choose label with cursor keys + RETURN, escape with ESC{rvof}";
  7520 if mn=0 thenprint"{rvon}{CTRL-O}No labels found{rvof}"+fo$;:ns=1:return
- 7530 window 0,0,79,23:print"{clr}"
+ 7525 l=sl+1
+ 7530 window 0,0,79,sl:print"{clr}"
  7540 fora=0tomn
- 7550 cursor 20*int(a/24),mod(a,24):print mk$(a);:next a
+ 7550 cursor 20*int(a/l),mod(a,l):print mk$(a);:next a
  7560 mp=0
  7570 do
- 7580   sx=20*int(mp/24): sy=mod(mp,24):cursor 0,10
+ 7580   sx=20*int(mp/l): sy=mod(mp,l):cursor 0,10
  7590   cursor sx,sy:print "{rvon}";mk$(mp);"{rvof}";
  7600   getkey t$
  7610   cursor sx,sy:print mk$(mp);
  7620   if t$="{down}" thenmp=mp+1
- 7630   if t$="{rght}" thenmp=mp+24
+ 7630   if t$="{rght}" thenmp=mp+l
  7640  if t$="{up}" thenmp=mp-1
- 7650  if t$="{left}" thenmp=mp-24
+ 7650  if t$="{left}" thenmp=mp-l
  7660  if mp>mn-1 thenmp=mn-1
  7670   if mp<0 thenmp=0
  7680 loop until t$=chr$(13) or t$=chr$(27)
@@ -675,3 +677,8 @@
 10270 next iv
 10280 gosub 5150
 10290 return
+10500 rem --- set fn keys and make sure f11 doesn't generate paste
+10510 key on
+10520 fk$="{f1}{f2}{f3}{f4}{f5}{f6}{f7}{f8}{CTRL-P}{CTRL-U}{pur}{CTRL-W}{CTRL-Y}{CTRL-Z}"+chr$(132)
+10530 for r=1 to 15:key r, mid$(fk$,r,1):next r
+10540 return
