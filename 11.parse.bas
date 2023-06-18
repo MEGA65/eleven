@@ -1,7 +1,7 @@
     1 clr
     2 pn$="11.parse":mk$="@~":q$=chr$(34):h=34:y=39
     4 key on
-    5 print "{rvon}ELEVEN preprocessor v0.4.6{rvof}":print
+    5 print "{rvon}ELEVEN preprocessor v0.5.0{rvof}":print
     6 key7,"scratch"+q$+pn$+q$+":dsave"+chr$(34)+pn$+q$+":dverify"+q$+pn$
     8 t$="                                                                               ":bl$=t$+t$+t$:t$=""
    10 rw$(0)=" print input if then else do loop while until gosub goto open close dopen dclose for next getkey hex$ dim peek poke wait dec chr$ asc sgn sqr str$"
@@ -12,7 +12,7 @@
    71 rw$(3)=" dclear deffn delete fn dir disk dload dma dmode dpat dsave dverify edma envelope erase exit exp fast filter find go64 header help highlight "
    72 rw$(4)=" joy list load locate lpen mod monitor mouse movspr new paint play pointer polygon pos pot pudef "
    73 rw$(5)=" rclr rdot read record rem rename resume rgr rmouse rplay rreg rspcolor rsppos rsprite save scnclr sleep slow sond spc sprcolor "
-   75 rw$(6)=" sprite sprsav sys tab tempo troff tron type usr verify vol xor key "
+   75 rw$(6)=" sprite sprsav sys tab tempo troff tron type usr verify vol xor key vsync "
    90 gosub7020: rem get filename
   100 bank128:poke 0,65
   110 pf$(0)="":pf$(1)="%":pf$(2)="$":pf$(3)="&"
@@ -114,7 +114,7 @@
  1010 s$=mid$(cl$,10-df):d$=",;":ib=1:gosub2100:ib=0: rem split parameters
  1012 rem (ib=ignore brackets)
  1015 nl$="" : rem new line if dimensioning...
- 1020 if ac<0 thenprint "?declare parameter missing in line ";sl:goto1800
+ 1020 if ac<0 then pe$="?declare parameter missing in line "+str$(sl):goto1800
  1021 for i=0 to ac
  1022   p$=al$(i):gosub 1030:rem parse declared var
  1023 next i
@@ -171,11 +171,13 @@
  1510 ll(lc)=ln+1
  1520 lc=lc+1 : rem increase label count
  1530 return
- 1800 bank 4:poke dec("ff08"),129 : rem set error mailbox flag
+ 1800 rem return to editor with error
+ 1805 bank 4 : rem set error mailbox flag
+ 1807 for r=1 to len(pe$):poke $4ff30+r-1,asc(mid$(pe$,r,1)):next r
+ 1808 poke $4ff30+r-1,0
  1810 poke dec("ff09"),mod(sl,256):poke dec("ff0a"),sl/256
  1820 poke dec("ff07"),peek(dec("ff07"))or2 : rem set autojump flag
  1830 dclose
- 1835 clr
  1840 goto7210
  1999 :
  2000 rem -- strip tr$ from beginning of string in s$ --
@@ -219,9 +221,12 @@
  3002 rem    out:  s$ = dest string with replaced items
  3006 :
  3007 if left$(s$,2)="^^" thens$=right$(s$,len(s$)-2):return
- 3010 q=0:a$="":c$=""
- 3012 d$="<>=+-#*/^,.:;() "
+ 3010 q=0:a$="":c$="":ss=0:tg=0
+ 3012 cx$="?<>=+-#*/^,.:;() " : d$=cx$
  3020 for ii=1 to len(s$):b$=mid$(s$,ii,1)
+ 3025 if b$=":" and q=0 then ss=0:ri=0
+ 3030 if ss and b$="(" then ri=0 : d$=cx$
+ 3035 if ss and b$=")" then ri=-1 : d$=cx$ + "dpub"
  3040   if b$=q$ thenbegin : q=abs(q-1)
  3042   if q=1 thengosub4000:a$=a$+c$:c$="":elsea$=a$+b$:b$=""
  3044 bend
@@ -245,7 +250,7 @@
  4009 if left$(c$,1)="$" thenhx$=mid$(c$,2):gosub4900:return
  4010 if left$(c$,1)="%" thenbi$=mid$(c$,2):gosub4800:return
  4011 p$=" "+c$+" "
- 4012 for t=0 to 6:if instr(rw$(t),p$)<>0 then lc$=c$:return
+ 4012 for t=0 to 6:if instr(rw$(t),p$)<>0 then lc$=c$:gosub 4100:return
  4013 next
  4014 t$=right$(c$,1):ty=0
  4015 if t$="%" thenty=1
@@ -264,29 +269,20 @@
  4077 next id
  4078 if ci<>-1 then return
  4079 if lc$="dopen" and (c$="r" or c$="u8" or c$="w") then return
- 4080 print "?unresolved identifier: '";+c$;"' in line ";sl:sleep 1
- 4081 bank 4:poke dec("ff08"),128 : rem set error mailbox flag
- 4082 poke dec("ff09"),mod(sl,256):poke dec("ff0a"),sl/256
- 4083 poke dec("ff07"),peek(dec("ff07"))or2 : rem set autojump flag
- 4085 close1
- 4086 clr
- 4088 goto7210
+ 4080 pe$="?unresolved identifier: '"+c$+"' in line "+str$(sl):sleep 1:goto 1800
  4090 return
  4091 :
  4092 :
+ 4100 rem check if command triggers shitty syntax mode
+ 4110 rem todo: compare ubik's logic here versus my own 4079 lc$="dopen" logic
+ 4120 return
  4500 c$=mk$+c$+mk$ : return : rem mark label
  4505 dr=0
  4510 for id=0 to lc-1
  4520 if c$=lb$(id) thenc$=str$(ll(id)):id=lc:dr=1
  4530 next id
  4540 if dr thenreturn
- 4550 print "?unresolved label: "+c$;" in line";ln%(si-1):sleep 1
- 4560 bank 4:poke dec("ff08"),130 : rem set unresolved label
- 4562 poke dec("ff09"),mod(ln%(si-1),256):poke dec("ff0a"),ln%(si-1)/256
- 4563 poke dec("ff07"),peek(dec("ff07"))or2 : rem set autojump flag
- 4564 close1
- 4565 clr
- 4566 goto7210
+ 4550 pe$="?unresolved label: '"+c$+"' in line"+str$(ln%(si-1)):sleep 1:goto1800
  4567 return
  4800 rem --- convert binary
  4810 br=0 : rem result
@@ -321,7 +317,7 @@
  7010 :
  7020 bank 4:ba=dec("ff00")
  7030 if peek(ba+0)=asc("s") and peek(ba+1)=asc("k") thenbegin
- 7040   vb=peek(dec("ff07"))and8
+ 7040   vb=peek(dec("ff07"))and16
  7050   f$="":a=ba+16:dowhilepeek(a)<>0:f$=f$+chr$(peek(a)):a=a+1:loop:
  7060   if peek(dec("ff07"))and1 thenreturn
  7070   print "filename? "+f$:print"{up}";
