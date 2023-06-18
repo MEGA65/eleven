@@ -86,7 +86,7 @@
  2160   if yc-ct<0 thenct=0:yc=0
  2170   if ns<>1 thenpo$="      {left}{left}{left}{left}{left}{left}"+mid$(str$(xc),2)+":"+mid$(str$(yc),2):gosub5400
  2180   cl$=li$(yc)
- 2185   if (yc-ct)>24 then yc=ct+24
+ 2185    if (yc-ct)>rwindow(1)-1 then yc=ct+rwindow(1)-1
  2190   cursor xc,yc-ct
  2200   foreground sb:cursor on: getkey t$ : cursor off:foreground fg
  2201   if mf=1 then gosub 10050:goto 2160:rem mark-mode handling
@@ -346,7 +346,7 @@
  6600 rem --- ensure ly is at sane position end
  6602 rem     make line ly the current line
  6605 if ly>nl-sl then ly=nl-sl
- 6610 ct=ly : yc=ly
+ 6610 ct=ly :yc=ly
  6620 if ct>cl thenct=ct-cl
  6630 goto6690
  6640 if ct<0 thenct=0

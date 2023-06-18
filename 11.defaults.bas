@@ -1,1 +1,1 @@
-    6 {wht}{CTRL-B}{swlc}{CTRL-A}next{grn}
+    6 {wht}{CTRL-B}{swlc}{ensh}
