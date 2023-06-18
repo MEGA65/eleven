@@ -49,7 +49,7 @@
   580 bank 0
   590 do:gett$:loopwhilet$<>""
   600 gosub 1110: rem load modules
-  610 key on:key16,"{home}{home}{clr}edma 0,$3fff,$8001000,$2001:new restore"+chr$(13)+"run"+chr$(13)
+  610 key on:key16,"{home}{home}{clr}edma 0,$4fff,$8000000,$2001:new restore"+chr$(13)+"run"+chr$(13)
   620 bank128:poke $d61a,peek($d61a)or16
   625 if sm then print chr$(27)+"5";:rem switch to 80x50 if settings say so
   630 if lp=0 then goto 1250: else goto 1390: rem load editor or prefs
@@ -104,7 +104,7 @@
  1110 rem --- load modules
  1120 if cb then begin
  1130 print"installing editor..."
- 1140 bload "11.edit",p($8001000)
+ 1140 bload "11.edit",p($8000000)
  1150 print"installing parser..."
  1160 bload "11.parse",p($8005000)
  1170 print"installing prefs..."
@@ -117,7 +117,7 @@
  1240 return
  1250 rem --- chain load editor
  1260 :
- 1270 print"{home}{home}{clr}{down}{down}edma 0,$3fff,$8001000,$2001:new restore":print"{down}{down}run{home}";
+ 1270 print"{home}{home}{clr}{down}{down}edma 0,$4fff,$8000000,$2001:new restore":print"{down}{down}run{home}";
  1280 bank 128
  1290 :
  1300 rem hack: load next module in direct mode
