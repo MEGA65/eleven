@@ -270,7 +270,7 @@
  4077 next id
  4078 if ci<>-1 then return
  4079 if instr(dc$, lc$)<>0 and (c$="r" or c$="p" or c$="u8" or c$="w") then return
- 4080 zzz:pe$="?unresolved identifier: '"+c$+"' in line "+str$(sl):sleep 1:goto 1800
+ 4080 pe$="?unresolved identifier: '"+c$+"' in line "+str$(sl):sleep 1:goto 1800
  4090 return
  4091 :
  4092 :
