@@ -8,3 +8,12 @@ all:
 	petcat -65 -o 11.settings.bas -- 11.settings
 	petcat -65 -o autoboot.c65.bas -- autoboot.c65
 	# c1541 -attach MA110.D81 -read gurce.asm,s
+
+tod81:
+	cp /c/Users/gurcei/AppData/Roaming/xemu-lgb/mega65/hdos/11.D81 .
+	c1541 -attach /c/Users/gurcei/AppData/Roaming/xemu-lgb/mega65/hdos/11.D81 -delete 11.defaults -write 11.defaults
+	c1541 -attach /c/Users/gurcei/AppData/Roaming/xemu-lgb/mega65/hdos/11.D81 -delete 11.edit -write 11.edit 
+	c1541 -attach /c/Users/gurcei/AppData/Roaming/xemu-lgb/mega65/hdos/11.D81 -delete 11.parse -write 11.parse 
+	c1541 -attach /c/Users/gurcei/AppData/Roaming/xemu-lgb/mega65/hdos/11.D81 -delete 11.post  -write 11.post 
+	c1541 -attach /c/Users/gurcei/AppData/Roaming/xemu-lgb/mega65/hdos/11.D81 -delete 11.settings  -write 11.settings 
+	c1541 -attach /c/Users/gurcei/AppData/Roaming/xemu-lgb/mega65/hdos/11.D81 -delete autoboot.c65 -write autoboot.c65
