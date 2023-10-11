@@ -367,8 +367,8 @@
  6790 rem --- help
  6800 print"{home}{home}{clr}-- cursor movement --",,"-- editor functions --{down}"
  6810 print"{rvon}cursor keys  {rvof} move the cursor"
- 6820 print"{rvon}alt + up     {rvof} scroll up 1 line"
- 6830 print"{rvon}alt + down   {rvof} scroll down 1 line"
+ 6820 print"{rvon}alt + up     {rvof} scroll up 1 page"
+ 6830 print"{rvon}alt + down   {rvof} scroll down 1 page"
  6840 print"{rvon}alt + left {$a0} {rvof} scroll left 1 char(*)"
  6850 print"{rvon}alt + right  {rvof} scroll right 1 char(*)"
  6860 print"{down}{rvon}shift + clr  {rvof} go to top of file"

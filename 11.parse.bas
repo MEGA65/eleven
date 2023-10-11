@@ -13,6 +13,7 @@
    72 rw$(4)=" joy list load locate lpen mod monitor mouse movspr new paint play pointer polygon pos pot pudef "
    73 rw$(5)=" rclr rdot read record rem rename resume rgr rmouse rplay rreg rspcolor rsppos rsprite save scnclr sleep slow sond spc sprcolor "
    75 rw$(6)=" sprite sprsav sys tab tempo troff tron type usr verify vol xor key vsync "
+   85 dc$=" bload bsave dload to save dir collect dopen dclose backup "
    90 gosub7020: rem get filename
   100 bank128:poke 0,65
   110 pf$(0)="":pf$(1)="%":pf$(2)="$":pf$(3)="&"
@@ -268,8 +269,8 @@
  4076   if c$=sn$(id) then gosub 9600:ci=id:id=ss-1:rem create new struct object
  4077 next id
  4078 if ci<>-1 then return
- 4079 if lc$="dopen" and (c$="r" or c$="u8" or c$="w") then return
- 4080 pe$="?unresolved identifier: '"+c$+"' in line "+str$(sl):sleep 1:goto 1800
+ 4079 if instr(dc$, lc$)<>0 and (c$="r" or c$="p" or c$="u8" or c$="w") then return
+ 4080 zzz:pe$="?unresolved identifier: '"+c$+"' in line "+str$(sl):sleep 1:goto 1800
  4090 return
  4091 :
  4092 :

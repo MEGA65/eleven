@@ -1,1 +1,2 @@
-    6 {wht}{CTRL-B}{swlc}{ensh}
+    6 {wht}{CTRL-B}{swlc}
+
