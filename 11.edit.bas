@@ -321,7 +321,13 @@
  6350 gosub5490:print "{rvon}load file name ($ for directory, return to cancel) "+chr$(27)+"t{clr}";
  6360 nf$=""
  6370 line input "";nf$
- 6380 if nf$="$" thenwindow0,0,79,sl:print"{clr}";:foreground fg:dir:goto6350
+ 6380 if len(nf$)>0 and left$(nf$,1)="$" then begin
+ 6381   window0,0,79,sl : print "{clr}"; : foreground fg
+ 6382   if len(nf$) = 1 then dir : else begin
+ 6383     dir (mid$(nf$,2))
+ 6384   bend
+ 6385   goto 6350
+ 6386 bend
  6390 print"{home}{home}";:gosub5490
  6400 if nf$="" thengosub5540:gosub5150:return
  6410 cf$=nf$:print "{rvon}loading "+cf$+"...";
