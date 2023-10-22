@@ -63,13 +63,13 @@
   710 bank 4:t$=chr$(peek(dec("ff00")))+chr$(peek(dec("ff01")))
   720 rt=0
   730 if t$<>"sk" thenbegin
-  740   bg=0:fg=5:bo=6:hl=2:sb=14 : rem standard colours
-  750   cf$="" : bu=1 : rt=1
-  760   poke $4ff00,asc("s"):poke $4ff01,asc("k")
-  770   poke $4ff00,asc("s"):poke $4ff01,asc("k")
-  780   poke $4ff02,bo : poke $4ff03,bg : poke $4ff04,fg
-  790   poke $4ff05,hl : poke $4ff06,sb
-  800   poke $4ff10,0  : rem filename
+  740 bg=0:fg=5:bo=6:hl=2:sb=14 : rem standard colours
+  750 cf$="" : bu=1 : rt=1
+  760 poke $4ff00,asc("s"):poke $4ff01,asc("k")
+  770 poke $4ff00,asc("s"):poke $4ff01,asc("k")
+  780 poke $4ff02,bo : poke $4ff03,bg : poke $4ff04,fg
+  790 poke $4ff05,hl : poke $4ff06,sb
+  800 poke $4ff10,0  : rem filename
   810 bend
   820 if rt=1 thenreturn
   830 tf$="":i=$4ff10:do while peek(i)<>0
@@ -138,11 +138,11 @@
  1450 rem --- attic ram check
  1460 ha&=1:ta=$8000000
  1470 for t=0 to 32
- 1480   ra=ta+(t*$1000)
- 1490   o=peek(ra)
- 1500   poke ra,t+15
- 1510   if peek(ra)<>t+15 then ha&=0
- 1520   poke ra,o
+ 1480 ra=ta+(t*$1000)
+ 1490 o=peek(ra)
+ 1500 poke ra,t+15
+ 1510 if peek(ra)<>t+15 then ha&=0
+ 1520 poke ra,o
  1530 next t
  1540 if ha& thenreturn
  1550 border 0:background 0
@@ -156,8 +156,8 @@
  1630 a=$30000:b=$8000000
  1640 edma 0,$10000,a,b
  1650 for c=0 to $fffe step 7
- 1660   if wpeek(a+c)<>wpeek(b+c) then goto 1710: rem fail
- 1670   if mod(c,$400)=0 then print".";
+ 1660 if wpeek(a+c)<>wpeek(b+c) then goto 1710: rem fail
+ 1670 if mod(c,$400)=0 then print".";
  1680 next
  1690 print:print "attic ram seems stable. phew."
  1700 return

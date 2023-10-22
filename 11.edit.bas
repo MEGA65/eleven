@@ -351,7 +351,7 @@
  6590 :
  6600 rem --- ensure ly is at sane position end
  6602 rem     make line ly the current line
- 6605 if ly>nl-sl then ly=nl-sl
+ 6605 rem if ly>nl-sl then ly=nl-sl
  6610 ct=ly :yc=ly
  6620 if ct>cl thenct=ct-cl
  6630 goto6690
@@ -436,10 +436,12 @@
  7410 print"{home}{home}{clr}tschuessn...!"
  7420 end
  7430 rem --- labels
+ 7435 mp = 0
  7440 bank 1
  7450 gosub5490:print"{rvon}Collecting labels...";
  7460 fora=0to72:mk$(a)="":mk(a)=0:nexta:mn=0
  7470 fora=0tonl:t$=li$(a):lb$="":ifleft$(t$,1)<>"."then7490
+ 7475 if a < ly then mp=mp+1
  7480 mk$(mn)=mid$(t$,1,38):mk(mn)=a:mn=mn+1
  7490 next
  7500 gosub5490
@@ -449,7 +451,6 @@
  7530 window 0,0,79,sl:print"{clr}"
  7540 fora=0tomn
  7550 cursor 20*int(a/l),mod(a,l):print mk$(a);:next a
- 7560 mp=0
  7570 do
  7580   sx=20*int(mp/l): sy=mod(mp,l):cursor 0,10
  7590   cursor sx,sy:print "{rvon}";mk$(mp);"{rvof}";
