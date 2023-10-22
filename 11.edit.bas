@@ -1,4 +1,4 @@
-    0 goto130
+    0 ll=0:goto130:rem buffer of past line location
     1 a$=mid$(a$,xi):b=len(a$):o=b>80:print"{rvof}";:ifothenb=79
     2 p=pointer(a$):bank0:m=peek(p+1)+256*peek(p+2):c=m+b-1:ifb=0then6
     3 if iv=1 then print "{rvon}";
@@ -25,7 +25,7 @@
   245 t$="                                                                               ":bl$=t$+t$+t$:t$=""
   250 q$=chr$(34)           : rem fast access to quote char
   260 fo$=chr$(27)+chr$(27) : rem escape flash etc.
-  270 cc$="{home}{clr}{f2}{$84}{left}{up}{down}{rght}{f1}{f3}{f5}{f7}{f4}{CTRL-Z}{CTRL-P}{$83}{CTRL-W}{CTRL-U}{inst}{blu}"+chr$(22)+chr$(20)+chr$(148)+chr$(13) : rem ctrl chars
+  270 cc$="{home}{clr}{f2}{$84}{left}{up}{down}{rght}{f1}{f3}{f5}{f7}{f4}{CTRL-O}{CTRL-Z}{CTRL-P}{$83}{CTRL-W}{CTRL-U}{inst}{blu}"+chr$(22)+chr$(20)+chr$(148)+chr$(13) : rem ctrl chars
   280 hm$="{left}{rght}"+chr$(20)     : rem horizontal movement characters
   290 ch$(0)=" ":ch$(1)="*" : rem for file changed indicator
   300 cm$(0)="    ":        : rem for control char mode indicator
@@ -118,6 +118,7 @@
  2400     if t$="{f7}" thengosub7430: rem labels
  2410     if t$="{CTRL-P}" thengosub6710: rem goto line
  2420     if t$="{$84}" thengosub6790: rem help
+ 2425     if t$="{CTRL-O}" then tm=ly:ly=ll:ll=tm:gosub 6600
  2430     if t$="{home}" thenbegin           : rem home/end
  2440       if ak=0 thenly=0:gosub6600: elsely=nl:gosub6600
  2450     bend
@@ -463,7 +464,7 @@
  7660  if mp>mn-1 thenmp=mn-1
  7670   if mp<0 thenmp=0
  7680 loop until t$=chr$(13) or t$=chr$(27)
- 7690 if t$=chr$(13) thenly=mk(mp):gosub6600:elsegosub5150
+ 7690 if t$=chr$(13) then ll=ly:ly=mk(mp):gosub6600:elsegosub5150
  7700 gosub5540: rem redraw status bar
  7710 return
  7720 rem --- save filename in mailbox ram
