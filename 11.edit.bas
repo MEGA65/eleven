@@ -25,7 +25,7 @@
   245 t$="                                                                               ":bl$=t$+t$+t$:t$=""
   250 q$=chr$(34)           : rem fast access to quote char
   260 fo$=chr$(27)+chr$(27) : rem escape flash etc.
-  270 cc$="{home}{clr}{f2}{$84}{left}{up}{down}{rght}{f1}{f3}{f5}{f7}{f4}{CTRL-O}{CTRL-Z}{CTRL-P}{$83}{CTRL-W}{CTRL-U}{inst}{blu}"+chr$(22)+chr$(20)+chr$(148)+chr$(13) : rem ctrl chars
+  270 cc$="{home}{clr}{f2}{$84}{left}{up}{down}{rght}{f1}{f3}{f5}{f7}{f4}{f8}{CTRL-O}{CTRL-Z}{CTRL-P}{$83}{CTRL-W}{CTRL-U}{inst}{blu}"+chr$(22)+chr$(20)+chr$(148)+chr$(13) : rem ctrl chars
   280 hm$="{left}{rght}"+chr$(20)     : rem horizontal movement characters
   290 ch$(0)=" ":ch$(1)="*" : rem for file changed indicator
   300 cm$(0)="    ":        : rem for control char mode indicator
@@ -117,8 +117,9 @@
  2390     if t$="{f2}" thengosub7230: rem new
  2400     if t$="{f7}" thengosub7430: rem labels
  2410     if t$="{CTRL-P}" thengosub6710: rem goto line
+ 2415     if t$="{f8}" thengosub10700: rem go to previous file (pv$)
  2420     if t$="{$84}" thengosub6790: rem help
- 2425     if t$="{CTRL-O}" then tm=ly:ly=ll:ll=tm:gosub 6600
+ 2425     if t$="{CTRL-O}" then tm=yc:ly=ll:ll=tm:gosub 6600
  2430     if t$="{home}" thenbegin           : rem home/end
  2440       if ak=0 thenly=0:gosub6600: elsely=nl:gosub6600
  2450     bend
@@ -331,13 +332,13 @@
  6386 bend
  6390 print"{home}{home}";:gosub5490
  6400 if nf$="" thengosub5540:gosub5150:return
- 6410 cf$=nf$:print "{rvon}loading "+cf$+"...";
+ 6410 pv$=cf$:pv=yc:cf$=nf$:print "{rvon}loading "+cf$+"...";
  6420 gosub5010
  6430 print"{home}{home}{clr}"+fo$;
  6440 gosub5150: rem redraw screen
  6450 if de=0 thengosub7720: rem persist filename
  6460 gosub5490:foreground co(abs(de=0))
- 6470 print "{rvon}";r$(abs(de=0));de$;" ";:foreground sb
+ 6470 print "{rvon}";cf$;" - ";r$(abs(de=0));de$;" ";:foreground sb
  6480 if de=0 thenprint"{rvon}; read ";nl; "lines.";
  6490 ns=1
  6500 return
@@ -393,6 +394,7 @@
  6950 print,,,,"{down}{rvon} f5 {rvof} compile + run"
  6960 print,,,,"{rvon} f6 {rvof} just compile"
  6970 print,,,,"{down}{rvon} f7 {rvof} go to label"
+ 6975 print,,,,"{rvon} f8 {rvof} go to previous file"
  6980 print,,,,"{rvon} f9 {rvof} go to line nr     ({rvon}#{rvof})ctrl + p"
  6982 print,,,,"{rvon}ctrl-o{rvof} jump to loc prior to f7"
  6990 print,,,,"{down}{rvon}f11 {rvof} toggle ctrl mode  ({rvon}#{rvof})ctrl + 5"
@@ -442,14 +444,14 @@
  7410 print"{home}{home}{clr}tschuessn...!"
  7420 end
  7421 rem --- filter labels based on fz$
- 7422 fora=0to72:fi$(a)="":fi(a)=0:nexta:fz=0:mp=0
+ 7422 fora=0to72:fi$(a)="":fi(a)=0:nexta:fz=0:mp=-1
  7423 fora=0tomn-1:if (len(fz$)>0 and instr(mk$(a),fz$)>0)or len(fz$)=0 then begin
  7424   fi$(fz)=mk$(a):fi(fz)=mk(a):fz=fz+1
- 7425   if mk(a) < ly then mp=mp+1
+ 7425   if mk(a) <= yc then mp=mp+1
  7426 bend
  7427 next a:print "{home}{home}{clr}";:gosub 5490:if fz<>0 thenprint"{rvon}Choose label with cursor keys + RETURN, escape with ESC{rvof} - filter='";fz$;"'";
  7428 if fz=0 thenprint"{rvon}{CTRL-O}No labels found{rvof} - filter='";fz$;"'"+fo$;:ns=1:return
- 7429 l=sl+1:window0,0,79,sl:print"{clr}":fora=0tofz:cursor 20*int(a/l),mod(a,l):print fi$(a);:next a:return
+ 7429 l=sl+1:window0,0,79,sl:print"{clr}":fora=0tofz:cursor 20*int(a/l),mod(a,l):print fi$(a);:next a:if mp<0 then mp=0:return:else return
  7430 rem --- labels
  7435 mp = 0
  7440 bank 1
@@ -714,3 +716,12 @@
 10670 print"  - press '{rvon}c{rvof}' to copy"
 10680 print"  - Then use {rvon}esc,p{rvof} to paste clipboard contents"
 10690 return
+10700 rem --- jump to previous file
+10710 if ch=1 then begin
+10720   gosub 5490:foreground hl
+10730   print "{rvon}current file not saved - press any key";:get key t$
+10740   gosub 5490:gosub 5540:return
+10750 bend
+10760 tm=pv:nf$=pv$:gosub 6390
+10765 ly=tm:gosub 6600
+10770 return
