@@ -382,7 +382,10 @@
  6870 print"{rvon}alt + clr    {rvof} go to end of file"
  6880 print"{down}{rvon}alt + delete {rvof} delete current line"
  6890 print"{down}{rvon}alt + return {rvof} to start of next line"
+ 6892 print"{down}{rvon}alt + f      {rvof} find"
+ 6894 print"{rvon}alt + r      {rvof} find & replace"
  6900 print"{down}*) only in lines with >80 characters"
+ 6901 print"{down}{rvon}#{rvof}) xemu-equivalent shortcut key"
  6910 print"{home}{down}{down}",,,,"{rvon} f1 {rvof} load file"
  6920 print,,,,"{rvon} f2 {rvof} new file"
  6930 print,,,,"{rvon} f3 {rvof} save file"
@@ -390,10 +393,12 @@
  6950 print,,,,"{down}{rvon} f5 {rvof} compile + run"
  6960 print,,,,"{rvon} f6 {rvof} just compile"
  6970 print,,,,"{down}{rvon} f7 {rvof} go to label"
- 6980 print,,,,"{rvon} f9 {rvof} go to line nr"
- 6990 print,,,,"{down}{rvon}f11 {rvof} toggle ctrl mode"
- 7000 print,,,,"{down}{rvon}f14 {rvof} update defaults"
- 7010 print,,,,"{down}{rvon}help{rvof} this screen"
+ 6980 print,,,,"{rvon} f9 {rvof} go to line nr     ({rvon}#{rvof})ctrl + p"
+ 6982 print,,,,"{rvon}ctrl-o{rvof} jump to loc prior to f7"
+ 6990 print,,,,"{down}{rvon}f11 {rvof} toggle ctrl mode  ({rvon}#{rvof})ctrl + 5"
+ 7000 print,,,,"{down}{rvon}f14 {rvof} update defaults   ({rvon}#{rvof})ctrl + z"
+ 7010 print,,,,"{down}{rvon}help{rvof} this screen       ({rvon}#{rvof})pageup"
+ 7015 gosub 10550 : rem more help
  7020 gosub5490:print"{rvon}ee cheat sheet -- press any key to return to editor{rvof}";
  7030 getkey t$:gosub5150:gosub5540:return
  7040 rem --- set filename from mailbox ram
@@ -690,3 +695,18 @@
 10520 fk$="{f1}{f2}{f3}{f4}{f5}{f6}{f7}{f8}{CTRL-P}{CTRL-U}{pur}{CTRL-W}{CTRL-Y}{CTRL-Z}"+chr$(132)
 10530 for r=1 to 15:key r, mid$(fk$,r,1):next r
 10540 return
+10550 if rwindow(1)=25 then print "{rvon}-- press any key for next page{rvof}";:getkeyt$:print"{home}{home}{clr}";:gosub5490:else print "{down}{down}{down}";
+10560 print"{rvon}alt + p{rvof} post to pc (m65postbox)"
+10570 print"{rvon}esc, j{rvof} go to start of line"
+10580 print"{rvon}esc, k{rvof} go to end of line"
+10590 print"{rvon}esc, d{rvof} delete current line"
+10600 print"{rvon}ctrl + w{rvof} move to next word"
+10610 print"{rvon}ctrl + u{rvof} move to previous word"
+10620 print"{rvon}shift + inst/del{rvof} delete current character"
+10630 print"{rvon}ctrl + ={rvof} toggle compilation debugging on/off"
+10640 print"{down}{rvon}esc, m{rvof} turn 'mark-mode' on"
+10650 print"  - when 'mark-mode' is on, use cursor up/down to select lines"
+10660 print"  - press '{rvon}x{rvof}' to cut"
+10670 print"  - press '{rvon}c{rvof}' to copy"
+10680 print"  - Then use {rvon}esc,p{rvof} to paste clipboard contents"
+10690 return
