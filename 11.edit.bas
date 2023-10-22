@@ -35,7 +35,7 @@
   340 df$="11.defaults"                 : rem defaults file name
   350 dim li$(mx)           : rem line buffer
   355 dim cb$(50)          : rem clipboard of lines
-  360 dim mk$(72),mk(72)   : rem marker table
+  360 dim mk$(72),mk(72),fi$(72),fi(72)   : rem marker table
   370 ee$(0)="variable not declared"
   420 :
   430 rem --- build char translation table ---
@@ -441,35 +441,39 @@
  7400 bank 128:poke248,0:key on:palette restore
  7410 print"{home}{home}{clr}tschuessn...!"
  7420 end
+ 7421 rem --- filter labels based on fz$
+ 7422 fora=0to72:fi$(a)="":fi(a)=0:nexta:fz=0:mp=0
+ 7423 fora=0tomn-1:if (len(fz$)>0 and instr(mk$(a),fz$)>0)or len(fz$)=0 then begin
+ 7424   fi$(fz)=mk$(a):fi(fz)=mk(a):fz=fz+1
+ 7425   if mk(a) < ly then mp=mp+1
+ 7426 bend
+ 7427 next a:print "{home}{home}{clr}";:gosub 5490:if fz<>0 thenprint"{rvon}Choose label with cursor keys + RETURN, escape with ESC{rvof} - filter='";fz$;"'";
+ 7428 if fz=0 thenprint"{rvon}{CTRL-O}No labels found{rvof} - filter='";fz$;"'"+fo$;:ns=1:return
+ 7429 l=sl+1:window0,0,79,sl:print"{clr}":fora=0tofz:cursor 20*int(a/l),mod(a,l):print fi$(a);:next a:return
  7430 rem --- labels
  7435 mp = 0
  7440 bank 1
- 7450 gosub5490:print"{rvon}Collecting labels...";
- 7460 fora=0to72:mk$(a)="":mk(a)=0:nexta:mn=0
+ 7450 gosub5490:print"{rvon}Collecting labels...";:fz$=""
+ 7460 fora=0to72:mk$(a)="":mk(a)=0:fi$(a)="":fi(a)=0:nexta:mn=0:fz=0:fz$=""
  7470 fora=0tonl:t$=li$(a):lb$="":ifleft$(t$,1)<>"."then7490
- 7475 if a < ly then mp=mp+1
  7480 mk$(mn)=mid$(t$,1,38):mk(mn)=a:mn=mn+1
  7490 next
- 7500 gosub5490
- 7510 if mn<>0 thenprint"{rvon}Label list. Choose label with cursor keys + RETURN, escape with ESC{rvof}";
- 7520 if mn=0 thenprint"{rvon}{CTRL-O}No labels found{rvof}"+fo$;:ns=1:return
- 7525 l=sl+1
- 7530 window 0,0,79,sl:print"{clr}"
- 7540 fora=0tomn
- 7550 cursor 20*int(a/l),mod(a,l):print mk$(a);:next a
+ 7500 gosub5490:gosub 7421
  7570 do
  7580   sx=20*int(mp/l): sy=mod(mp,l):cursor 0,10
- 7590   cursor sx,sy:print "{rvon}";mk$(mp);"{rvof}";
+ 7590   cursor sx,sy:print "{rvon}";fi$(mp);"{rvof}";
  7600   getkey t$
- 7610   cursor sx,sy:print mk$(mp);
+ 7610   cursor sx,sy:print fi$(mp);
  7620   if t$="{down}" thenmp=mp+1
  7630   if t$="{rght}" thenmp=mp+l
  7640  if t$="{up}" thenmp=mp-1
  7650  if t$="{left}" thenmp=mp-l
- 7660  if mp>mn-1 thenmp=mn-1
+ 7655  if (t$>="a" and t$<="z") or t$="{CBM-P}" then fz$=fz$+t$:gosub7421
+ 7656  if t$=chr$(20) and len(fz$)>0 then fz$=left$(fz$,len(fz$)-1):gosub7421
+ 7660  if mp>fz-1 thenmp=fz-1
  7670   if mp<0 thenmp=0
  7680 loop until t$=chr$(13) or t$=chr$(27)
- 7690 if t$=chr$(13) then ll=ly:ly=mk(mp):gosub6600:elsegosub5150
+ 7690 if t$=chr$(13) then ll=ly:ly=fi(mp):gosub6600:elsegosub5150
  7700 gosub5540: rem redraw status bar
  7710 return
  7720 rem --- save filename in mailbox ram
