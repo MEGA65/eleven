@@ -108,6 +108,7 @@
  2323     if t$="{inst}" then gosub 9900:rem shift-del = delete current char
  2324     if t$="{blu}" then poke $4ff07,peek($4ff07) xor 8:if peek($4ff07)and8 then play "t0o5sg"
  2325     if t$="p" thengosub9300:rem post current file to pc
+ 2326     if t$="z" thengosub11000:rem navigate to label under cursor
  2330     if t$="f" then fr%=0 : gosub8000: rem find
  2340     if t$="r" then fr%=1 : gosub8000: rem find and replace
  2350     if t$="{f3}" thengosub5990: rem save
@@ -725,3 +726,13 @@
 10760 tm=pv:nf$=pv$:gosub 6390
 10765 ly=tm:gosub 6600
 10770 return
+11000 rem --- navigate to label under cursor
+11010 gosub 11100: rem get term under cursor
+11020 rem nav to label flag = true
+11030 rem gosub find label screen
+11040 return
+11100 rem --- get term under cursor
+11110 rem start of label = browse to left until space or start of string
+11120 rem end of label = browse to right until space or start of string
+11130 rem string = mid$(line$,start,end-start)
+11140 return
