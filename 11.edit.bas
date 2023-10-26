@@ -108,8 +108,8 @@
  2323     if t$="{inst}" then gosub 9900:rem shift-del = delete current char
  2324     if t$="{blu}" then poke $4ff07,peek($4ff07) xor 8:if peek($4ff07)and8 then play "t0o5sg"
  2325     if t$="p" thengosub9300:rem post current file to pc
- 2330     if t$="f" thengosub8000:fr%=0: rem find
- 2340     if t$="r" thengosub8000:fr%=1: rem find and replace
+ 2330     if t$="f" then fr%=0 : gosub8000: rem find
+ 2340     if t$="r" then fr%=1 : gosub8000: rem find and replace
  2350     if t$="{f3}" thengosub5990: rem save
  2360     if t$="{f4}" thensa=1:gosub5990: rem save as
  2370     if t$="{f1}" thengosub6260: rem load
@@ -121,7 +121,7 @@
  2420     if t$="{$84}" thengosub6790: rem help
  2425     if t$="{CTRL-O}" then tm=yc:ly=ll:ll=tm:gosub 6600
  2430     if t$="{home}" thenbegin           : rem home/end
- 2440       if ak=0 thenly=0:gosub6600: elsely=nl:gosub6600
+ 2440       if ak=0 thenly=0:xc=0:gosub6600: elsely=nl:xc=0:gosub6600
  2450     bend
  2460     if t$="{rght}" thenbegin : rem -------- cursor right
  2470       if ak thenbegin
@@ -540,8 +540,8 @@
  8230      if fr%=0 thengosub8310: elsegosub8390
  8240   s=s+sd
  8250 loop
- 8260 if fd$="q" thengosub5540: elsegosub5490:print"{rvon}end of found";:ns=1
- 8270 cursor xc,yc-ct:print chr$(27)+"q";
+ 8260 if fd$="q" then gosub5540: elsegosub5490:print"{rvon}end of found";:ns=1
+ 8270 xc=0:cursor xc,yc-ct:print chr$(27)+"q";
  8280 foreground fg
  8290 a$=li$(yc):gosub1: rem redraw current
  8300 return
