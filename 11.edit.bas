@@ -497,7 +497,7 @@
  7870 if ab=1 thenreturn
  7880 print"{home}{home}{clr}"+chr$(27)+"l";
  7885 rem gosub9000 : rem save line buffer
- 7890 print"{home}{home}{clr}{down}{down}edma 0,$3fff,$8005000,$2001:new restore{down}{down}":print"run{home}";
+ 7890 print"{home}{home}{clr}{down}{down}edma 0,$d400,$8010000,$2001:new restore{down}{down}":print"run{home}";:rem load '11.parse' from attic cache
  7900 bank 128
  7910 poke 208,2     : rem no of chars in keyboard buffer
  7920 poke 688,13,13 : rem 2x return
@@ -578,7 +578,7 @@
  8600 print chr$(27)+"q"+chr$(27)+"l{home}{home}{lgrn}";err$(er),el
  8610 end
  9000 rem --- copy line buffer to attic ram
- 9020 cb=$8010000 : c=cb
+ 9020 cb=$8030000 : c=cb
  9025 wpoke c,nl+1 : c=c+2 : rem store no of lines
  9030 for a=0 to nl
  9040   p=pointer(li$(a)):l=len(li$(a)):b=$10000+wpeek(p+1)
@@ -587,7 +587,7 @@
  9070 next
  9080 return
  9100 rem --- copy attic ram to line buffer
- 9110 cb=$8010000 : c=cb
+ 9110 cb=$8030000 : c=cb
  9120 nl=wpeek(c):c=c+2
  9130 cl=0
  9140 do while cl<>nl

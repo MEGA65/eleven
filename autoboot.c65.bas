@@ -49,7 +49,7 @@
   580 bank 0
   590 do:gett$:loopwhilet$<>""
   600 gosub 1110: rem load modules
-  610 key on:key16,"{home}{home}{clr}edma 0,$4fff,$8000000,$2001:new restore"+chr$(13)+"run"+chr$(13)
+  610 key on:key16,"{home}{home}{clr}edma 0,$d400,$8000000,$2001:new restore"+chr$(13)+"run"+chr$(13):rem load '11.edit' from attic cache
   620 bank128:poke $d61a,peek($d61a)or16
   625 if sm then print chr$(27)+"5";:rem switch to 80x50 if settings say so
   630 if lp=0 then goto 1250: else goto 1390: rem load editor or prefs
@@ -106,18 +106,18 @@
  1130 print"installing editor..."
  1140 bload "11.edit",p($8000000)
  1150 print"installing parser..."
- 1160 bload "11.parse",p($8005000)
+ 1160 bload "11.parse",p($8010000)
  1170 print"installing prefs..."
- 1180 bload "11.settings",p($800a000)
+ 1180 bload "11.settings",p($8020000)
  1190 print"installing tokenizer..."
- 1200 bload "11.tokenize",p($800c000)
+ 1200 bload "11.tokenize",p($8022000)
  1210 print"installing post compiler..."
- 1220 bload "11.post",p($800e000)
+ 1220 bload "11.post",p($8024000)
  1230 bend
  1240 return
  1250 rem --- chain load editor
  1260 :
- 1270 print"{home}{home}{clr}{down}{down}edma 0,$4fff,$8000000,$2001:new restore":print"{down}{down}run{home}";
+ 1270 print"{home}{home}{clr}{down}{down}edma 0,$d400,$8000000,$2001:new restore":print"{down}{down}run{home}";:rem load '11.edit' from attic cache
  1280 bank 128
  1290 :
  1300 rem hack: load next module in direct mode
@@ -130,7 +130,7 @@
  1370 poke 688,13,13 : rem return
  1380 end
  1390 rem --- chain load prefs
- 1400 print"{home}{home}{clr}{down}{down}edma 0,$1fff,$800a000,$2001:new restore":print"{down}{down}run{home}";
+ 1400 print"{home}{home}{clr}{down}{down}edma 0,$1fff,$8020000,$2001:new restore":print"{down}{down}run{home}";:rem load '11.settings' from attic cache
  1410 bank 128
  1420 poke 208,2      : rem no of chars in keyboard buffer
  1430 poke 688,13,13  : rem return

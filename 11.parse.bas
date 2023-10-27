@@ -38,7 +38,7 @@
   185 sl=0 : rem source code line counter
   190 print "pass 1 ";:rl=0
   195 clr ti: rem keep start time for timing
-  198 cb=$8010000:ca=cb:tl=peek(ca)+256*peek(ca+1):ca=ca+2
+  198 cb=$8030000:ca=cb:tl=peek(ca)+256*peek(ca+1):ca=ca+2
   200 do while rl<>tl : rem until target lines is reached
   207   gosub 9500:rem read next line into cl$
   422   ct=instr(cl$,"'"): if ct=0 thengoto580
@@ -105,7 +105,7 @@
   900 close 1
   905 print"{down}"
   910 et=ti-bt:print "elapsed time:";et;"ticks"
-  920 print"{home}{home}{clr}{down}{down}edma 0,$1fff,$800c000,$2001:new restore{down}{down}":print"run{home}";:rem chain tokenizer
+  920 print"{home}{home}{clr}{down}{down}edma 0,$1fff,$8022000,$2001:new restore{down}{down}":print"run{home}";:rem load '11.tokenize' from cache
   925 bank 128
   930 poke 208,2   : rem no of chars in keyboard buffer
   940 poke 688,13,13:rem return
@@ -337,13 +337,13 @@
  7200 return
  7210 rem chain editor
  7220 get a$:if a$<>"" then input zz:if zz=1 then adfsdf
- 7225 print"{home}{home}{clr}{down}{down}edma 0,$4fff,$8000000,$2001:new restore{down}{down}":print"run{home}";
+ 7225 print"{home}{home}{clr}{down}{down}edma 0,$d400,$8000000,$2001:new restore{down}{down}":print"run{home}";:rem load '11.edit' from cache
  7230 bank 128
  7240 poke 208,2     : rem no of chars in keyboard buffer
  7250 poke 688,13,13 : rem return
  7260 end
  9100 rem --- copy attic ram to line buffer
- 9110 cb=$8010000 : c=cb
+ 9110 cb=$8030000 : c=cb
  9120 nl=peek(c)+256*peek(c+1):c=c+2
  9130 cl=0
  9140 do while cl<>nl

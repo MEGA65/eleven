@@ -435,31 +435,61 @@ In order to communicate with each other, editor and precopiler use
 a specially designated area in RAM bank 4. To this end, locations 
 $04ff00-$04ff79 are used as follows:
 
-$04ff00 's'    eleven id; each module checks for the existence of these
-$04ff01 'k'    identifier bytes. 
+$04,ff00 's'    eleven id; each module checks for the existence of these
+$04,ff01 'k'    identifier bytes. 
 
-$04ff02        border colour
-$04ff03        background colour
-$04ff04        foreground colour
-$04ff05        highlight colour
-$04ff06        status bar colour
+$04,ff02        border colour
+$04,ff03        background colour
+$04,ff04        foreground colour
+$04,ff05        highlight colour
+$04,ff06        status bar colour
 
-$04ff07        misc. flags
+$04,ff07        misc. flags
                bit 0  : autoload source enable flag
                bit 1  : autojump to line flag
                bit 2  : autobackup flag
                bit 3  : verbose flag
                bit 4-7: reserved
 
-$04ff08        error number to be displayed (>128 are preprocessor errors)
+$04,ff08        error number to be displayed (>128 are preprocessor errors)
 
-$04ff09/0a     line number for autojump
+$04,ff09/0a     line number for autojump
 
-$04ff10-
-$04ff1f        current file name
+$04,ff10-
+$04,ff1f        current file name
 
-$04ff20-
-$04ff2f        output file name
+$04,ff20-
+$04,ff2f        output file name
 
-$04ff30-        
-$04ff7f        reserved
+$04,ff30-        
+$04,ff7f        reserved
+
+
+. 7.2 Attic RAM cache usage
+
+Eleven uses some parts of attic RAM to cache its various modules.
+
+I believe Ubik's intent by this is so that eleven can re-load its modules
+straight from the cache (and not need to always access the drive).
+
+As some of these modules have grown over time, the amount of attic RAM
+allocated to them has incrementally grown.
+
+The diagram below represents current attic ram usage:
+
+
+$800,0000 +---------------+
+          ! 11.EDIT       ! (max 53kb)
+$801,0000 +---------------+
+          ! 11.PARSE      ! (max 53kb)
+$802,0000 +---------------+
+          ! 11.SETTINGS   ! (8kb)
+$802,2000 +---------------+
+          ! 11.TOKENIZE   ! (8kb)
+$802,4000 +---------------+
+          ! 11.POST       ! (8kb)
+$802,6000 +---------------+
+
+$803,0000 +---------------+
+          ! ELEVEN SOURCE !
+      ... +---------------+

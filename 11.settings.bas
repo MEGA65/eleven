@@ -64,7 +64,7 @@
   730 gosub 990
   740 loop until t$="{ensh}"
   750 clr
-  760  print"{home}{home}{clr}{down}{down}edma 0,$4fff,$8000000,$2001:new restore{down}{down}":print"run{home}";
+  760  print"{home}{home}{clr}{down}{down}edma 0,$d400,$8000000,$2001:new restore{down}{down}":print"run{home}";:rem load '11.edit' from attic cache
   770  bank 128
   780  poke 208,2     : rem no of chars in keyboard buffer
   790  poke 688,13,13 : rem return
