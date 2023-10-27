@@ -386,6 +386,7 @@
  6890 print"{down}{rvon}alt + return {rvof} to start of next line"
  6892 print"{down}{rvon}alt + f      {rvof} find"
  6894 print"{rvon}alt + r      {rvof} find & replace"
+ 6896 print"{rvon}alt + z      {rvof} go to label under cursor"
  6900 print"{down}*) only in lines with >80 characters"
  6901 print"{down}{rvon}#{rvof}) xemu-equivalent shortcut key"
  6910 print"{home}{down}{down}",,,,"{rvon} f1 {rvof} load file"
