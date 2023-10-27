@@ -1,4 +1,4 @@
-    0 ll=0:goto130:rem buffer of past line location
+    0 ll=0:lz=0:xz=0:goto130:rem buffer of past line location
     1 a$=mid$(a$,xi):b=len(a$):o=b>80:print"{rvof}";:ifothenb=79
     2 p=pointer(a$):bank0:m=peek(p+1)+256*peek(p+2):c=m+b-1:ifb=0then6
     3 if iv=1 then print "{rvon}";
@@ -120,7 +120,7 @@
  2410     if t$="{CTRL-P}" thengosub6710: rem goto line
  2415     if t$="{f8}" thengosub10700: rem go to previous file (pv$)
  2420     if t$="{$84}" thengosub6790: rem help
- 2425     if t$="{CTRL-O}" then tm=yc:ly=ll:ll=tm:gosub 6600
+ 2425     if t$="{CTRL-O}" then tm=yc:yc=ll:ll=tm: tm=ct:ct=lz:lz=tm: tm=xc:xc=xz:xz=tm:gosub 5150
  2430     if t$="{home}" thenbegin           : rem home/end
  2440       if ak=0 thenly=0:xc=0:gosub6600: elsely=nl:xc=0:gosub6600
  2450     bend
@@ -456,12 +456,17 @@
  7430 rem --- labels
  7435 mp = 0
  7440 bank 1
- 7450 gosub5490:print"{rvon}Collecting labels...";:fz$=""
- 7460 fora=0to72:mk$(a)="":mk(a)=0:fi$(a)="":fi(a)=0:nexta:mn=0:fz=0:fz$=""
+ 7450 gosub5490:print"{rvon}Collecting labels...";:if nz%=0 then fz$=""
+ 7460 fora=0to72:mk$(a)="":mk(a)=0:fi$(a)="":fi(a)=0:nexta:mn=0:fz=0
  7470 fora=0tonl:t$=li$(a):lb$="":ifleft$(t$,1)<>"."then7490
  7480 mk$(mn)=mid$(t$,1,38):mk(mn)=a:mn=mn+1
  7490 next
  7500 gosub5490:gosub 7421
+ 7510 if nz%=1 then begin
+ 7512   if fz=1 then t$=chr$(13):else t$=chr$(27)
+ 7514   nz%=0:goto 7690
+ 7516 bend
+ 7520 nz%=0
  7570 do
  7580   sx=20*int(mp/l): sy=mod(mp,l):cursor 0,10
  7590   cursor sx,sy:print "{rvon}";fi$(mp);"{rvof}";
@@ -476,7 +481,7 @@
  7660  if mp>fz-1 thenmp=fz-1
  7670   if mp<0 thenmp=0
  7680 loop until t$=chr$(13) or t$=chr$(27)
- 7690 if t$=chr$(13) then ll=ly:ly=fi(mp):gosub6600:elsegosub5150
+ 7690 if t$=chr$(13) then xz=xc:ll=yc:lz=ct:xc=0:ly=fi(mp):gosub6600:elsegosub5150
  7700 gosub5540: rem redraw status bar
  7710 return
  7720 rem --- save filename in mailbox ram
@@ -728,11 +733,25 @@
 10770 return
 11000 rem --- navigate to label under cursor
 11010 gosub 11100: rem get term under cursor
-11020 rem nav to label flag = true
-11030 rem gosub find label screen
+11020 nz%=1: rem nav to label flag = true
+11030 gosub 7430: rem gosub find label screen
 11040 return
-11100 rem --- get term under cursor
-11110 rem start of label = browse to left until space or start of string
-11120 rem end of label = browse to right until space or start of string
-11130 rem string = mid$(line$,start,end-start)
+11100 rem --- get term under cursor into fz$
+11110 gosub 11200: rem start of label into sz
+11120 gosub 11300: rem end of label into ez
+11130 fz$ = mid$(cl$,sz+1,ez-sz+1)
 11140 return
+11200 rem --- get start of label into sz
+11205 k = xc - 1 : zz$=" :" : sz = 0
+11210 do while k >= 0
+11220   if instr(zz$,mid$(cl$,k+1,1)) then sz = k + 1 : exit
+11230   k = k - 1
+11240 loop
+11250 return
+11300 rem --- get end of label into ez
+11310 k = xc : zz$=" :" : ez = len(cl$)-1
+11320 do while k <= ez
+11330   if instr(zz$,mid$(cl$,k+1,1)) then ez = k - 1 : exit
+11340   k = k + 1
+11350 loop
+11360 return
