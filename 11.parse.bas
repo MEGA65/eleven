@@ -98,7 +98,8 @@
   860   loop
   865 if vb thenprint "<= ";str$(si)+s$
   875   print#1,str$(si)+" "+s$
-  880 next si
+  876 next si
+  880 gosub 10000:rem --- dump vars
   881 for r=0 to 10:print#1,str$(32000+r):nextr
   886 f$="dC:dS"+q$+"11tokenized"+q$+":ifds<>0then?"+q$+"disc error: "+q$+";ds$:else?"+q$+"{home}{home}{down}{down}{down}{down}{down}{down}{down}{down}{down}{down}{down}{down}{down}{down}{down}{down}{down}{down}{down}{down}{down}{down}{down}{down}"+q$+":dL"+q$+"11.post"
   890 print#1,f$
@@ -438,3 +439,12 @@
  9890 bend
  9892 if vb then print "<<"ln;s$
  9895 return
+10000 rem --- dump vars
+10010 for ty = 0 to 3
+10020   for id = 0 to ec(ty)
+10030     gosub 5000: rem get vn$ (optimised var name)
+10040     print#1, str$(si)+" rem " + vt$(ty,id) + " = :"+vn$+pf$(ty)+":"
+10045     si=si+1
+10050   next id
+10060 next ty
+10070 return
