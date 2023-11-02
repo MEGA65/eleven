@@ -12,7 +12,7 @@
    71 rw$(3)=" dclear deffn delete fn dir disk dload dma dmode dpat dsave dverify edma envelope erase exit exp fast filter find go64 header help highlight "
    72 rw$(4)=" joy list load locate lpen mod monitor mouse movspr new paint play pointer polygon pos pot pudef "
    73 rw$(5)=" rclr rdot read record rem rename resume rgr rmouse rplay rreg rspcolor rsppos rsprite save scnclr sleep slow sond spc sprcolor "
-   75 rw$(6)=" sprite sprsav sys tab tempo troff tron type usr verify vol xor key vsync "
+   75 rw$(6)=" sprite sprsav sys tab tempo troff tron type usr verify vol xor key vsync rcursor t@& c@& rgraphic "
    85 dc$=" bload bsave dload to save dir collect dopen dclose backup "
    90 gosub7020: rem get filename
   100 bank128:poke 0,65
