@@ -12,7 +12,7 @@
    71 rw$(3)=" dclear deffn delete fn dir disk dload dma dmode dpat dsave dverify edma envelope erase exit exp fast filter find go64 header help highlight "
    72 rw$(4)=" joy list load locate lpen mod monitor mouse movspr new paint play pointer polygon pos pot pudef "
    73 rw$(5)=" rclr rdot read record rem rename resume rgr rmouse rplay rreg rspcolor rsppos rsprite save scnclr sleep slow sound spc sprcolor "
-   75 rw$(6)=" sprite sprsav sys tab tempo troff tron type usr verify vol xor key vsync rcursor t@& c@& rgraphic "
+   75 rw$(6)=" sprite sprsav sys tab tempo troff tron type usr verify vol xor key vsync rcursor t@& c@& rgraphic dopen# fread# pointer get# "
    85 dc$=" bload bsave dload to save dir collect dopen dclose backup "
    90 gosub7020: rem get filename
   100 bank128:poke 0,65
@@ -224,7 +224,7 @@
  3006 :
  3007 if left$(s$,2)="^^" thens$=right$(s$,len(s$)-2):return
  3010 q=0:a$="":c$="":ss=0:tg=0
- 3012 cx$="?<>=+-#*/^,.:;() " : d$=cx$
+ 3012 cx$="?<>=+-*/^,.:;() " : d$=cx$
  3020 for ii=1 to len(s$):b$=mid$(s$,ii,1)
  3025 if b$=":" and q=0 then ss=0:ri=0
  3030 if ss and b$="(" then ri=0 : d$=cx$
