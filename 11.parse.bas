@@ -310,6 +310,9 @@
  5000 if id<26 thenvn$=chr$(65+id) : return
  5010 n2=mod(id,26):n1=int(id/26)-1
  5020 vn$=chr$(65+n1)+chr$(65+n2)
+ 5021 if vn$="do" then vn$="d1":rem avoid any basic terms as var names
+ 5022 if vn$="go" then vn$="g1"
+ 5023 if vn$="to" then vn$="t1"
  5030 return
  5900 stop
  6996 :
