@@ -698,8 +698,14 @@
 10090   if ms>me then iv=ms:ms=me:me=iv
 10100   for iv=me to ms step -1
 10110     cb$(iv-ms) = li$(iv)
-10120     if t$="x" then yc=iv:ak=1:gosub 5840:ch=1
 10130   next iv
+10131   if t$="x" then begin
+10132     for a=ms to nl-1-(me-ms+1)
+10133       li$(a)=li$(a+(me-ms+1))
+10134     next a
+10135     nl=nl-(me-ms+1)
+10136     yc=ms-ct:if yc<0 then ly=ms:gosub 6600
+10138   bend
 10140   iv=0:mf=0:cs=me-ms+1:ms=0:me=0
 10150 bend
 10155 gosub 5150
