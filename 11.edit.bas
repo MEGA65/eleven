@@ -275,7 +275,7 @@
  5870 li$(yc)=li$(yc)+li$(yc+1)
  5880 fora=yc+1tonl-1:li$(a)=li$(a+1):nexta
  5890 if yc<=nl thenli$(nl)=""
- 5900 if nl>0 thennl=nl+1
+ 5900 if nl>0 thennl=nl-1
  5910 :
  5920 if ak=0 then cursor 0,yc-ct:a$=li$(yc):gosub1
  5930 cursor 0,yc-ct+1:printchr$(27)+"d";
@@ -700,11 +700,11 @@
 10110     cb$(iv-ms) = li$(iv)
 10130   next iv
 10131   if t$="x" then begin
-10132     for a=ms to nl-1-(me-ms+1)
+10132     for a=ms to nl-(me-ms+1)
 10133       li$(a)=li$(a+(me-ms+1))
 10134     next a
-10135     nl=nl-(me-ms+1)
-10136     yc=ms-ct:if yc<0 then ly=ms:gosub 6600
+10135     nl=nl-(me-ms+1):for a=nl to nl+(me-ms):li$(a)="":next a
+10136     yc=ms:if yc-ct<0 then ly=ms:gosub 6600
 10138   bend
 10140   iv=0:mf=0:cs=me-ms+1:ms=0:me=0
 10150 bend
