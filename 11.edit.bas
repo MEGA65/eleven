@@ -558,7 +558,7 @@
  8340 do:getkey fd$:loop until instr("npq",fd$)
  8350 if fd$="n" thensd=1
  8360 if fd$="p" thensd=-1
- 8370 if fd$="q" thens=nl+1
+ 8370 if fd$="q" thens=nl+2
  8380 return
  8390 rem --- replace
  8400 bank 128
