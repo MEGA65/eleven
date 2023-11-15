@@ -547,7 +547,7 @@
  8230      if fr%=0 thengosub8310: elsegosub8390
  8240   s=s+sd
  8250 loop
- 8260 if fd$="q" then gosub5540: elsegosub5490:print"{rvon}end of found";:ns=1
+ 8260 if fd$="q" then gosub5540: elsegosub5490:foreground hl:print"{rvon}end of found";:ns=1
  8265 if fd$<>"q" and s>nl then print " - search from start?{$a0}(y/n):";:get key fd$: if fd$="y" then s=0:goto 8140:else gosub 5490
  8270 xc=0:cursor xc,yc-ct:print chr$(27)+"q";
  8280 foreground fg
