@@ -313,6 +313,7 @@
  5021 if vn$="do" then vn$="d1":rem avoid any basic terms as var names
  5022 if vn$="go" then vn$="g1"
  5023 if vn$="to" then vn$="t1"
+ 5024 if vn$="ds" then vn$="d2"
  5030 return
  5900 stop
  6996 :
