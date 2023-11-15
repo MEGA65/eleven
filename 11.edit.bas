@@ -2,7 +2,7 @@
     1 a$=mid$(a$,xi):b=len(a$):o=b>80:print"{rvof}";:ifothenb=79
     2 p=pointer(a$):bank0:m=peek(p+1)+256*peek(p+2):c=m+b-1:ifb=0then6
     3 if iv=1 then print "{rvon}";
-    4 bank1:fora=mtoc:za=peek(a):printa$(za);:if iv=1 and (za<32 or (za>=128 and za<160) or za=34) then print "{rvon}";
+    4 bank1:fora=mtoc:za=peek(a):printa$(za);:if iv=1 and za=34 then print "{rvon}";
     5 next:bank128:ifothenforeground hl:printtab(79);"$";:foreground fg
     6 return
   100 :
@@ -679,7 +679,7 @@
 10000 rem *** invert if marked line
 10010 iv=0:if mf=0 then return
 10020 if ms<me and ms<=yc and yc<=me then iv=1:return
-10030 if me<ms and me<=yc and yc<=ms then iv=1
+10030 if me<=ms and me<=yc and yc<=ms then iv=1
 10040 return
 10050 rem *** mark-mode handling ***
 10060 if t$="{down}" then begin
@@ -703,7 +703,7 @@
 10132     for a=ms to nl-(me-ms+1)
 10133       li$(a)=li$(a+(me-ms+1))
 10134     next a
-10135     nl=nl-(me-ms+1):for a=nl to nl+(me-ms):li$(a)="":next a
+10135     nl=nl-(me-ms+1):for a=nl+1 to nl+(me-ms+1):li$(a)="":next a
 10136     yc=ms:if yc-ct<0 then ly=ms:gosub 6600
 10138   bend
 10140   iv=0:mf=0:cs=me-ms+1:ms=0:me=0
