@@ -314,6 +314,11 @@
  5022 if vn$="go" then vn$="g1"
  5023 if vn$="to" then vn$="t1"
  5024 if vn$="ds" then vn$="d2"
+ 5025 if vn$="dt" then vn$="d3"
+ 5026 if vn$="el" then vn$="e1"
+ 5027 if vn$="er" then vn$="e2"
+ 5028 if vn$="fn" then vn$="f1"
+ 5029 if vn$="if" then vn$="i1"
  5030 return
  5900 stop
  6996 :
