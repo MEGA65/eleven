@@ -1,6 +1,7 @@
   100 rem =================
   110 rem eleven bootloader
   120 rem =================
+  125 gosub 2000:rem check for autoload
   130 :
   140 if rwindow(2)<>80 thenprint chr$(27)+"x";
   150 print"{home}{home}{clr}":poke 0,65
@@ -72,6 +73,7 @@
   800 poke $4ff10,0  : rem filename
   810 bend
   820 if rt=1 thenreturn
+  825 gosub 2200:rem inject autoload into $4ff10
   830 tf$="":i=$4ff10:do while peek(i)<>0
   840 tf$=tf$+chr$(peek(i)):i=i+1:loop
   850 bo=peek($4ff02):bg=peek($4ff03):fg=peek($4ff04)
@@ -171,3 +173,24 @@
  1780 print " but got $";hex$(wpeek(b+c))
  1790 print"{down}{down}sorry for the inconvenience"
  1800 do:loop
+ 2000 rem sub --- check for autoload, return filename in al$ ---
+ 2010 i=0:al$="":aa=0
+ 2020 if peek(2048+i)+64<>asc(mid$("autoload",i+1,1)) then aa=0:al$="":return
+ 2030 i=i+1:if i<8 then 2020
+ 2040 a=peek(2048+i):if a<>34 and i<20 then i=i+1:goto 2040
+ 2050 if a<>34 then aa=0:return
+ 2060 i=i+1:if i>40 then al$="":aa=0:return
+ 2070 a=peek(2048+i):if a=34 then 2100
+ 2080 if a>=1 and a<=26 then a=a+64
+ 2090 al$=al$+chr$(a):goto 2060
+ 2100 if len(al$)>16 then al$="":aa=0
+ 2110 aa=1:return
+ 2200 rem sub --- inject autolod into $4ff10
+ 2210 if aa=0 then return
+ 2220 poke $4ff07, peek($4ff07) or 1 : i = 0
+ 2230 for k=1 to len(al$)
+ 2240   poke $4ff10+i, asc(mid$(al$,k,1))
+ 2250   i=i+1
+ 2260 next k
+ 2270 poke $4ff10+i,0
+ 2280 return
