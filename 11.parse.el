@@ -1,3 +1,5 @@
+#output "11.parse-new"
+
     1 clr
     2 pn$="11.parse":mk$="@~":q$=chr$(34):h=34:y=39
     4 key on
@@ -14,7 +16,7 @@
    73 rw$(5)=" rcolor rdot read record rem rename resume rgr rmouse rplay rreg rspcolor rsppos rsprite save scnclr sleep slow sound spc sprcolor "
    75 rw$(6)=" sprite sprsav sys tab tempo troff tron type usr verify vol xor key vsync rcursor t@& c@& rgraphic fread pointer "
    85 dc$=" bload bsave dload to save dir collect dopen dclose backup fread get "
-   90 gosub7020: rem get filename
+   90 gosub get_filename
   100 bank128:poke 0,65
   110 pf$(0)="":pf$(1)="%":pf$(2)="$":pf$(3)="&"
   111 dim b(16) : rem bit shifter's fast binary conversion. thanks a lot!
@@ -40,47 +42,47 @@
   195 clr ti: rem keep start time for timing
   198 cb=$8030000:ca=cb:tl=peek(ca)+256*peek(ca+1):ca=ca+2
   200 do while rl<>tl : rem until target lines is reached
-  207   gosub 9500:rem read next line into cl$
-  422   ct=instr(cl$,"'"): if ct=0 thengoto580
-  423   if instr(cl$,chr$(34))=0 thengoto540
+  207   gosub read_next_line
+  422   ct=instr(cl$,"'"): if ct=0 then goto 580
+  423   if instr(cl$,chr$(34))=0 then goto 540
   424   ct=0
-  425   bank0:l=peek(p)-1:a=peek(p+1)+256*peek(p+2):bank1
-  440   forr=.tol:c=peek(a+r):ifc=hthenq=abs(q-1):elseifc=yandq=0thenct=r+1:r=999
+  425   bank 0:l=peek(p)-1:a=peek(p+1)+256*peek(p+2):bank 1
+  440   for r= . to l:c=peek(a+r):if c=h then q=abs(q-1):else if c=y and q=0 then ct=r+1:r=999
   520   next
-  540   if ct thencl$=left$(cl$,ct-1)
+  540   if ct then cl$=left$(cl$,ct-1)
   560   rem strip whitespace from end
-  580   s$=cl$:gosub2050:cl$=s$
-  585   if cl$<>"" thenbegin
+  580   s$=cl$:gosub strip_characters :cl$=s$
+  585   if cl$<>"" then begin
   586     dl=0 : rem delete line flag
-  590     if vb thenprint ">>"ln;sl;cl$
-  600     if left$(cl$,1)="." thennl=1:gosub1500: rem label
-  601     if left$(cl$,1)="#" thenbegin
+  590     if vb then print ">>"ln;sl;cl$
+  600     if left$(cl$,1)="." then nl=1:gosub add_to_label_table : rem label
+  601     if left$(cl$,1)="#" then begin
   602       cc=1
-  603       if instr(cl$,"ifdef")=2 then s$=mid$(cl$,8):gosub 9210:dl=1
+  603       if instr(cl$,"ifdef")=2 then s$=mid$(cl$,8):gosub is_s$_defined :dl=1
   604       if instr(cl$,"endif")=2 then sh=0:dl=1
-  605       if instr(cl$,"define")=2 thendf=1:gosub1000:df=0
-  606       if instr(cl$,"declare")=2 thendf=0:gosub1000
-  607       if instr(cl$,"output")=2 thengosub1200
-  608       if instr(cl$,"struct")=2 then gosub9300:dl=1
+  605       if instr(cl$,"define")=2 then df=1:gosub declare_s$_var :df=0
+  606       if instr(cl$,"declare")=2 then df=0:gosub declare_s$_var 
+  607       if instr(cl$,"output")=2 then gosub set_output_file
+  608       if instr(cl$,"struct")=2 then gosub read_in_struct_details :dl=1
   650     bend
   653     if sh=1 then goto 750
   654     if left$(cl$,4)="data" or right$(cl$,5)="begin" then nl=1
-  655     if dl=0 thenbegin
-  656       if vb=0 thenprint ".";
+  655     if dl=0 then begin
+  656       if vb=0 then print ".";
   660       s$=cl$
-  670       gosub3007:rem replace vars & labels in s$
-  671       gosub9600:rem check for creation of struct object
+  670       gosub replace_vars_and_labels :rem replace vars & labels in s$
+  671       gosub check_for_creation_of_struct_object
   672       if right$(l$,1)="_" then l$=left$(l$,len(l$)-1):nl=0:cn=1:else cn=0
-  675       gosub 9800:rem safe add l$+s$ to current or next li$(ln)
-  732       if right$(s$,4)="bend" or right$(s$,6)="return" or left$(s$,2)="if" thennl=1
+  675       gosub safe_add_to_current_or_next_line :rem safe add l$+s$ to current or next li$(ln)
+  732       if right$(s$,4)="bend" or right$(s$,6)="return" or left$(s$,2)="if" then nl=1
   735     bend : rem endif dl=0
   740   bend : rem endif c$<>""
   750   sl=sl+1 : rem increase source code line (for error msgs...)
   755   if vb then print "sl=";sl:getkey z$
   760 loop
-  765 if l$<>"" thenli$(ln)=l$:ln=ln+1
+  765 if l$<>"" then li$(ln)=l$:ln=ln+1
   780 close 1
-  782 gosub7150: rem set output filename
+  782 gosub save_filename : rem set output filename
   785 scratch "11temp":scratch "11tokenized"
   786 rem ------------------------- pass 2 ------------------------------------
   787 :
@@ -89,20 +91,20 @@
   795 lp=0   : rem current line pointer
   798 ol$="" : rem current optimized line
   800 for si=0 to ln-1
-  810 s$=li$(si)  : if vb thenprint si;"{yel}=> "s$:elseprint ".";
+  810 s$=li$(si)  : if vb then print si;"{yel}=> "s$:elseprint ".";
   812   do while instr(s$,mk$)<>0
   814      s1=instr(s$,mk$):s2=instr(s$,mk$,s1+2)
   815      c$=mid$(s$,s1+2,s2-s1-2)
-  820      gosub4505
+  820      gosub check_c$_is_label
   830      s$=left$(s$,s1-1)+c$+mid$(s$,s2+2)
   860   loop
-  865 if vb thenprint "<= ";str$(si)+s$
-  875   print#1,str$(si)+" "+s$
+  865 if vb then print "<= ";str$(si)+s$
+  875   print #1,str$(si)+" "+s$
   876 next si
-  880 gosub 10000:rem --- dump vars
-  881 for r=0 to 10:print#1,str$(32000+r):nextr
+  880 gosub dump_vars :rem --- dump vars
+  881 for r=0 to 10:print #1,str$(32000+r):next r
   886 f$="dC:dS"+q$+"11tokenized"+q$+":ifds<>0then?"+q$+"disc error: "+q$+";ds$:else?"+q$+"{home}{home}{down}{down}{down}{down}{down}{down}{down}{down}{down}{down}{down}{down}{down}{down}{down}{down}{down}{down}{down}{down}{down}{down}{down}{down}"+q$+":dL"+q$+"11.post"
-  890 print#1,f$
+  890 print #1,f$
   900 close 1
   905 print"{down}"
   910 et=ti-bt:print "elapsed time:";et;"ticks"
@@ -112,67 +114,82 @@
   940 poke 688,13,13:rem return
   950 end
   999 :
+
+.declare_s$_var
+'--------------
  1000 rem declare var(s) in s$
- 1010 s$=mid$(cl$,10-df):d$=",;":ib=1:gosub2100:ib=0: rem split parameters
+ 1010 s$=mid$(cl$,10-df):d$=",;":ib=1:gosub parse_arguments :ib=0: rem split parameters
  1012 rem (ib=ignore brackets)
  1015 nl$="" : rem new line if dimensioning...
- 1020 if ac<0 then pe$="?declare parameter missing in line "+str$(sl):goto1800
+ 1020 if ac<0 then pe$="?declare parameter missing in line "+str$(sl):goto return_to_editor_with_error
  1021 for i=0 to ac
- 1022   p$=al$(i):gosub 1030:rem parse declared var
+ 1022   p$=al$(i):gosub parse_declared_var
  1023 next i
- 1024 if nl$<>"" thendl=0:cl$="^^"+nl$:else dl=1
+ 1024 if nl$<>"" then dl=0:cl$="^^"+nl$:else dl=1
  1025 return
+
+.parse_declared_var
+'------------------
  1030 rem --- parse declared var
  1031 : di$="" : vl$=""
  1032 : b1=instr(p$,"("):b2=instr(p$,")"):eq=instr(p$,"=")
- 1035 : if eq<>0 thenbegin : rem --- assignment
- 1036 :   vl$=mid$(p$,eq+1):p$=left$(p$,eq-1):tr$=wh$:s$=p$:gosub2050:p$=s$
- 1040 :   s$=vl$:gosub2000:gosub2050:vl$=s$
- 1045 :   if left$(vl$,1)="$"thenhx$=mid$(vl$,2):gosub4900:vl$=c$
- 1046 :   if left$(vl$,1)="%"thenbi$=mid$(vl$,2):gosub4800:vl$=c$
+ 1035 : if eq<>0 then begin : rem --- assignment
+ 1036 :   vl$=mid$(p$,eq+1):p$=left$(p$,eq-1):tr$=wh$:s$=p$:gosub strip_characters :p$=s$
+ 1040 :   s$=vl$:gosub strip_tr$_from_beginning :gosub strip_characters :vl$=s$
+ 1045 :   if left$(vl$,1)="$"then hx$=mid$(vl$,2):gosub convert_hex :vl$=c$
+ 1046 :   if left$(vl$,1)="%"then bi$=mid$(vl$,2):gosub convert_binary :vl$=c$
  1048 : bend
- 1050 : if b1<>0 and b2<>0 thenbegin : rem --- dimension
+ 1050 : if b1<>0 and b2<>0 then begin : rem --- dimension
  1052 :   di$=mid$(p$,b1+1,b2-b1-1) : pp$=left$(p$,b1-1)
- 1054 :   s$=di$:dz=1:gosub 3000:dz=0:di$=s$:p$=pp$: rem check for define tokens
+ 1054 :   s$=di$:dz=1:gosub replace_vars_and_labels :dz=0:di$=s$:p$=pp$: rem check for define tokens
  1058 :   dl=0
  1060 : bend
  1062 : ty=0 : rem var type
  1064 : t$=right$(p$,1): rem type (if any) in t$
- 1066 : if vb thenprint "adding {rvon}";
- 1068 : if instr("%&$",t$)=0 thent$="":ty=0
- 1069 : if df=1 thenty=4
- 1070 : if t$="%" thenty=1
- 1072 : if t$="$" thenty=2
- 1073 : if t$="&" thenty=3
+ 1066 : if vb then print "adding {rvon}";
+ 1068 : if instr("%&$",t$)=0 then t$="":ty=0
+ 1069 : if df=1 then ty=4
+ 1070 : if t$="%" then ty=1
+ 1072 : if t$="$" then ty=2
+ 1073 : if t$="&" then ty=3
  1074 : vt$(ty,ec(ty)) = p$
- 1076 : if di$<>"" thenbegin
- 1078 :   id=ec(ty):gosub5000: rem fetch varname in vn$
+ 1076 : if di$<>"" then begin
+ 1078 :   id=ec(ty):gosub generate_varname : rem fetch varname in vn$
  1084 :   if df=0 then nl$=nl$+"dim "+vn$+t$+"("+di$+"):"
  1085 : bend
- 1088 : if vl$<>"" thenbegin
- 1089 :   id=ec(ty):gosub5000
+ 1088 : if vl$<>"" then begin
+ 1089 :   id=ec(ty):gosub generate_varname 
  1090 :   if df=0 then nl$=nl$+vn$+t$+"="+vl$+":"
  1092 : bend
  1093 : if df=1 then df$(ec(ty))=vl$
- 1099 : if vb thenprint p$;"{rvof}: ";ec(ty)
+ 1099 : if vb then print p$;"{rvof}: ";ec(ty)
  1100 : ec(ty)=ec(ty)+1
  1120 return
- 1200 s$=mid$(cl$,8):d$=",;":gosub2100
- 1210 if ac<>0 thenprint "?invalid parameters in line ";ln%(sl):end
- 1220 s$=al$(0):tr$=q$:gosub2000:gosub2050: rem trim quotes left & right
- 1230 if vb thenprint "setting output file to {rvon}"+s$+"{rvof}"
+
+.set_output_file
+'---------------
+ 1200 s$=mid$(cl$,8):d$=",;":gosub parse_arguments
+ 1210 if ac<>0 then print "?invalid parameters in line ";ln%(sl):end
+ 1220 s$=al$(0):tr$=q$:gosub strip_tr$_from_beginning :gosub strip_characters : rem trim quotes left & right
+ 1230 if vb then print "setting output file to {rvon}"+s$+"{rvof}"
  1240 of$=s$
  1250 dl=1 : rem disable passthrough
  1260 return
  1485 :
  1490 rem add to label table
  1495 :
- 1500 if vb thenprint "label ";cl$;" at line ";ln
+
+.add_to_label_table
+'------------------
+ 1500 if vb then print "label ";cl$;" at line ";ln
  1505 dl=1
  1506 lb$(lc)=mid$(cl$,2)
  1510 ll(lc)=ln+1
  1520 lc=lc+1 : rem increase label count
  1530 return
+
+.return_to_editor_with_error
+'---------------------------
  1800 rem return to editor with error
  1805 bank 4 : rem set error mailbox flag
  1807 for r=1 to len(pe$):poke $4ff30+r-1,asc(mid$(pe$,r,1)):next r
@@ -180,134 +197,171 @@
  1810 poke dec("ff09"),mod(sl,256):poke dec("ff0a"),sl/256
  1820 poke dec("ff07"),peek(dec("ff07"))or2 : rem set autojump flag
  1830 dclose
- 1840 goto7210
- 1999 :
+ 1840 goto chain_editor
+
+
+.strip_tr$_from_beginning
+'------------------------
  2000 rem -- strip tr$ from beginning of string in s$ --
  2010 do while instr(tr$,(left$(s$,1)))
  2020   s$=mid$(s$,2)
  2030 loop
  2040 return
- 2045 :
+
+
+.strip_characters
+'----------------
  2050 rem -- strip charcters in tr$ from end of s$ --
  2060 do while instr(tr$,right$(s$,1))
  2070   s$=left$(s$,len(s$)-1)
  2080 loop
  2090 return
- 2095 :
+
+
+.parse_arguments
+'---------------
  2100 rem -- parse arguments --
  2101 rem     in: s$ = string, d$=delimiter
  2102 rem    out: al$(x)=argument list, ac=argument count
  2103 rem         al$(0)=first arg, al$(1)=second arg...
  2104 rem
- 2109 :
+
  2110 ac=0:al$=s$:al=len(s$):ig=0
- 2112 if al=0 thenac=-1:return : rem no string
- 2115 forai=0to31:al$(ai)="":nextai
+ 2112 if al=0 then ac=-1:return : rem no string
+ 2115 for ai=0 to 31:al$(ai)="":next ai
  2120 for ai=1 to al
  2125 b$=mid$(al$,ai,1)
- 2126 if b$="(" and ib=1 thenig=1
- 2127 if b$=")" and ib=1 thenig=0
- 2130 if instr(d$,b$)<>0 and ig=0 thenbegin
- 2132     s$=al$(ac):tr$=" ":gosub2000:gosub2050:al$(ac)=s$
+ 2126 if b$="(" and ib=1 then ig=1
+ 2127 if b$=")" and ib=1 then ig=0
+ 2130 if instr(d$,b$)<>0 and ig=0 then begin
+ 2132     s$=al$(ac):tr$=" ":gosub strip_tr$_from_beginning :gosub strip_characters :al$(ac)=s$
  2140     ac=ac+1
- 2150   bend : elsebegin
+ 2150   bend : else begin
  2160     al$(ac)=al$(ac)+b$
  2170   bend
  2180 next ai
- 2182 s$=al$(ac):tr$=" ":gosub2000:gosub2050:al$(ac)=s$
+ 2182 s$=al$(ac):tr$=" ":gosub strip_tr$_from_beginning :gosub strip_characters :al$(ac)=s$
  2185 s$=al$ : rem restore s$
  2190 return
- 2995 :
+
+
+.replace_vars_and_labels
+'-----------------------
  3000 rem -- replace vars & labels in source string --
  3001 rem    in:   s$ = source string
  3002 rem    out:  s$ = dest string with replaced items
- 3006 :
- 3007 if left$(s$,2)="^^" thens$=right$(s$,len(s$)-2):return
+
+ 3007 if left$(s$,2)="^^" then s$=right$(s$,len(s$)-2):return
  3010 q=0:a$="":c$="":ss=0:tg=0
  3012 cx$="?<>=+-#*/^,.:;() " : d$=cx$
  3020 for ii=1 to len(s$):b$=mid$(s$,ii,1)
  3025 if b$=":" and q=0 then ss=0:ri=0
  3030 if ss and b$="(" then ri=0 : d$=cx$
  3035 if ss and b$=")" then ri=-1 : d$=cx$ + "dpub"
- 3040   if b$=q$ thenbegin : q=abs(q-1)
- 3042   if q=1 thengosub4000:a$=a$+c$:c$="":elsea$=a$+b$:b$=""
+ 3040   if b$=q$ then begin : q=abs(q-1)
+ 3042   if q=1 then gosub check_token_for_subbing :a$=a$+c$:c$="":else a$=a$+b$:b$=""
  3044 bend
- 3050 if q=1 thena$=a$+b$:goto3200
- 3060 if instr(d$,b$)<>0 thenbegin
- 3070 gosub4000:a$=a$+c$:c$="":ifb$=" "thenb$=""
+ 3050 if q=1 then a$=a$+b$:goto rval_skip
+ 3060 if instr(d$,b$)<>0 then begin
+ 3070 gosub check_token_for_subbing :a$=a$+c$:c$="":if b$=" "then b$=""
  3080 a$=a$+b$
- 3085 bend : elsec$=c$+b$
+ 3085 bend : else c$=c$+b$
+
+.rval_skip
  3200 next
- 3202 gosub4000
+ 3202 gosub check_token_for_subbing 
  3210 s$=a$+c$
  3220 return
  3900 end
- 4000 if c$="" or c$="_" thenreturn
- 4001 if val(c$)<>0 thentg=0: return     : rem never change numbers
- 4002 if c$="0" thenc$=".":return        : rem stupid ms basic optimization
- 4005 if tg and dz=0 thengosub4500:tg=0:return   : rem replace label
- 4006 if c$="goto" thennl=1
- 4007 if c$="goto" or c$="gosub" or c$="trap" thentg=1
+
+.check_token_for_subbing
+'-----------------------
+ 4000 if c$="" or c$="_" then return
+ 4001 if val(c$)<>0 then tg=0: return     : rem never change numbers
+ 4002 if c$="0" then c$=".":return        : rem stupid ms basic optimization
+ 4005 if tg and dz=0 then gosub check_marked_c$_is_label :tg=0:return   : rem replace label
+ 4006 if c$="goto" then nl=1
+ 4007 if c$="goto" or c$="gosub" or c$="trap" then tg=1
  4008 dr=0 : rem did replace flag
- 4009 if left$(c$,1)="$" thenhx$=mid$(c$,2):gosub4900:return
- 4010 if left$(c$,1)="%" thenbi$=mid$(c$,2):gosub4800:return
+ 4009 if left$(c$,1)="$" then hx$=mid$(c$,2):gosub convert_hex :return
+ 4010 if left$(c$,1)="%" then bi$=mid$(c$,2):gosub convert_binary :return
  4011 p$=" "+c$+" "
- 4012 for t=0 to 6:if instr(rw$(t),p$)<>0 then lc$=c$:gosub 4100:return
+ 4012 for t=0 to 6:if instr(rw$(t),p$)<>0 then lc$=c$:gosub check_if_command_triggers_shitty_syntax :return
  4013 next
  4014 t$=right$(c$,1):ty=0
- 4015 if t$="%" thenty=1
- 4016 if t$="$" thenty=2
- 4017 if t$="&" thenty=3
+ 4015 if t$="%" then ty=1
+ 4016 if t$="$" then ty=2
+ 4017 if t$="&" then ty=3
  4020 for id=0 to ec(ty)
- 4025 if c$=vt$(ty,id) thengosub5000:c$=vn$+pf$(ty):id=ec(ty):dr=1
+ 4025 if c$=vt$(ty,id) then gosub generate_varname :c$=vn$+pf$(ty):id=ec(ty):dr=1
  4030 next id
- 4070 if dr=1 thenreturn
+ 4070 if dr=1 then return
  4071 for id=0 to ec(4):rem check defines table too
  4072   if c$=vt$(4,id) then c$=df$(id):return
  4073 next id
  4074 ci=-1
  4075 for id=0 to ss-1:rem check struct names
- 4076   if c$=sn$(id) then gosub 9600:ci=id:id=ss-1:rem create new struct object
+ 4076   if c$=sn$(id) then gosub check_for_creation_of_struct_object :ci=id:id=ss-1:rem create new struct object
  4077 next id
  4078 if ci<>-1 then return:else if asc(c$)=222 then return:rem pi
  4079 if instr(dc$, lc$)<>0 and (c$="r" or c$="p" or c$="u8" or c$="w") then return
- 4080 pe$="?unresolved identifier: '"+c$+"' in line "+str$(sl):sleep 1:goto 1800
+.unresolved_c$
+ 4080 pe$="?unresolved identifier: '"+c$+"' in line "+str$(sl):sleep 1:goto return_to_editor_with_error
  4090 return
- 4091 :
- 4092 :
+
+
+.check_if_command_triggers_shitty_syntax
+'---------------------------------------
  4100 rem check if command triggers shitty syntax mode
  4110 rem todo: compare ubik's logic here versus my own 4079 lc$="dopen" logic
  4120 return
+
+.check_marked_c$_is_label
+'------------------------
  4500 c$=mk$+c$+mk$ : return : rem mark label
+.check_c$_is_label
  4505 dr=0
  4510 for id=0 to lc-1
- 4520 if c$=lb$(id) thenc$=str$(ll(id)):id=lc:dr=1
+ 4520 if c$=lb$(id) then c$=str$(ll(id)):id=lc:dr=1
  4530 next id
- 4540 if dr thenreturn
- 4550 pe$="?unresolved label: '"+c$+"' in line"+str$(ln%(si-1)):sleep 1:goto1800
+ 4540 if dr then return
+ 4550 pe$="?unresolved label: '"+c$+"' in line"+str$(ln%(si-1)):sleep 1:goto return_to_editor_with_error
  4567 return
+
+.convert_binary
+'--------------
  4800 rem --- convert binary
  4810 br=0 : rem result
  4820 for b=0 to len(bi$)-1
  4830 bc$=mid$(bi$,len(bi$)-b,1)
- 4840 if bc$<>"1" and bc$<>"0" thenbank4:pokedec("ff08"),132:goto4082
- 4850 if bc$="1" thenbr=br+b(b)
+ 4840 if bc$<>"1" and bc$<>"0" then bank4:poke dec("ff08"),132:goto unresolved_c$
+ 4850 if bc$="1" then br=br+b(b)
  4860 next b
  4870 c$=mid$(str$(br),2)
  4880 return
  4899 stop
+
+.convert_hex
+'-----------
  4900 rem --- convert hex
- 4905 trap4940
+ 4905 trap illegal_hex_handler
  4910 vl=dec(hx$)
  4920 c$=mid$(str$(vl),2)
  4925 trap
  4930 return
+
+.illegal_hex_handler
+'-------------------
  4940 trap:bank 4:poke dec("ff08"),131 : rem set illegal hex
- 4950 goto4082: rem jump into error handler
+ 4950 goto unresolved_c$ : rem jump into error handler
+
+
+.generate_varname
+'----------------
  4990 :
  4995 rem generate varname from index
  4998 :
- 5000 if id<26 thenvn$=chr$(65+id) : return
+ 5000 if id<26 then vn$=chr$(65+id) : return
  5010 n2=mod(id,26):n1=int(id/26)-1
  5020 vn$=chr$(65+n1)+chr$(65+n2)
  5021 if vn$="do" then vn$="d1":rem avoid any basic terms as var names
@@ -326,25 +380,35 @@
  6998 :
  7000 rem get filename
  7010 :
+
+
+.get_filename
+'------------
  7020 bank 4:ba=dec("ff00")
- 7030 if peek(ba+0)=asc("s") and peek(ba+1)=asc("k") thenbegin
+ 7030 if peek(ba+0)=asc("s") and peek(ba+1)=asc("k") then begin
  7040   vb=peek(dec("ff07"))and16
- 7050   f$="":a=ba+16:dowhilepeek(a)<>0:f$=f$+chr$(peek(a)):a=a+1:loop:
- 7060   if peek(dec("ff07"))and1 thenreturn
- 7070   print "filename? "+f$:print"{up}";
+ 7050   f$="":a=ba+16:do while peek(a)<>0:f$=f$+chr$(peek(a)):a=a+1:loop
+ 7060   if peek(dec("ff07")) and 1 then return
+ 7070   print "filename? "+f$:print "{up}";
  7080 bend
  7090 input "filename";a$
- 7100 if a$="" thenprint "no filename set":end
+ 7100 if a$="" then print "no filename set":end
  7110 poke ba,asc("s"):poke ba+1,asc("k")
- 7120 forr=1to16:poke ba+8+r-1,asc(mid$(a$,r,1)):nextr
+ 7120 for r=1 to 16:poke ba+8+r-1,asc(mid$(a$,r,1)):next r
  7130 f$=a$
  7140 return
+
+.save_filename
+'-------------
  7150 rem --- save filename
  7160 ad=dec("ff30"):bank 4
- 7170 forr=0to16:pokead+r,0:nextr
- 7180 if of$<>"" thentf$=of$ : elsetf$="eleven.out"
- 7190 forr=1tolen(tf$):pokead+r-1,asc(mid$(tf$,r,1)):nextr
+ 7170 for r=0 to 16:poke ad+r,0:next r
+ 7180 if of$<>"" then tf$=of$ : else tf$="eleven.out"
+ 7190 for r=1 to len(tf$):poke ad+r-1,asc(mid$(tf$,r,1)):next r
  7200 return
+
+.chain_editor
+'------------
  7210 rem chain editor
  7220 get a$:if a$<>"" then input zz:if zz=1 then adfsdf
  7225 print"{home}{home}{clr}{down}{down}edma 0,$d400,$8000000,$2001:new restore{down}{down}":print"run{home}";:rem load '11.edit' from cache
@@ -352,6 +416,9 @@
  7240 poke 208,2     : rem no of chars in keyboard buffer
  7250 poke 688,13,13 : rem return
  7260 end
+
+.NOT_USED_DELETE?
+'---------------
  9100 rem --- copy attic ram to line buffer
  9110 cb=$8030000 : c=cb
  9120 nl=peek(c)+256*peek(c+1):c=c+2
@@ -363,95 +430,121 @@
  9180   cl=cl+1
  9190 loop
  9200 return
+
+.is_s$_defined
+'-------------
  9210 rem --- define in s$ exists?
  9220 sh = 1
- 9230 fork=0toec(4)
+ 9230 for k=0 to ec(4)
  9240 if vt$(4,k) = s$ then sh=0
- 9250 nextk
+ 9250 next k
  9260 return
+
+.read_in_struct_details
+'----------------------
  9300 rem --- read in struct details
- 9305 cl$=mid$(cl$,9):gosub 9400:rem get next token in s$
+ 9305 cl$=mid$(cl$,9):gosub read_next_token :rem get next token in s$
  9307 if s$="" then print "error: no struct name found":sleep 1:return
  9310 sn$(ss) = s$
  9320 sv$(ss) = cl$
  9325 ss=ss+1
  9330 return
+
+.read_next_token
+'---------------
  9400 rem --- read next token from cl$ into s$
- 9410 s$=cl$:gosub 2000:gosub 2050:cl$=s$
+ 9410 s$=cl$:gosub strip_tr$_from_beginning :gosub strip_characters :cl$=s$
  9411 sf$=" ":sf=0
  9412 if left$(s$,1)=q$ then sf$=q$+", ":sf=2
  9415 a=instr(cl$,sf$)
  9420 if a<>0 then s$=mid$(cl$,1,instr(cl$,sf$)+sf-1):cl$=mid$(cl$,instr(cl$,sf$)+sf+1)
  9430 if a=0 then s$=cl$:cl$=""
  9440 return
+
+.read_next_line
+'--------------
+' read next line into cl$
  9500 rem --- read next line
  9510 bank 0
  9520 l=peek(ca):cl$=left$(bl$,l):p=pointer(cl$):ca=ca+1
  9530 b=$10000+peek(p+1)+256*peek(p+2)
  9540 if l<>0 then edma 0,l,ca,b : ca=ca+l
  9550 rl=rl+1
- 9560 tr$=wh$:s$=cl$:gosub2000:cl$=s$
+ 9560 tr$=wh$:s$=cl$:gosub strip_tr$_from_beginning :cl$=s$
  9570 q = 0 : rem quotes on
  9580 ct = 0 : rem cut chars from tail
  9590 bank 1
  9595 return
+
+
+.check_for_creation_of_struct_object
+'-----------------------------------
  9600 rem --- check for creation of struct object
  9610 co$=s$:cl$=s$:zz=-1:rem preserve original string
- 9620 gosub 9400:rem read next token from cl$ into s$
+ 9620 gosub read_next_token :rem read next token from cl$ into s$
  9630 for zi=0 to ss
  9640   if s$=sn$(zi) then zz=zi:zi=ss
  9650 next zi
  9660 if zz=-1 then cl$=co$:s$=co$:return
- 9662 gosub 9400:sk$=s$:rem get struct object name
+ 9662 gosub read_next_token :sk$=s$:rem get struct object name
  9664 bl=instr(sk$,"(")
  9670 rem *** found it, so make dim's for each member var
- 9680 s$=sv$(zz):gosub 2100:rem parse args into al$(), ac
+ 9680 s$=sv$(zz):gosub parse_arguments :rem parse args into al$(), ac
  9685 zz=1:sz=0
  9690 for zi=0 to ac
  9691   if al$(zi)<>"" then begin
  9692     print "al$(";zi;")=";al$(zi)
- 9693     if bl=0 then s$=sk$+"{CBM-P}"+al$(zi):print "struct: ";s$:p$=s$:gosub 1030
- 9694     if bl<>0 then s$=left$(sk$,bl-1)+"{CBM-P}"+al$(zi)+mid$(sk$,bl):print "struct: ";s$:p$=s$:gosub 1030:sk$(sz)=p$:sz=sz+1
+ 9693     if bl=0 then s$=sk$+"{CBM-P}"+al$(zi):print "struct: ";s$:p$=s$:gosub parse_declared_var 
+ 9694     if bl<>0 then s$=left$(sk$,bl-1)+"{CBM-P}"+al$(zi)+mid$(sk$,bl):print "struct: ";s$:p$=s$:gosub parse_declared_var :sk$(sz)=p$:sz=sz+1
  9695     rem if nl$<>"" then dl=0:cl$="^^"+nl$:else dl=1
  9696   bend
  9700 next zi
- 9701 s$=nl$:gosub 9800:nl$="":rem safe add l$+s$ to current li$(ln)
- 9702 gosub 9400:if s$<>"=" then cl$="":return
- 9703 gosub 9400:sz=0:sr=0:sm=0:rem read next token from cl$ into s$
+ 9701 s$=nl$:gosub safe_add_to_current_or_next_line :nl$="":rem safe add l$+s$ to current li$(ln)
+ 9702 gosub read_next_token :if s$<>"=" then cl$="":return
+ 9703 gosub read_next_token :sz=0:sr=0:sm=0:rem read next token from cl$ into s$
  9704 do while s$<>""
- 9705     if s$="_" then sl=sl+1:gosub 9500:goto 9717:rem read next line
+ 9705     if s$="_" then sl=sl+1:gosub read_next_line :goto 9717:rem read next line
  9706   if sm=0 and s$<>"[" then print "error: expected [":sleep 1:stop
- 9707   if sm=0 and s$="[" then sm=1:goto 9717
+ 9707   if sm=0 and s$="[" then sm=1:goto cfcoso_skip
  9708   if sm=1 and s$<>"[" and s$<>"]" then print "error: expected [ or ]":sleep 1:stop
  9709   if sm=2 then begin
- 9710     if left$(s$,1)="]" then sr=sr+1:sz=0:sm=1:s$="":goto 9714:rem next row
- 9711 rem if left$(s$,1)=q$ then ss$=s$:tr$="":do while right$(ss$,2)<>(q$+","):gosub9400:ss$=ss$+s$:printss$:loop:s$=ss$:tr$=wh$:stop
+ 9710     if left$(s$,1)="]" then sr=sr+1:sz=0:sm=1:s$="":goto cfcoso_nextrow :rem next row
+ 9711 rem if left$(s$,1)=q$ then ss$=s$:tr$="":do while right$(ss$,2)<>(q$+","):gosub read_next_token :ss$=ss$+s$:print ss$:loop:s$=ss$:tr$=wh$:stop
  9712     if right$(s$,1)="," then s$=left$(s$,len(s$)-1)
- 9713     s$=sk$(sz)+"("+str$(sr)+")="+s$:gosub 3007:gosub 9800:s$="":sz=sz+1:rem safe add to li$(ln)
+ 9713     s$=sk$(sz)+"("+str$(sr)+")="+s$:gosub replace_vars_and_labels :gosub safe_add_to_current_or_next_line :s$="":sz=sz+1:rem safe add to li$(ln)
+.cfcoso_nextrow
  9714   bend
  9715   if sm=1 and s$="[" then sm=2:sz=0
  9716   if sm=1 and s$="]" then sm=0
- 9717   gosub 9400:rem read next token from cl$ into s$
+
+.cfcoso_skip
+ 9717   gosub read_next_token :rem read next token from cl$ into s$
  9720 loop
  9730 s$="":cl$="":nl$=""::zz$="z"
  9790 return
+
+.safe_add_to_current_or_next_line
+'--------------------------------
  9800 rem --- safe add l$+s$ to current orclosenext li$(ln)
- 9810 if len(l$)+len(s$)+len(str$(ln))>=159 thennl=1
+ 9810 if len(l$)+len(s$)+len(str$(ln))>=159 then nl=1
  9815 if zz$<>"" then s$="":zz$="":return:rem force s$ to empty
- 9820 if nl=1 thenbegin
+ 9820 if nl=1 then begin
  9830   li$(ln)=l$:l$=s$
  9840   ln%(ln)=sl:
  9850   ln=ln+1 : nl=0
- 9860 bend : elsebegin rem -- add to l$
- 9870   if l$<>"" and cn=0 and right$(l$,1)<>":" thenl$=l$+":"
+ 9860 bend : else begin rem -- add to l$
+ 9870   if l$<>"" and cn=0 and right$(l$,1)<>":" then l$=l$+":"
  9880   l$=l$+s$
  9890 bend
  9892 if vb then print "<<"ln;s$
  9895 return
+
+.dump_vars
+'---------
 10000 rem --- dump vars
 10010 for ty = 0 to 3
 10020   for id = 0 to ec(ty)
-10030     gosub 5000: rem get vn$ (optimised var name)
+10030     gosub  generate_varname : rem get vn$ (optimised var name)
 10040     print#1, str$(si)+" rem " + vt$(ty,id) + " = :"+vn$+pf$(ty)+":"
 10045     si=si+1
 10050   next id

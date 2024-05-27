@@ -1,3 +1,5 @@
+#output "11.edit"
+
 last_ypos=0
 last_yoffs=0
 last_xpos=0
