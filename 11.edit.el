@@ -201,8 +201,8 @@ goto general_init_and_main_loop  ' buffer of past line location
         gosub clear_status_bar:print "{rvon}";disk_op_result$(abs(disk_errno=0));disk_error$;" ";:foreground sb
         redraw_status=1
       bend
-    ' end if ctrl_or_alt
-    bend:else begin
+    ' endif ctrl_or_alt
+    bend:else begin  ' else not ctrl_or_alt
       if t$=chr$(27) then begin ' -- check escape flag
         t$="":if esc_flag%=0 then esc_flag%=1:else esc_flag%=0
       bend:else begin
@@ -223,7 +223,7 @@ goto general_init_and_main_loop  ' buffer of past line location
           x_pos=x_pos+1 : if x_pos>79 then x_pos=79
         bend ' endif esc_flag%=1
       bend ' endif t$=chr$(27)
-    bend ' endif ctrl_or_alt (ctrl-char)
+    bend ' endif not ctrl_or_alt (ctrl-char)
   loop until qu=1
   stop
 
