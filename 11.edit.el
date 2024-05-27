@@ -68,7 +68,7 @@ goto general_init_and_main_loop  ' buffer of past line location
   dim label_name$(72),label_lineno(72),filtered_name$(72),filtered_lineno(72)    ' marker table
   ee$(0)="variable not declared"
 
-rem --- build char translation table ---
+' --- build char translation table ---
 
 dim transl$(255)            ' char translation table
 for a=1 to 31:transl$(a)="{rvon}"+chr$(64+a)+"{rvof}":transl$(128+a)="{rvon}"+chr$(192+a)+"{rvof}":next a
@@ -92,15 +92,15 @@ if curr_file$<>"" then begin
   bend
 bend
 
-rem uncomment this for output performance test
-rem ts=ti:for te=0 to 10:gosub 2080:next te:print"{down}{down}{down}"ti-ts:stop
+' uncomment this for output performance test
+' ts=ti:for te=0 to 10:gosub 2080:next te:print"{down}{down}{down}"ti-ts:stop
 
 gosub redraw_screen ' redraw screen
 gosub build_status_bar ' build status bar
 
-rem **********************
-rem ** main editor loop **
-rem **********************
+' **********************
+' ** main editor loop **
+' **********************
 
 bank 128:sys ml_v4  ' enable vic iv
 if jump_line<>-1 then begin
@@ -129,7 +129,7 @@ do
   if mf=1 then gosub mark_mode_handler : goto main_loop  ' mark-mode handling
   if redraw_status=1 then gosub build_status_bar: bank 128:sys ml_v4: redraw_status=0
   bank 128:alt_key = peek(54801) and 16  ' check alt key
-  rem -- if t$=f11 (also ctrl+5/green for xemu?)
+  ' -- if t$=f11 (also ctrl+5/green for xemu?)
   if t$="{pur}" or (alt_key and t$="c") then control_mode=abs(control_mode-1) : goto main_loop
     ctrl_or_alt = (instr(ctrl_chars$,t$) and control_mode=0) or alt_key
    if ctrl_or_alt then begin
@@ -222,7 +222,7 @@ bend:else begin  ' -- insert char
 loop until qu=1
 stop
 
-rem ==================== subroutines =====================
+' ==================== subroutines =====================
 
 .load_file
 '---------
@@ -328,7 +328,7 @@ return
 
 .merge_lines
 '-----------
-rem --- merge lines
+' --- merge lines
 if alt_key=0 and y_pos<1 then return
 if alt_key then sx=x_pos:x_pos=0:y_pos=y_pos-1:goto mg_skip
 y_pos=y_pos-1:x_pos=len(line_buff$(y_pos))
@@ -377,7 +377,7 @@ return
 
 .load_file_prompt
 '----------------
-rem --- load file
+' --- load file
 gosub clear_status_bar
 of$=curr_file$
 if changed=1 then begin
@@ -444,7 +444,7 @@ return
 
 .jump_to_line
 '------------
-rem --- query line no
+' --- query line no
 gosub clear_status_bar:print "{rvon}jump to line # (return to cancel) "+chr$(27)+"t{clr}";
 nn$="":line input nn$
 nn=val(nn$):print"{home}{home}";:gosub clear_status_bar
@@ -456,7 +456,7 @@ return
 
 .show_help
 '---------
-rem --- help
+' --- help
 print"{home}{home}{clr}-- cursor movement --",,"-- editor functions --{down}"
 print"{rvon}cursor keys  {rvof} move the cursor"
 print"{rvon}alt + up     {rvof} scroll up 1 page"
@@ -492,7 +492,7 @@ getkey t$:gosub redraw_screen:gosub build_status_bar:return
 
 .read_defaults_from_bank4
 '------------------------
-rem --- set filename from mailbox ram
+' --- set filename from mailbox ram
 bank 4:t$=chr$(peek(dec("ff00")))+chr$(peek(dec("ff01")))
 if t$<>"sk" then bo=6:fg=5:bg=0:sb=14:hl=2:jump_line=-1:return
 jump_line=-1  ' jump line
@@ -611,7 +611,7 @@ if changed=1 then begin
 bend
 if ab=1 then return
 print"{home}{home}{clr}"+chr$(27)+"l";
-rem gosub copy_line_buffer_to_attic_ram  ' save line buffer
+' gosub copy_line_buffer_to_attic_ram  ' save line buffer
 print"{home}{home}{clr}{down}{down}edma 0,$d400,$8010000,$2001:new restore{down}{down}":print"run{home}"; ' load '11.parse' from attic cache
 bank 128
 poke 208,2      ' no of chars in keyboard buffer
@@ -650,12 +650,12 @@ do while s>=0 and s<=lastline_y
   if fp=0 then8240
      ly=s:context_lines=8: gosub safe_ly
      bank 128
-     rem mark found line
+     ' mark found line
      for rv=0 to 79
        i=((y_pos-y_offs)*80)+rv
        poke 2048+i,peek(2048+i) xor 128
      next rv
-     rem flash found string
+     ' flash found string
      for rv=0 to len(fs$)-1
        i=((y_pos-y_offs)*80)+fp+rv-1
        poke $d800+i,peek($d800+i) or 16
@@ -763,7 +763,7 @@ return
 
 .post_chunk
 '----------
-rem *** post chunk ***
+' *** post chunk ***
 l$=chr$(len(l$)+1) + l$ ' prepend the length of string+1
 a=usr("/"+l$)
 print "posting chunk..."
@@ -773,7 +773,7 @@ return
 
 .next_word
 '---------
-rem move to next word
+' move to next word
 do while mid$(curr_line$,x_pos+x_offs,1) <> " "
   gosub next_char
   if ef then exit
@@ -787,7 +787,7 @@ return
 
 .next_char
 '---------
-rem move to next char
+' move to next char
 ef=0:x_pos=x_pos+1
 if x_pos>len(curr_line$) then begin
   if y_pos< lastline_y then x_pos=0:y_pos=y_pos+1:curr_line$=line_buff$(y_pos):if y_pos-y_offs>20 then gosub scroll_up
@@ -798,7 +798,7 @@ return
 
 .previous_word
 '-------------
-rem move to previous word
+' move to previous word
 gosub previous_char  ' prev char
 do while mid$(curr_line$,x_pos+x_offs,1) = " "
   gosub previous_char
@@ -814,7 +814,7 @@ return
 
 .previous_char
 '-------------
-rem move to prev char
+' move to prev char
 ef=0:x_pos=x_pos-1
 if x_pos<0 then begin
   if y_pos>0 then y_pos=y_pos-1:curr_line$=line_buff$(y_pos):x_pos=len(curr_line$)-1:if y_pos-y_offs<0then gosub scroll_down
@@ -827,7 +827,7 @@ return
 
 .delete_curr_char
 '----------------
-rem delete current char
+' delete current char
 if x_pos<len(curr_line$) then begin
   changed=1
   curr_line$=left$(curr_line$,x_pos+x_offs-1)+mid$(curr_line$,x_pos+x_offs+1)
@@ -888,7 +888,7 @@ return
 .paste
 '-----
 for iv=cs-1 to 0 step -1
-  rem insert a line at y_pos
+  ' insert a line at y_pos
   mf=y_pos ' temp
   changed=1:gosub insert_return
   y_pos=mf:mf=0
