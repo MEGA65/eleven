@@ -83,8 +83,9 @@ goto general_init_and_main_loop  ' buffer of past line location
   bank 128
   poke 248,peek(248)or2^6     ' disable screen editor line linking
   x_pos=0:y_pos=0:status_line_y=rwindow(1)-2  ' cursor pos, status line position
+  gosub check_filetype
   if curr_file$<>"" then begin
-    if peek($4ff70)=55 and peek($4ff71)=77 then begin
+    if file_type$<>".prj" and peek($4ff70)=55 and peek($4ff71)=77 then begin
       gosub copy_attic_ram_to_line_buffer
     bend:else begin
       gosub load_file ' load file if set
@@ -231,8 +232,29 @@ goto general_init_and_main_loop  ' buffer of past line location
 
 ' ==================== subroutines =====================
 
+' filetype$ = ft$
+' project_flag% = pf%
+' project_name$ = pn$
+' proj_file_idx% = pi%
+' proj_files$(20) = dim pf$(20)
+' total_proj_lines = tp%
+' fidx = fi%
+
+.check_fileype
+'-------------
+  filetype$ = ".el"
+  if len(curr_file$) > 4 and right$(curr_file$, 4) = ".prj" then begin
+    filetype$ = ".prj"
+    project_flag% = 1
+  bend
+  return
+
+
 .load_file
 '---------
+  gosub check_filetype
+  if filetype$ = ".prj" then proj_name$ = curr_file$ : proj_file_idx% = 0
+
 ' --- read in f$
   open 1,1,5,curr_file$+",s,r":disk_errno=ds:disk_error$=ds$
   if disk_errno<>0 then curr_file$=of$:close 1:return
@@ -242,6 +264,10 @@ goto general_init_and_main_loop  ' buffer of past line location
     l$="":line input#1,l$
     line_buff$(lastline_y)=l$
     lastline_y=lastline_y+1
+    if project_flag% and filetype$ = ".prj" and len(l$)>0 and left$(l$,1)<>"'" then begin
+      proj_files$(proj_file_idx%) = l$
+      proj_file_idx% = proj_file_idx% + 1
+    bend
   loop while st=0
   lastline_y=lastline_y-1:changed=0
   close 1
@@ -393,7 +419,7 @@ goto general_init_and_main_loop  ' buffer of past line location
     gosub clear_status_bar
     if t$="n" then gosub build_status_bar:return
   bend
-  try
+
   gosub clear_status_bar:print "{rvon}load file name ($ for directory, return to cancel) "+chr$(27)+"t{clr}";
   nf$=""
   line input "";nf$
@@ -618,7 +644,9 @@ goto general_init_and_main_loop  ' buffer of past line location
   bend
   if ab=1 then return
   print "{home}{home}{clr}"+chr$(27)+"l";
-  ' gosub copy_line_buffer_to_attic_ram  ' save line buffer
+
+  if project_flag% then gosub copy_project_files_to_attic_ram
+
   print "{home}{home}{clr}{down}{down}edma 0,$d400,$8010000,$2001:new restore{down}{down}":print "run{home}"; ' load '11.parse' from attic cache
   bank 128
   poke 208,2      ' no of chars in keyboard buffer
@@ -720,11 +748,34 @@ goto general_init_and_main_loop  ' buffer of past line location
   print chr$(27)+"q"+chr$(27)+"l{home}{home}{lgrn}";err$(er),el
   end
 
+.copy_project_files_to_attic_ram
+'-------------------------------
+  curr_file$ = proj_name$
+  gosub save_filename_in_mailbox  ' to assure we return here after compilation
+
+  cb=$8030000 : c = cb
+  total_proj_lines = 0
+  wpoke cb, 0  ' reset total length
+  c = c + 2
+
+  for fidx = 0 to proj_file_idx%-1
+    curr_file$ = proj_files$(fidx)
+    gosub load_file
+    if disk_errno=0 then begin
+      total_proj_lines = total_proj_lines + lastline_y+1
+      wpoke cb, total_proj_lines
+      gosub copy_more_to_attic_ram  ' persist filename
+    bend
+  next fidx
+
+  return
+
 
 .copy_line_buffer_to_attic_ram
 '-----------------------------
   cb=$8030000 : c=cb
   wpoke c,lastline_y+1 : c=c+2  ' store no of lines
+.copy_more_to_attic_ram
   for a=0 to lastline_y
     p=pointer(line_buff$(a)):l=len(line_buff$(a)):b=$10000+wpeek(p+1)
     poke c,l : c=c+1

@@ -51,8 +51,9 @@
   530 bank 128
   540 poke 248,peek(248)or2^6    : rem disable screen editor line linking
   550 xc=0:yc=0:sl=rwindow(1)-2 : rem cursor pos, status line position
+  555 gosub 5001
   560 if cf$<>"" thenbegin
-  565   if peek($4ff70)=55 and peek($4ff71)=77 then begin
+  565   if ft$<>".prj" and peek($4ff70)=55 and peek($4ff71)=77 then begin
   566     gosub 9100
   567   bend:else begin
   570     gosub5010: rem load file if set
@@ -186,7 +187,16 @@
  2930 stop
  2940 :
  5000 rem ==================== subroutines =====================
+ 5001 rem --- check filetype
+ 5002 ft$=".el"
+ 5003 if len(cf$) > 4 and right$(cf$, 4) = ".prj" then begin
+ 5004   ft$=".prj"
+ 5005   pf% = 1
+ 5006 bend
+ 5007 return
  5010 rem --- read in f$
+ 5011 gosub 5001 : rem check filetype
+ 5012 if ft$=".prj" then pn$=cf$ : pi% = 0
  5020 open 1,1,5,cf$+",s,r":de=ds:de$=ds$
  5030 if de<>0 thencf$=of$:close 1:return
  5040 fora=0tomx:li$(a)="":nexta:lc=0
@@ -195,6 +205,10 @@
  5070   l$="":line input#1,l$
  5080   li$(nl)=l$
  5090   nl=nl+1
+ 5091   if pf% and ft$=".prj" and len(l$)>0 and left$(l$,1)<>"'" then begin
+ 5092     pf$(pi%) = l$
+ 5093     pi% = pi% + 1
+ 5094   bend
  5100 loop while st=0
  5110 nl=nl-1:ch=0
  5120 close 1
@@ -502,6 +516,7 @@
  7860 bend
  7870 if ab=1 thenreturn
  7880 print"{home}{home}{clr}"+chr$(27)+"l";
+ 7882 if pf% then gosub 8700 : rem copy proj files to attic ram
  7885 rem gosub9000 : rem save line buffer
  7890 print"{home}{home}{clr}{down}{down}edma 0,$d400,$8010000,$2001:new restore{down}{down}":print"run{home}";:rem load '11.parse' from attic cache
  7900 bank 128
@@ -584,6 +599,23 @@
  8590 bank 128:poke248,0:key on:palette restore
  8600 print chr$(27)+"q"+chr$(27)+"l{home}{home}{lgrn}";err$(er),el
  8610 end
+ 8700 rem copy proj files to attic ram
+ 8710 cf$ = pn$
+ 8720 gosub 7720 : rem save filename in mailbox, so we come back to proj
+ 8730 cb=$8030000 : c = cb
+ 8740 tp% = 0
+ 8750 wpoke cb, 0 : rem reset total length
+ 8760 c = c + 2
+ 8770 for fi% = 0 to pi%-1
+ 8780   cf$ = pf$(fi%)
+ 8790   gosub 5010
+ 8800   if de=0 then begin
+ 8810     tp% = tp% + nl+1
+ 8820     wpoke cb, tp%
+ 8830     gosub 9030
+ 8840   bend
+ 8850 next fi%
+ 8860 return
  9000 rem --- copy line buffer to attic ram
  9020 cb=$8030000 : c=cb
  9025 wpoke c,nl+1 : c=c+2 : rem store no of lines
