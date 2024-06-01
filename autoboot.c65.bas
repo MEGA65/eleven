@@ -56,7 +56,7 @@
   630 if lp=0 then goto 1250: else goto 1390: rem load editor or prefs
   640 rem --- load settings to mailbox ram
   650 t$=chr$(peek($4ff00))+chr$(peek($4ff01))
-  660 if t$="sk" then goto 830 : rem settings already loaded
+  660 if t$="sk" then goto 825 : rem settings already loaded
   670 trap890
   680 bload (df$),b(4),p($ff00)
   690 trap
@@ -175,6 +175,7 @@
  1800 do:loop
  2000 rem sub --- check for autoload, return filename in al$ ---
  2010 i=0:al$="":aa=0
+ 2015 bank 128
  2020 if peek(2048+i)+64<>asc(mid$("autoload",i+1,1)) then aa=0:al$="":return
  2030 i=i+1:if i<8 then 2020
  2040 a=peek(2048+i):if a<>34 and i<20 then i=i+1:goto 2040
@@ -185,7 +186,7 @@
  2090 al$=al$+chr$(a):goto 2060
  2100 if len(al$)>16 then al$="":aa=0
  2110 aa=1:return
- 2200 rem sub --- inject autolod into $4ff10
+ 2200 rem sub --- inject autoload into $4ff10
  2210 if aa=0 then return
  2220 poke $4ff07, peek($4ff07) or 1 : i = 0
  2230 for k=1 to len(al$)

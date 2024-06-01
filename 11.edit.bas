@@ -86,6 +86,7 @@
  2150 do
  2160   if yc-ct<0 thenct=0:yc=0
  2170   if ns<>1 thenpo$="      {left}{left}{left}{left}{left}{left}"+mid$(str$(xc),2)+":"+mid$(str$(yc),2):gosub5400
+ 2175 if yc>2000 then yc = 1
  2180   cl$=li$(yc)
  2185    if (yc-ct)>rwindow(1)-1 then yc=ct+rwindow(1)-1
  2190   cursor xc,yc-ct
@@ -219,6 +220,7 @@
  5170 if ct<0 thenct=0
  5180 for i=0 to sl
  5190   cursor 0,i
+ 5195   if ct>2000 then ct=1
  5200   a$=li$(ct+i)
  5210   print chr$(27)+"q";:zy=yc:yc=ct+i:gosub10000:yc=zy:gosub1
  5220 next i
