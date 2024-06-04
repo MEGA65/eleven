@@ -1,14 +1,78 @@
 #output "11.parse-new"
 
+' BANK4 Memory usage  (aka 'Mailbox RAM')
+' ------------------
+' 4.FF00  "sk" magic signature (Stephan Kleinert / ubik's initials)
+' 4.FF02  border colour
+' 4.FF03  background colour
+' 4.FF04  foreground colour
+' 4.FF05  highlight colour
+' 4.FF06  status bar colour
+' 4.FF07  misc. flags
+'         - bit0: autoload source enable flag
+'         - bit1: autojump to line flag
+'         - bit2: autobackup flag
+'         - bit3: verbose flag
+'         - bit4-7: reserved
+' 4.FF08  error number to be displayed (>128 are preprocessor errors)
+' 4.FF09  (2 bytes) line number for autojump
+'
+' 4.FF10  current file name
+' 4.FF20  output file name
+'
+' 4.FF30- reserved
+' 4.FF7F
+'
+' Attic RAM cache usage
+' =====================
+' $800,0000 +---------------+
+'           ! 11.EDIT       ! (max 53kb)
+' $801,0000 +---------------+
+'           ! 11.PARSE      ! (max 53kb)
+' $802,0000 +---------------+
+'           ! 11.SETTINGS   ! (8kb)
+' $802,2000 +---------------+
+'           ! 11.TOKENIZE   ! (8kb)
+' $802,4000 +---------------+
+'           ! 11.POST       ! (8kb)
+' $802,6000 +---------------+
+' 
+' $803,0000 +---------------+
+'           ! ELEVEN SOURCE !
+'       ... +---------------+
+
+' ELEVEN SOURCE STORAGE FORMAT:
+' ----------------------------
+' $803,0000  WORD       Total Lines
+' $803,0002  BYTE       Line 1 length
+' $803,0003  BYTE[LEN]  Chars for Line 1
+' $803,00xx  BYTE       Line 2 length
+' $803,00yy  BYTE[LEN]  Chars for Line 2
+' ...
+
+
+'-------
+.defines
+'-------
+#define TYP_REAL = 0
+#define TYP_INT = 1
+#define TYP_STR = 2
+#define TYP_BYTE = 3
+
   clr
 
-#declare quote$, parser_file$, t$, blank_line$, type_ident$
+#declare dbl_quote$, parser_file$, t$, blank_line$, type_ident$
 #declare curr_src_line$, next_line_flag, next_line$
 
-  parser_file$="11.parse":mk$="@~":quote$=chr$(34):dbl_quote_char=34:sngl_quote_char=39
+  parser_file$="11.parse"
+  mk$ = "@~"
+  dbl_quote$ = chr$(34)
+  dbl_quote_char = 34
+  sngl_quote_char = 39
+
   key on
   print "{rvon}ELEVEN preprocessor v0.5.0{rvof}":print
-  key7,"scratch"+quote$+parser_file$+quote$+":dsave"+chr$(34)+parser_file$+quote$+":dverify"+quote$+parser_file$
+  key7,"scratch" + dbl_quote$ + parser_file$ + dbl_quote$ + ":dsave" + dbl_quote$ + parser_file$ + dbl_quote$ + ":dverify" + dbl_quote$+parser_file$
   t$="                                                                               ":blank_line$=t$+t$+t$:t$=""
   tokens$(0)=" print input if then else do loop while until gosub goto open close dopen dclose for next getkey hex$ dim peek poke wait dec chr$ asc sgn sqr str$"
   tokens$(0)=tokens$(0)+" graphic clr screen def begin bend len mid$ right$ left$ instr for next step trap border and foreground "
@@ -21,82 +85,102 @@
   tokens$(6)=" sprite sprsav sys tab tempo troff tron type usr verify vol xor key vsync rcursor t@& c@& rgraphic fread pointer "
   dumb_cmds$=" bload bsave dload to save dir collect dopen dclose backup fread get "
   gosub get_filename
-  bank 128:poke 0,65
-  type_ident$(0)="":type_ident$(1)="%":type_ident$(2)="$":type_ident$(3)="&"
+  bank 128
+
+  type_ident$(TYP_REAL)=""
+  type_ident$(TYP_INT)="%"
+  type_ident$(TYP_STR)="$"
+  type_ident$(TYP_BYTE)="&"
+
   dim bin_conv(16) : rem bit shifter's fast binary conversion. thanks a lot!
-  bin_conv(0)=1:for i=1 to 16:bin_conv(i)=bin_conv(i-1)+bin_conv(i-1):next i
-  dim map_dest_to_src_lineno%(1000)             : rem src file line nr <-> internal idx mapping
-  dim dest_line$(1000)             : rem post processed lines
+  bin_conv(0)=1
+  for i=1 to 16
+    bin_conv(i)=bin_conv(i-1)+bin_conv(i-1)
+  next i
+
+  dim map_dest_to_src_lineno%(1000)  : rem src file line nr <-> internal idx mapping
+  dim dest_line$(1000)               : rem post processed lines
   dim element_cnt(4)                 : rem element count per type
-  dim var_table$(4,200)            : rem variable table per type
-  dim define_val$(200)              : rem define values table
+  dim var_table$(4,200)              : rem variable table per type
+  dim define_val$(200)               : rem define values table
   dim label_name$(200),label_lineno(200):label_cnt=0 : rem label table & count
-  dim args$(32)               : rem argument list
+  dim args$(32)                      : rem argument list
   dim struct_name$(30),struct_fields$(30)       : rem struct names, fields
   dim struct_vars$(30)               : rem struct vars (each entry has string of vars)
-  struct_idx=0                      : rem index to next free struct definition
+  struct_idx=0                       : rem index to next free struct definition
 
 rem ------------------------- pass 1 ------------------------------------
 
 .pass_1
 '------
   next_line_flag = 0
-  whitespace$=chr$(32)+chr$(160)+"{rght}{ensh}" : rem whitespace
+  whitespace$ = chr$(32) + chr$(160) + "{rght}{ensh}" : rem whitespace
   rem cleanup temporary files
   src_lineno = 0 : rem source code line counter
+
   print "pass 1 ";:cur_src_lineno=0
   clr ti: rem keep start time for timing
-  cb=$8030000:curr_addr=cb:total_lines=peek(curr_addr)+256*peek(curr_addr+1):curr_addr=curr_addr+2
-  do while cur_src_lineno<>total_lines : rem until target lines is reached
+
+  cb = $8030000
+  curr_attic_addr = cb
+  total_lines = wpeek(curr_attic_addr)
+  curr_attic_addr = curr_attic_addr + 2
+
+  do while cur_src_lineno <> total_lines : rem until target lines is reached
     gosub read_next_line
-    cut_tail_idx=instr(curr_src_line$, "'")  ' single quote
-    if cut_tail_idx<>0 then begin
-      if instr(curr_src_line$, quote$)<>0 then begin  ' double quote
-        cut_tail_idx=0
-        bank 0:cur_line_len=peek(ptr)-1:addr=peek(ptr+1)+256*peek(ptr+2):bank 1
-        for r= . to cur_line_len
-          chr=peek(addr+r)
-          if chr=dbl_quote_char then quote_flag=abs(quote_flag-1):else if chr=sngl_quote_char and quote_flag=0 then cut_tail_idx=r+1:r=999
-        next
-      bend
-      if cut_tail_idx then curr_src_line$=left$(curr_src_line$,cut_tail_idx-1)
-    bend
+    gosub single_quote_comment_trim
+
     rem strip whitespace from end
-    s$=curr_src_line$:gosub strip_characters :curr_src_line$=s$
-    if curr_src_line$<>"" then begin
-      delete_line_flag=0 : rem delete line flag
-      if verbose then print ">>"dest_line_idx;src_lineno;curr_src_line$
-      if left$(curr_src_line$,1)="." then next_line_flag=1:gosub add_to_label_table : rem label
-      if left$(curr_src_line$,1)="#" then begin
-        if instr(curr_src_line$,"ifdef")=2 then s$=mid$(curr_src_line$,8):gosub is_s$_defined :delete_line_flag=1
-        if instr(curr_src_line$,"endif")=2 then inside_ifdef=0:delete_line_flag=1
-        if instr(curr_src_line$,"define")=2 then define_flag=1:gosub declare_s$_var :define_flag=0
-        if instr(curr_src_line$,"declare")=2 then define_flag=0:gosub declare_s$_var 
-        if instr(curr_src_line$,"output")=2 then gosub set_output_file
-        if instr(curr_src_line$,"struct")=2 then gosub read_in_struct_details :delete_line_flag=1
+    s$ = curr_src_line$
+    gosub strip_characters
+    curr_src_line$ = s$
+
+    if curr_src_line$ <> "" then begin
+      delete_line_flag = 0 : rem delete line flag
+
+      if verbose then print ">>" dest_lineno; src_lineno; curr_src_line$
+
+      if left$(curr_src_line$, 1)="." then begin
+        next_line_flag = 1
+        gosub add_to_label_table : rem label
       bend
-      if inside_ifdef=1 then goto parser_loop_skip
-      if left$(curr_src_line$,4)="data" or right$(curr_src_line$,5)="begin" then next_line_flag=1
-      if delete_line_flag=0 then begin
-        if verbose=0 then print ".";
-        s$=curr_src_line$
+
+      if left$(curr_src_line$, 1)="#" then begin
+        gosub parse_preprocessor_directive
+      bend
+
+      if inside_ifdef = 1 then goto parser_loop_skip
+
+      if left$(curr_src_line$, 4) = "data" or right$(curr_src_line$, 5) = "begin" then begin
+        next_line_flag = 1
+      bend
+
+      if delete_line_flag = 0 then begin
+        if verbose = 0 then print ".";
+        s$ = curr_src_line$
         gosub replace_vars_and_labels :rem replace vars & labels in s$
         gosub check_for_creation_of_struct_object
-        if right$(curr_dest_line$,1)="_" then curr_dest_line$=left$(curr_dest_line$,len(curr_dest_line$)-1):next_line_flag=0:cont_next_line_flag=1:else cont_next_line_flag=0
-        gosub safe_add_to_current_or_next_line :rem safe add curr_dest_line$+s$ to current or next dest_line$(dest_line_idx)
-        if right$(s$,4)="bend" or right$(s$,6)="return" or left$(s$,2)="if" then next_line_flag=1
+        gosub check_for_continue_onto_next_line
+        gosub safe_add_to_current_or_next_line :rem safe add curr_dest_line$+s$ to current or next dest_line$(dest_lineno)
+        if right$(s$, 4)="bend" or right$(s$, 6)="return" or left$(s$, 2)="if" then begin
+          next_line_flag = 1
+        bend
       bend : rem endif delete_line_flag=0
     bend : rem endif curr_src_line$<>""
 
 .parser_loop_skip
-    src_lineno=src_lineno+1 : rem increase source code line (for error msgs...)
-    if verbose then print "src_lineno=";src_lineno:get key z$
+    src_lineno = src_lineno + 1 : rem increase source code line (for error msgs...)
+    if verbose then print "src_lineno="; src_lineno : get key z$
   loop
   
-  if curr_dest_line$<>"" then dest_line$(dest_line_idx)=curr_dest_line$:dest_line_idx=dest_line_idx+1
+  if curr_dest_line$ <> "" then begin
+    dest_line$(dest_lineno) = curr_dest_line$
+    dest_lineno = dest_lineno + 1
+  bend
+
   close 1
   gosub save_filename : rem set output filename
-  scratch "11temp":scratch "11tokenized"
+  scratch "11temp" : scratch "11tokenized"
 
 rem ------------------------- pass 2 ------------------------------------
 
@@ -104,7 +188,7 @@ rem ------------------------- pass 2 ------------------------------------
 '------
   open 1,1,5,"11temp,s,w"
   print chr$(13)"{down}pass 2 ";
-  for dst_idx=0 to dest_line_idx-1
+  for dst_idx=0 to dest_lineno-1
     s$=dest_line$(dst_idx)  : if verbose then print dst_idx;"{yel}=> "s$:else print ".";
     do while instr(s$,mk$)<>0
        s1=instr(s$,mk$):s2=instr(s$,mk$,s1+2)
@@ -118,7 +202,7 @@ rem ------------------------- pass 2 ------------------------------------
 
   gosub dump_vars :rem --- dump vars
   for r=0 to 10:print #1,str$(32000+r):next r
-  f$="dC:dS"+quote$+"11tokenized"+quote$+":ifds<>0then?"+quote$+"disc error: "+quote$+";ds$:else?"+quote$+"{home}{home}{down}{down}{down}{down}{down}{down}{down}{down}{down}{down}{down}{down}{down}{down}{down}{down}{down}{down}{down}{down}{down}{down}{down}{down}"+quote$+":dL"+quote$+"11.post"
+  f$="dC:dS"+dbl_quote$+"11tokenized"+dbl_quote$+":ifds<>0then?"+dbl_quote$+"disc error: "+dbl_quote$+";ds$:else?"+dbl_quote$+"{home}{home}{down}{down}{down}{down}{down}{down}{down}{down}{down}{down}{down}{down}{down}{down}{down}{down}{down}{down}{down}{down}{down}{down}{down}{down}"+dbl_quote$+":dL"+dbl_quote$+"11.post"
   print #1,f$
   close 1
   print"{down}"
@@ -189,7 +273,7 @@ rem ------------------------- pass 2 ------------------------------------
 '---------------
   s$=mid$(curr_src_line$,8):d$=",;":gosub parse_arguments
   if arg_cnt<>0 then print "?invalid parameters in line ";src_lineno:end
-  s$=args$(0):tr$=quote$:gosub strip_tr$_from_beginning :gosub strip_characters : rem trim quotes left & right
+  s$=args$(0):tr$=dbl_quote$:gosub strip_tr$_from_beginning :gosub strip_characters : rem trim quotes left & right
   if verbose then print "setting output file to {rvon}"+s$+"{rvof}"
   of$=s$
   delete_line_flag=1 : rem disable passthrough
@@ -198,10 +282,10 @@ rem ------------------------- pass 2 ------------------------------------
 
 .add_to_label_table
 '------------------
-  if verbose then print "label ";curr_src_line$;" at line ";dest_line_idx
+  if verbose then print "label ";curr_src_line$;" at line ";dest_lineno
   delete_line_flag=1
   label_name$(label_cnt)=mid$(curr_src_line$,2)
-  label_lineno(label_cnt)=dest_line_idx+1
+  label_lineno(label_cnt)=dest_lineno+1
   label_cnt=label_cnt+1 : rem increase label count
   return
 
@@ -275,7 +359,7 @@ rem ------------------------- pass 2 ------------------------------------
   if b$=":" and quote_flag=0 then struct_idx=0:ri=0
   if struct_idx and b$="(" then ri=0 : d$=cx$
   if struct_idx and b$=")" then ri=-1 : d$=cx$ + "dpub"
-    if b$=quote$ then begin : quote_flag=abs(quote_flag-1)
+    if b$=dbl_quote$ then begin : quote_flag=abs(quote_flag-1)
     if quote_flag=1 then gosub check_token_for_subbing :a$=a$+c$:c$="":else a$=a$+b$:b$=""
   bend
   if quote_flag=1 then a$=a$+b$:goto rval_skip
@@ -397,17 +481,26 @@ rem ------------------------- pass 2 ------------------------------------
 
 .get_filename
 '------------
-  bank 4:ba=dec("ff00")
+  bank 4:ba=$ff00
+
   if peek(ba+0)=asc("s") and peek(ba+1)=asc("k") then begin
-    verbose=peek(dec("ff07"))and16
-    f$="":a=ba+16:do while peek(a)<>0:f$=f$+chr$(peek(a)):a=a+1:loop
-    if peek(dec("ff07")) and 1 then return
+    verbose=peek($ff07) and 8
+    f$=""
+    a=ba+$10
+    do while peek(a)<>0
+      f$=f$+chr$(peek(a))
+      a=a+1
+    loop
+    if peek($ff07) and 1 then return
     print "filename? "+f$:print "{up}";
   bend
+
   input "filename";a$
   if a$="" then print "no filename set":end
   poke ba,asc("s"):poke ba+1,asc("k")
-  for r=1 to 16:poke ba+8+r-1,asc(mid$(a$,r,1)):next r
+  for r=1 to 16
+    poke ba+8+r-1,asc(mid$(a$,r,1))
+  next r
   f$=a$
   return
 
@@ -454,7 +547,7 @@ rem ------------------------- pass 2 ------------------------------------
   rem --- read next token from curr_src_line$ into s$
   s$=curr_src_line$:gosub strip_tr$_from_beginning :gosub strip_characters :curr_src_line$=s$
   sf$=" ":sf=0
-  if left$(s$,1)=quote$ then sf$=quote$+", ":sf=2
+  if left$(s$,1)=dbl_quote$ then sf$=dbl_quote$+", ":sf=2
   a=instr(curr_src_line$,sf$)
   if a<>0 then s$=mid$(curr_src_line$,1,instr(curr_src_line$,sf$)+sf-1):curr_src_line$=mid$(curr_src_line$,instr(curr_src_line$,sf$)+sf+1)
   if a=0 then s$=curr_src_line$:curr_src_line$=""
@@ -465,16 +558,88 @@ rem ------------------------- pass 2 ------------------------------------
 ' read next line into curr_src_line$
   rem --- read next line
   bank 0
-  cur_line_len=peek(curr_addr):curr_src_line$=left$(blank_line$,cur_line_len):ptr=pointer(curr_src_line$):curr_addr=curr_addr+1
-  b=$10000+peek(ptr+1)+256*peek(ptr+2)
-  if cur_line_len<>0 then edma 0,cur_line_len,curr_addr,b : curr_addr=curr_addr+l
-  cur_src_lineno=cur_src_lineno+1
-  tr$=whitespace$:s$=curr_src_line$:gosub strip_tr$_from_beginning :curr_src_line$=s$
+  cur_line_len = peek(curr_attic_addr)
+  curr_src_line$ = left$(blank_line$, cur_line_len)
+  src_line_ptr = pointer(curr_src_line$)
+  src_linebuff_ptr = $10000 + wpeek(src_line_ptr + 1)
+  curr_attic_addr = curr_attic_addr + 1
+
+  if cur_line_len <> 0 then begin
+    edma 0, cur_line_len, curr_attic_addr, src_linebuff_ptr
+    curr_attic_addr = curr_attic_addr + cur_line_len
+  bend
+
+  cur_src_lineno = cur_src_lineno + 1
+
+  tr$=whitespace$
+  s$=curr_src_line$
+  gosub strip_tr$_from_beginning
+  curr_src_line$=s$
+
   quote_flag = 0 : rem quotes on
   cut_tail_idx = 0 : rem cut chars from tail
   bank 1
   return
 
+.single_quote_comment_trim
+'-------------------------
+  cut_tail_idx = instr(curr_src_line$, "'")  ' single quote
+  if cut_tail_idx<>0 then begin
+    if instr(curr_src_line$, dbl_quote$) <> 0 then begin  ' double quote
+      cut_tail_idx = 0
+      bank 0
+      cur_line_len_minus_one = peek(src_line_ptr) - 1
+      cur_linebuff_addr = wpeek(src_line_ptr + 1)
+      bank 1
+      for r = 0 to cur_line_len_minus_one
+        chr = peek(cur_linebuff_addr + r)
+        if chr = dbl_quote_char then begin
+          quote_flag = abs(quote_flag - 1)
+        bend : else begin
+          if chr = sngl_quote_char and quote_flag=0 then begin
+            cut_tail_idx = r + 1
+            r = 999
+          bend
+        bend
+      next
+    bend
+    if cut_tail_idx then curr_src_line$ = left$(curr_src_line$, cut_tail_idx - 1)
+  bend
+  return
+
+.parse_preprocessor_directive
+'----------------------------
+  if instr(curr_src_line$, "ifdef") = 2 then begin
+    s$=mid$(curr_src_line$, 8)
+    gosub is_s$_defined
+    delete_line_flag = 1
+  bend
+
+  if instr(curr_src_line$, "endif") = 2 then begin
+    inside_ifdef = 0
+    delete_line_flag = 1
+  bend
+
+  if instr(curr_src_line$, "define") = 2 then begin
+    define_flag = 1
+    gosub declare_s$_var
+    define_flag = 0
+  bend
+
+  if instr(curr_src_line$, "declare") = 2 then begin
+    define_flag=0
+    gosub declare_s$_var 
+  bend
+
+  if instr(curr_src_line$,"output")=2 then begin
+    gosub set_output_file
+  bend
+
+  if instr(curr_src_line$,"struct")=2 then begin
+    gosub read_in_struct_details
+    delete_line_flag=1
+  bend
+  return
 
 .check_for_creation_of_struct_object
 '-----------------------------------
@@ -498,7 +663,7 @@ rem ------------------------- pass 2 ------------------------------------
       rem if next_line$<>"" then delete_line_flag=0:curr_src_line$="^^"+next_line$:else delete_line_flag=1
     bend
   next zi
-  s$=next_line$:gosub safe_add_to_current_or_next_line :next_line$="":rem safe add curr_dest_line$+s$ to current dest_line$(dest_line_idx)
+  s$=next_line$:gosub safe_add_to_current_or_next_line :next_line$="":rem safe add curr_dest_line$+s$ to current dest_line$(dest_lineno)
   gosub read_next_token :if s$<>"=" then curr_src_line$="":return
   gosub read_next_token :sz=0:sr=0:sm=0:rem read next token from curr_src_line$ into s$
   do while s$<>""
@@ -508,9 +673,9 @@ rem ------------------------- pass 2 ------------------------------------
     if sm=1 and s$<>"[" and s$<>"]" then print "error: expected [ or ]":sleep 1:stop
     if sm=2 then begin
       if left$(s$,1)="]" then sr=sr+1:sz=0:sm=1:s$="":goto cfcoso_nextrow :rem next row
-  rem if left$(s$,1)=quote$ then ss$=s$:tr$="":do while right$(ss$,2)<>(quote$+","):gosub read_next_token :ss$=ss$+s$:print ss$:loop:s$=ss$:tr$=whitespace$:stop
+  rem if left$(s$,1)=dbl_quote$ then ss$=s$:tr$="":do while right$(ss$,2)<>(dbl_quote$+","):gosub read_next_token :ss$=ss$+s$:print ss$:loop:s$=ss$:tr$=whitespace$:stop
       if right$(s$,1)="," then s$=left$(s$,len(s$)-1)
-      s$=struct_fields$(sz)+"("+str$(sr)+")="+s$:gosub replace_vars_and_labels :gosub safe_add_to_current_or_next_line :s$="":sz=sz+1:rem safe add to dest_line$(dest_line_idx)
+      s$=struct_fields$(sz)+"("+str$(sr)+")="+s$:gosub replace_vars_and_labels :gosub safe_add_to_current_or_next_line :s$="":sz=sz+1:rem safe add to dest_line$(dest_lineno)
 
 .cfcoso_nextrow
     bend
@@ -523,20 +688,31 @@ rem ------------------------- pass 2 ------------------------------------
   s$="":curr_src_line$="":next_line$=""::zz$="z"
   return
 
+.check_for_continue_onto_next_line
+'---------------------------------
+  if right$(curr_dest_line$,1)="_" then begin
+    curr_dest_line$ = left$(curr_dest_line$, len(curr_dest_line$) - 1)
+    next_line_flag = 0
+    cont_next_line_flag = 1
+  bend: else begin
+    cont_next_line_flag = 0
+  bend
+  return
+
 .safe_add_to_current_or_next_line
 '--------------------------------
-  rem --- safe add curr_dest_line$+s$ to current or next dest_line$(dest_line_idx)
-  if len(curr_dest_line$)+len(s$)+len(str$(dest_line_idx))>=159 then next_line_flag=1
+  rem --- safe add curr_dest_line$+s$ to current or next dest_line$(dest_lineno)
+  if len(curr_dest_line$)+len(s$)+len(str$(dest_lineno))>=159 then next_line_flag=1
   if zz$<>"" then s$="":zz$="":return:rem force s$ to empty
   if next_line_flag=1 then begin
-    dest_line$(dest_line_idx)=curr_dest_line$:curr_dest_line$=s$
-    map_dest_to_src_lineno%(dest_line_idx)=src_lineno:
-    dest_line_idx=dest_line_idx+1 : next_line_flag=0
+    dest_line$(dest_lineno)=curr_dest_line$:curr_dest_line$=s$
+    map_dest_to_src_lineno%(dest_lineno)=src_lineno:
+    dest_lineno=dest_lineno+1 : next_line_flag=0
   bend : else begin rem -- add to curr_dest_line$
     if curr_dest_line$<>"" and cont_next_line_flag=0 and right$(curr_dest_line$,1)<>":" then curr_dest_line$=curr_dest_line$+":"
     curr_dest_line$=curr_dest_line$+s$
   bend
-  if verbose then print "<<"dest_line_idx;s$
+  if verbose then print "<<"dest_lineno;s$
   return
 
 .dump_vars

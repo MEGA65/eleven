@@ -543,7 +543,9 @@ goto general_init_and_main_loop  ' buffer of past line location
   bo=peek(dec("ff02")):bg=peek(dec("ff03")):fg=peek(dec("ff04"))
   hl=peek(dec("ff05")):sb=peek(dec("ff06"))
   bu=peek(dec("ff07"))and4  ' backup flag
-  sm=peek($4ff07)and8:if sm then print chr$(27)+"5";:else print chr$(27)+"8"
+  ' seems like ubik has plans to switch between 80x25 and 80x50 mode this way
+  ' I'll comment it out for now
+  ' sm=peek($4ff07)and8:if sm then print chr$(27)+"5";:else print chr$(27)+"8"
   bank 128
   return
 
