@@ -58,33 +58,39 @@
 #define TYP_INT = 1
 #define TYP_STR = 2
 #define TYP_BYTE = 3
-#define TYP_STRUCT = 4
+#define TYP_DEF = 4
 
   clr
 
 #declare dbl_quote$, parser_file$, t$, blank_line$, type_ident$
 #declare curr_src_line$, next_line_flag, next_line$
 
-  parser_file$="11.parse"
+  parser_file$ = "11.parse"
   mk$ = "@~"  ' @ and pi
   dbl_quote$ = chr$(34)
   dbl_quote_char = 34
   sngl_quote_char = 39
 
   key on
-  print "{rvon}ELEVEN preprocessor v0.5.0{rvof}":print
-  key7,"scratch" + dbl_quote$ + parser_file$ + dbl_quote$ + ":dsave" + dbl_quote$ + parser_file$ + dbl_quote$ + ":dverify" + dbl_quote$+parser_file$
-  t$="                                                                               ":blank_line$=t$+t$+t$:t$=""
-  tokens$(0)=" print input if then else do loop while until gosub goto open close dopen dclose for next getkey hex$ dim peek poke wait dec chr$ asc sgn sqr str$"
-  tokens$(0)=tokens$(0)+" graphic clr screen def begin bend len mid$ right$ left$ instr for next step trap border and foreground "
-  tokens$(1)=" background set abs sin cos tan log fre cursor pixel window rwindow line box circle ellipse palette restore data err$ er el cursor on off"
-  tokens$(1)=tokens$(1)+" val scratch return rnd stop bank ti do or st if el er on to pen get end int not ds run using dot "
-  tokens$(2)=" append atn auto backup bload boot bsave bump bverify catalog change char cmd collision color concat cont copy wpoke wpeek setbit clrbit "
-  tokens$(3)=" dclear deffn delete fn dir disk dload dma dmode dpat dsave dverify edma envelope erase exit exp fast filter find go64 header help highlight "
-  tokens$(4)=" joy list load locate lpen mod monitor mouse movspr new paint play pointer polygon pos pot pudef "
-  tokens$(5)=" rcolor rdot read record rem rename resume rgr rmouse rplay rreg rspcolor rsppos rsprite save scnclr sleep slow sound spc sprcolor "
-  tokens$(6)=" sprite sprsav sys tab tempo troff tron type usr verify vol xor key vsync rcursor t@& c@& rgraphic fread pointer "
-  dumb_cmds$=" bload bsave dload to save dir collect dopen dclose backup fread get "
+  print "{rvon}ELEVEN preprocessor v0.6.0{rvof}"
+  print
+  key7, "scratch" + dbl_quote$ + parser_file$ + dbl_quote$ + ":dsave" + dbl_quote$ + parser_file$ + dbl_quote$ + ":dverify" + dbl_quote$+parser_file$
+
+  t$="                                                                               "
+  blank_line$ = t$ + t$ + t$
+  t$ = ""
+
+  tokens$(0) = " print input if then else do loop while until gosub goto open close dopen dclose for next getkey hex$ dim peek poke wait dec chr$ asc sgn sqr str$"
+  tokens$(0) = tokens$(0) + " graphic clr screen def begin bend len mid$ right$ left$ instr for next step trap border and foreground "
+  tokens$(1) = " background set abs sin cos tan log fre cursor pixel window rwindow line box circle ellipse palette restore data err$ er el cursor on off"
+  tokens$(1) = tokens$(1) + " val scratch return rnd stop bank ti do or st if el er on to pen get end int not ds run using dot "
+  tokens$(2) = " append atn auto backup bload boot bsave bump bverify catalog change char cmd collision color concat cont copy wpoke wpeek setbit clrbit "
+  tokens$(3) = " dclear deffn delete fn dir disk dload dma dmode dpat dsave dverify edma envelope erase exit exp fast filter find go64 header help highlight "
+  tokens$(4) = " joy list load locate lpen mod monitor mouse movspr new paint play pointer polygon pos pot pudef "
+  tokens$(5) = " rcolor rdot read record rem rename resume rgr rmouse rplay rreg rspcolor rsppos rsprite save scnclr sleep slow sound spc sprcolor "
+  tokens$(6) = " sprite sprsav sys tab tempo troff tron type usr verify vol xor key vsync rcursor t@& c@& rgraphic fread pointer "
+  dumb_cmds$ = " bload bsave dload to save dir collect dopen dclose backup fread get "
+
   gosub get_filename
   bank 128
 
@@ -94,21 +100,27 @@
   type_ident$(TYP_BYTE)="&"
 
   dim bin_conv(16) : rem bit shifter's fast binary conversion. thanks a lot!
-  bin_conv(0)=1
-  for i=1 to 16
-    bin_conv(i)=bin_conv(i-1)+bin_conv(i-1)
+  bin_conv(0) = 1
+  for i = 1 to 16
+    bin_conv(i) = bin_conv(i - 1) + bin_conv(i - 1)
   next i
 
-  dim map_dest_to_src_lineno%(1000)  : rem src file line nr <-> internal idx mapping
-  dim dest_line$(1000)               : rem post processed lines
-  dim element_cnt(4)                 : rem element count per type
-  dim var_table$(4,200)              : rem variable table per type
-  dim define_val$(200)               : rem define values table
-  dim label_name$(200),label_lineno(200):label_cnt=0 : rem label table & count
-  dim args$(32)                      : rem argument list
-  dim struct_name$(30),struct_fields$(30)       : rem struct names, fields
-  dim struct_vars$(30)               : rem struct vars (each entry has string of vars)
-  struct_idx=0                       : rem index to next free struct definition
+  dim map_dest_to_src_lineno%(1000)        ' dest file line nr --> src file line nr
+  dim dest_line$(1000)                     ' post processed lines
+  dim element_cnt(4)                       ' element count per type
+  dim var_table$(4,200)                    ' variable table per type
+  dim define_val$(200)                     ' define values table
+
+  dim label_name$(200)                     ' rem label table
+  dim label_lineno(200)
+  label_cnt=0
+
+  dim args$(32)                            ' argument list
+
+  dim struct_name$(30)
+  dim struct_fields$(30)
+  dim struct_vars$(30)                     ' struct vars (each entry has string of vars)
+  struct_idx=0                             ' index to next free struct definition
 
 rem ------------------------- pass 1 ------------------------------------
 
@@ -122,7 +134,7 @@ rem ------------------------- pass 1 ------------------------------------
   print "pass 1 ";:cur_src_lineno=0
   clr ti: rem keep start time for timing
 
-  cb = $8030000
+  cb = $8030000   ' eleven source to be compiled is located here in attic ram
   curr_attic_addr = cb
   total_lines = wpeek(curr_attic_addr)
   curr_attic_addr = curr_attic_addr + 2
@@ -139,14 +151,14 @@ rem ------------------------- pass 1 ------------------------------------
     if curr_src_line$ <> "" then begin
       delete_line_flag = 0 : rem delete line flag
 
-      if verbose then print ">>" dest_lineno; src_lineno; curr_src_line$
+      if verbose then print ">> DEST:" dest_lineno;", SRC: "; src_lineno;": "; curr_src_line$
 
-      if left$(curr_src_line$, 1)="." then begin
+      if left$(curr_src_line$, 1) = "." then begin
         next_line_flag = 1
-        gosub add_to_label_table : rem label
+        gosub add_to_label_table
       bend
 
-      if left$(curr_src_line$, 1)="#" then begin
+      if left$(curr_src_line$, 1) = "#" then begin
         gosub parse_preprocessor_directive
       bend
 
@@ -235,14 +247,17 @@ rem ------------------------- pass 2 ------------------------------------
   ignore_brackets = 0 : rem split parameters
 
   next_line$ = "" : rem new line if dimensioning...
+
   if arg_cnt < 0 then begin
     parser_error$ = "?declare parameter missing in line " + str$(src_lineno)
     goto return_to_editor_with_error
   bend
+
   for i = 0 to arg_cnt
     p$ = args$(i)
     gosub parse_declared_var
   next i
+
   if next_line$ <> "" then begin
     delete_line_flag = 0
     curr_src_line$ = "^^" + next_line$
@@ -254,73 +269,156 @@ rem ------------------------- pass 2 ------------------------------------
 .parse_declared_var
 '------------------
   rem --- parse declared var
-    dimension$="" : value$=""
-    bkt_open_idx=instr(p$,"("):bkt_close_idx=instr(p$,")"):equals_idx=instr(p$,"=")
-    if equals_idx<>0 then begin : rem --- assignment
-      value$=mid$(p$,equals_idx+1)
-      p$=left$(p$,equals_idx-1)
-      tr$=whitespace$
-      s$=p$:gosub strip_characters :p$=s$
-      s$=value$:gosub strip_tr$_from_beginning :gosub strip_characters :value$=s$
-      if left$(value$,1)="$"then hx$=mid$(value$,2):gosub convert_hex :value$=c$
-      if left$(value$,1)="%"then bi$=mid$(value$,2):gosub convert_binary :value$=c$
+    dimension$ = ""
+    value$ = ""
+    bkt_open_idx = instr(p$, "(")
+    bkt_close_idx = instr(p$, ")")
+    equals_idx = instr(p$, "=")
+
+    if equals_idx <> 0 then begin : rem --- assignment
+      value$ = mid$(p$, equals_idx + 1)
+      p$ = left$(p$, equals_idx - 1)
+      tr$ = whitespace$
+
+      s$ = p$
+      gosub strip_characters
+      p$=s$
+
+      s$ = value$
+      gosub strip_tr$_from_beginning
+      gosub strip_characters
+      value$ = s$
+
+      if left$(value$, 1) = "$" then begin
+        hx$ = mid$(value$, 2)
+        gosub convert_hex
+        value$ = c$
+      bend
+
+      if left$(value$, 1) = "%" then begin
+        bi$ = mid$(value$, 2)
+        gosub convert_binary
+        value$ = c$
+      bend
+
     bend
-    if bkt_open_idx<>0 and bkt_close_idx<>0 then begin : rem --- dimension
-      dimension$=mid$(p$, bkt_open_idx+1, bkt_close_idx-bkt_open_idx-1)
-      pp$=left$(p$, bkt_open_idx-1)
-      s$=dimension$:dz=1:gosub replace_vars_and_labels :dz=0:dimension$=s$:p$=pp$: rem check for define tokens
-      delete_line_flag=0
+
+    if bkt_open_idx <> 0 and bkt_close_idx <> 0 then begin  ' --- dimension
+      dimension$ = mid$(p$, bkt_open_idx + 1, bkt_close_idx - bkt_open_idx - 1)
+      pp$ = left$(p$, bkt_open_idx - 1)
+      s$ = dimension$
+      dz = 1
+      gosub replace_vars_and_labels
+      dz = 0
+      dimension$ = s$
+      p$ = pp$ : rem check for define tokens
+      delete_line_flag = 0
     bend
-    ty=0 : rem var type
-    t$=right$(p$,1): rem type (if any) in t$
-    if verbose then print "adding {rvon}";
-    if instr("%&$",t$)=0 then t$="":ty=0
-    if define_flag=1 then ty=4
-    if t$="%" then ty=1
-    if t$="$" then ty=2
-    if t$="&" then ty=3
-    var_table$(ty,element_cnt(ty)) = p$
-    if dimension$<>"" then begin
-      id=element_cnt(ty):gosub generate_varname : rem fetch varname in vn$
-      if define_flag=0 then next_line$=next_line$+"dim "+vn$+t$+"("+dimension$+"):"
+
+    ty = 0  ' var type
+    t$ = right$(p$, 1)  ' type (if any) in t$
+
+    if verbose then begin
+      print "adding {rvon}";
     bend
-    if value$<>"" then begin
-      id=element_cnt(ty):gosub generate_varname 
-      if define_flag=0 then next_line$=next_line$+vn$+t$+"="+value$+":"
+
+    if instr("%&$", t$) = 0 then begin
+      t$ = ""
+      ty = 0
     bend
-    if define_flag=1 then define_val$(element_cnt(ty))=value$
-    if verbose then print p$;"{rvof}: ";element_cnt(ty)
-    element_cnt(ty)=element_cnt(ty)+1
+
+    if define_flag = 1 then begin
+      ty = 4
+    bend
+
+    if t$ = "%" then begin
+      ty=1
+    bend
+
+    if t$ = "$" then begin
+      ty = 2
+    bend
+
+    if t$ = "&" then begin
+      ty = 3
+    bend
+
+    var_table$(ty, element_cnt(ty)) = p$
+
+    if dimension$ <> "" then begin
+      id = element_cnt(ty)
+      gosub generate_varname  ' fetch varname in vn$
+      if define_flag = 0 then begin
+        next_line$ = next_line$ + "dim " + vn$ + t$ + "(" + dimension$ + "):"
+      bend
+    bend
+
+    if value$ <> "" then begin
+      id = element_cnt(ty)
+      gosub generate_varname 
+      if define_flag=0 then begin
+        next_line$ = next_line$ + vn$ + t$ + "=" + value$ + ":"
+      bend
+    bend
+
+    if define_flag = 1 then begin
+      define_val$(element_cnt(ty)) = value$
+    bend
+
+    if verbose then begin
+      print p$; "{rvof}: "; element_cnt(ty)
+    bend
+
+    element_cnt(ty) = element_cnt(ty) + 1
   return
 
 .set_output_file
 '---------------
-  s$=mid$(curr_src_line$,8):d$=",;":gosub parse_arguments
-  if arg_cnt<>0 then print "?invalid parameters in line ";src_lineno:end
-  s$=args$(0):tr$=dbl_quote$:gosub strip_tr$_from_beginning :gosub strip_characters : rem trim quotes left & right
-  if verbose then print "setting output file to {rvon}"+s$+"{rvof}"
-  of$=s$
-  delete_line_flag=1 : rem disable passthrough
+  s$ = mid$(curr_src_line$, 8)
+  d$ = ",;"
+  gosub parse_arguments
+
+  if arg_cnt <> 0 then begin
+    print "?invalid parameters in line ";src_lineno
+    end
+  bend
+
+  s$ = args$(0)
+  tr$ = dbl_quote$
+  gosub strip_tr$_from_beginning
+  gosub strip_characters  ' quotes left & right
+
+  if verbose then begin
+    print "setting output file to {rvon}" + s$ + "{rvof}"
+  bend
+
+  of$ = s$
+  delete_line_flag = 1  ' disable passthrough
   return
 
 
 .add_to_label_table
 '------------------
-  if verbose then print "label ";curr_src_line$;" at line ";dest_lineno
+  if verbose then begin
+    print "label "; curr_src_line$; " at line "; dest_lineno
   delete_line_flag = 1
   label_name$(label_cnt) = mid$(curr_src_line$, 2)
   label_lineno(label_cnt) = dest_lineno + 1
-  label_cnt = label_cnt + 1 : rem increase label count
+  label_cnt = label_cnt + 1  ' increase label count
   return
 
 .return_to_editor_with_error
 '---------------------------
-  rem return to editor with error
   bank 4 : rem set error mailbox flag
-  for r=1 to len(parser_error$):poke $4ff30+r-1,asc(mid$(parser_error$,r,1)):next r
-  poke $4ff30+r-1,0
-  poke dec("ff09"),mod(src_lineno,256):poke dec("ff0a"),src_lineno/256
-  poke dec("ff07"),peek(dec("ff07"))or2 : rem set autojump flag
+
+  for r=1 to len(parser_error$)
+    poke $4ff30 + r - 1, asc(mid$(parser_error$, r, 1))
+  next r
+
+  poke $4ff30 + r - 1, 0
+  poke $ff09, mod(src_lineno, 256)
+  poke $ff0a, src_lineno / 256
+  poke $ff07, peek($ff07) or 2 : rem set autojump flag
   dclose
   goto chain_editor
 
@@ -328,8 +426,8 @@ rem ------------------------- pass 2 ------------------------------------
 .strip_tr$_from_beginning
 '------------------------
   rem -- strip tr$ from beginning of string in s$ --
-  do while instr(tr$,(left$(s$,1)))
-    s$=mid$(s$,2)
+  do while instr(tr$, (left$(s$, 1)))
+    s$ = mid$(s$, 2)
   loop
   return
 
@@ -337,8 +435,8 @@ rem ------------------------- pass 2 ------------------------------------
 .strip_characters
 '----------------
   rem -- strip charcters in tr$ from end of s$ --
-  do while instr(tr$,right$(s$,1))
-    s$=left$(s$,len(s$)-1)
+  do while instr(tr$, right$(s$, 1))
+    s$ = left$(s$, len(s$) - 1)
   loop
   return
 
@@ -527,8 +625,8 @@ rem ------------------------- pass 2 ------------------------------------
 
   if dr = 1 then return
 
-  for id = 0 to element_cnt(TYP_STRUCT) : rem check defines table too
-    if c$ = var_table$(TYP_STRUCT, id) then begin
+  for id = 0 to element_cnt(TYP_DEF) : rem check defines table too
+    if c$ = var_table$(TYP_DEF, id) then begin
       c$ = define_val$(id)
       return
     bend
@@ -543,11 +641,13 @@ rem ------------------------- pass 2 ------------------------------------
       id = struct_idx - 1 : rem create new struct object
     bend
   next id
+
   if ci <> -1 then begin
     return
   bend: else begin
     if asc(c$) = 222 then return : rem pi
   bend
+
   if instr(dumb_cmds$, lc$) <> 0 and (c$ = "r" or c$ = "p" or c$ = "u8" or c$ = "w") then begin
     return
   bend
