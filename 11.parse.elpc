@@ -92,9 +92,10 @@
 #declare cur_dest_lineno, s1, s2, c$, r, f$, define_flag, delim$
 #declare ignore_brackets, arg_cnt, parser_error$, var_name$
 #declare dimension$, value$, bkt_open_idx, bkt_close_idx, equals_idx
-#declare tr$, hx$, bi$, dz, ty, id, vn$, of$
-#declare args_list$, args_list_len, ignore_flag, args_idx, cur_ch$, quote_flag
-#declare a$, tg, cx$, ii, ri, dr, t, lc$, ci, br, b, bc$, vl
+#declare tr$, hx$, bi$, dont_mark_label, ty, id, vn$, of$
+#declare args_list$, args_list_len, ignore_delim_flag, args_idx, cur_ch$
+#declare quote_flag, did_replace_flag
+#declare a$, expecting_label, cx$, ii, ri, t, lc$, ci, br, b, bc$, vl
 #declare n1, n2, ba, a, ad, tf$, zz, k, sf$, sf
 #declare cur_line_len, src_line_ptr, src_linebuff_ptr, cut_tail_idx
 #declare cur_line_len_minus_one, cur_linebuff_addr, chr
@@ -291,7 +292,6 @@ tokens$(0)=" print input if then else do loop while until gosub goto open close 
 '--------------
   ' declare var(s) in s$
   s$ = mid$(curr_src_line$, 10 - define_flag)
-  delim$ = ",;"
 
   ignore_brackets = 1
   gosub parse_arguments
@@ -358,9 +358,9 @@ tokens$(0)=" print input if then else do loop while until gosub goto open close 
     clean_varname$ = left$(var_name$, bkt_open_idx - 1)
 
     s$ = dimension$
-    dz = 1
+    dont_mark_label = 1
     gosub replace_vars_and_labels
-    dz = 0
+    dont_mark_label = 0
     dimension$ = s$
 
     var_name$ = clean_varname$  ' check for define tokens
@@ -429,7 +429,6 @@ tokens$(0)=" print input if then else do loop while until gosub goto open close 
 .set_output_file
 '---------------
   s$ = mid$(curr_src_line$, 8)
-  delim$ = ",;"
   gosub parse_arguments
 
   if arg_cnt <> 0 then begin
@@ -506,14 +505,16 @@ tokens$(0)=" print input if then else do loop while until gosub goto open close 
 .parse_arguments
 '---------------
   ' -- parse arguments --
-  '     in: s$ = string, delim$ = delimiter
+  '     in: s$ = string
   '    out: args$(x) = argument list, arg_cnt = argument count
   '         args$(0) = first arg, args$(1) = second arg...
   
+  delim$ = ",;"
+
   arg_cnt = 0
   args_list$ = s$
   args_list_len = len(s$)
-  ignore_flag = 0
+  ignore_delim_flag = 0
 
   if args_list_len = 0 then begin
     arg_cnt = -1
@@ -526,19 +527,21 @@ tokens$(0)=" print input if then else do loop while until gosub goto open close 
 
   for args_idx = 1 to args_list_len
     cur_ch$ = mid$(args_list$, args_idx, 1)
-    if cur_ch$ = "(" and ignore_brackets = 1 then ignore_flag = 1
-    if cur_ch$ = ")" and ignore_brackets = 1 then ignore_flag = 0
+    if cur_ch$ = "(" and ignore_brackets = 1 then ignore_delim_flag = 1
+    if cur_ch$ = ")" and ignore_brackets = 1 then ignore_delim_flag = 0
 
-    if instr(delim$, cur_ch$) <> 0 and ignore_flag = 0 then begin
+    if instr(delim$, cur_ch$) = 0 or ignore_delim_flag = 1 then begin
+      args$(arg_cnt) = args$(arg_cnt) + cur_ch$
+    bend : else begin
       s$ = args$(arg_cnt)
       tr$ = " "
       gosub strip_tr$_from_beginning
       gosub strip_tr$_from_end
       args$(arg_cnt) = s$
+
       arg_cnt = arg_cnt + 1
-    bend : else begin
-      args$(arg_cnt) = args$(arg_cnt) + cur_ch$
     bend
+
   next args_idx
 
   s$ = args$(arg_cnt)
@@ -566,7 +569,7 @@ tokens$(0)=" print input if then else do loop while until gosub goto open close 
   a$ = ""
   c$ = ""
   struct_idx = 0
-  tg = 0
+  expecting_label = 0
   cx$ = "?<>=+-#*/^,.:;() "
   delim$ = cx$
 
@@ -628,7 +631,7 @@ tokens$(0)=" print input if then else do loop while until gosub goto open close 
   if c$ = "" or c$ = "{x5F}" then return
 
   if val(c$) <> 0 then begin
-    tg = 0
+    expecting_label = 0
     return  ' never change numbers
   bend
 
@@ -637,18 +640,19 @@ tokens$(0)=" print input if then else do loop while until gosub goto open close 
     return  ' stupid ms basic optimization
   bend
 
-  if tg and dz = 0 then begin
+  if expecting_label and dont_mark_label = 0 then begin
     gosub mark_c$_label
-    tg = 0
+    expecting_label = 0
     return  ' replace label
   bend
 
   if c$ = "goto" then next_line_flag = 1
+
   if c$ = "goto" or c$ = "gosub" or c$ = "trap" then begin
-    tg = 1
+    expecting_label = 1
   bend
 
-  dr = 0  ' did replace flag
+  did_replace_flag = 0  ' did replace flag
 
   if left$(c$, 1) = "$" then begin
     hx$ = mid$(c$, 2)
@@ -684,11 +688,11 @@ tokens$(0)=" print input if then else do loop while until gosub goto open close 
       gosub generate_varname
       c$ = vn$ + type_ident$(ty)
       id = element_cnt(ty)
-      dr = 1
+      did_replace_flag = 1
     bend
   next id
 
-  if dr = 1 then return
+  if did_replace_flag = 1 then return
 
   for id = 0 to element_cnt(TYP_DEF)  ' check defines table too
     if c$ = var_table$(TYP_DEF, id) then begin
@@ -742,15 +746,15 @@ tokens$(0)=" print input if then else do loop while until gosub goto open close 
 '-------------------------------
 .swap_out_label_in_c$_for_lineno
 '-------------------------------
-  dr = 0
+  did_replace_flag = 0
   for id = 0 to label_cnt - 1
     if c$ = label_name$(id) then begin
       c$ = str$(label_lineno(id))
       id = label_cnt
-      dr = 1
+      did_replace_flag = 1
     bend
   next id
-  if dr then return
+  if did_replace_flag then return
 
   parser_error$ = "?unresolved label: '" + c$ + "' in line" + str$(map_dest_to_src_lineno%(cur_dest_lineno - 1))
   sleep 1
