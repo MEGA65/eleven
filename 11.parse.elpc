@@ -89,18 +89,20 @@
 #declare whitespace$, src_lineno, cur_src_lineno, cb
 #declare curr_attic_addr, total_lines, s$, delete_line_flag
 #declare verbose, dest_lineno, inside_ifdef, z$, curr_dest_line$
-#declare cur_dest_lineno, s1, s2, c$, r, f$, define_flag, d$
-#declare ignore_brackets, arg_cnt, parser_error$, p$
+#declare cur_dest_lineno, s1, s2, c$, r, f$, define_flag, delim$
+#declare ignore_brackets, arg_cnt, parser_error$, var_name$
 #declare dimension$, value$, bkt_open_idx, bkt_close_idx, equals_idx
-#declare tr$, hx$, bi$, pp$, dz, ty, id, vn$, of$
-#declare args_list$, args_list_len, ig, ai, b$, quote_flag
+#declare tr$, hx$, bi$, dz, ty, id, vn$, of$
+#declare args_list$, args_list_len, ignore_flag, args_idx, cur_ch$, quote_flag
 #declare a$, tg, cx$, ii, ri, dr, t, lc$, ci, br, b, bc$, vl
 #declare n1, n2, ba, a, ad, tf$, zz, k, sf$, sf
 #declare cur_line_len, src_line_ptr, src_linebuff_ptr, cut_tail_idx
 #declare cur_line_len_minus_one, cur_linebuff_addr, chr
 #declare co$, zi, sk$, bl, sz, sr, sm, zz$
-#declare cont_next_line_flag
+#declare cont_next_line_flag, tok_name$, clean_varname$
 
+
+'----
 .main
 '----
   parser_file$ = "11.parse"
@@ -145,6 +147,7 @@ tokens$(0)=" print input if then else do loop while until gosub goto open close 
 
 ' ------------------------- pass 1 ------------------------------------
 
+'------
 .pass_1
 '------
   next_line_flag = 0
@@ -170,7 +173,7 @@ tokens$(0)=" print input if then else do loop while until gosub goto open close 
 
     ' strip whitespace from end
     s$ = curr_src_line$
-    gosub strip_characters
+    gosub strip_tr$_from_end
     curr_src_line$ = s$
 
     if curr_src_line$ <> "" then begin
@@ -231,6 +234,8 @@ tokens$(0)=" print input if then else do loop while until gosub goto open close 
 
 ' ------------------------- pass 2 ------------------------------------
 
+
+'------
 .pass_2
 '------
   open 1,1,5,"11temp,s,w"
@@ -281,11 +286,12 @@ tokens$(0)=" print input if then else do loop while until gosub goto open close 
   end
 
 
+'--------------
 .declare_s$_var
 '--------------
   ' declare var(s) in s$
   s$ = mid$(curr_src_line$, 10 - define_flag)
-  d$ = ",;"
+  delim$ = ",;"
 
   ignore_brackets = 1
   gosub parse_arguments
@@ -299,7 +305,7 @@ tokens$(0)=" print input if then else do loop while until gosub goto open close 
   bend
 
   for i = 0 to arg_cnt
-    p$ = args$(i)
+    var_name$ = args$(i)
     gosub parse_declared_var
   next i
 
@@ -311,56 +317,58 @@ tokens$(0)=" print input if then else do loop while until gosub goto open close 
   bend
   return
 
+
+'------------------
 .parse_declared_var
 '------------------
   dimension$ = ""
   value$ = ""
-  bkt_open_idx = instr(p$, "(")
-  bkt_close_idx = instr(p$, ")")
-  equals_idx = instr(p$, "=")
+  bkt_open_idx = instr(var_name$, "(")
+  bkt_close_idx = instr(var_name$, ")")
+  equals_idx = instr(var_name$, "=")
 
   if equals_idx <> 0 then begin  ' --- assignment
-    value$ = mid$(p$, equals_idx + 1)
-    p$ = left$(p$, equals_idx - 1)
-    tr$ = whitespace$
+    value$ = mid$(var_name$, equals_idx + 1)
+    var_name$ = left$(var_name$, equals_idx - 1)
 
-    s$ = p$
-    gosub strip_characters
-    p$=s$
+    tr$ = whitespace$
+    s$ = var_name$
+    gosub strip_tr$_from_end
+    var_name$ = s$
 
     s$ = value$
     gosub strip_tr$_from_beginning
-    gosub strip_characters
+    gosub strip_tr$_from_end
     value$ = s$
 
     if left$(value$, 1) = "$" then begin
       hx$ = mid$(value$, 2)
-      gosub convert_hex
-      value$ = c$
+      gosub check_hex
     bend
 
     if left$(value$, 1) = "%" then begin
       bi$ = mid$(value$, 2)
-      gosub convert_binary
-      value$ = c$
+      gosub check_binary
     bend
 
   bend
 
   if bkt_open_idx <> 0 and bkt_close_idx <> 0 then begin  ' --- dimension
-    dimension$ = mid$(p$, bkt_open_idx + 1, bkt_close_idx - bkt_open_idx - 1)
-    pp$ = left$(p$, bkt_open_idx - 1)
+    dimension$ = mid$(var_name$, bkt_open_idx + 1, bkt_close_idx - bkt_open_idx - 1)
+    clean_varname$ = left$(var_name$, bkt_open_idx - 1)
+
     s$ = dimension$
     dz = 1
     gosub replace_vars_and_labels
     dz = 0
     dimension$ = s$
-    p$ = pp$  ' check for define tokens
+
+    var_name$ = clean_varname$  ' check for define tokens
     delete_line_flag = 0
   bend
 
   ty = 0  ' var type
-  t$ = right$(p$, 1)  ' type (if any) in t$
+  t$ = right$(var_name$, 1)  ' type (if any) in t$
 
   if verbose then begin
     print "adding {x12}";
@@ -372,22 +380,22 @@ tokens$(0)=" print input if then else do loop while until gosub goto open close 
   bend
 
   if define_flag = 1 then begin
-    ty = 4
+    ty = TYP_DEF
   bend
 
   if t$ = "%" then begin
-    ty=1
+    ty = TYP_INT
   bend
 
   if t$ = "$" then begin
-    ty = 2
+    ty = TYP_STR
   bend
 
   if t$ = "&" then begin
-    ty = 3
+    ty = TYP_BYTE
   bend
 
-  var_table$(ty, element_cnt(ty)) = p$
+  var_table$(ty, element_cnt(ty)) = var_name$
 
   if dimension$ <> "" then begin
     id = element_cnt(ty)
@@ -410,16 +418,18 @@ tokens$(0)=" print input if then else do loop while until gosub goto open close 
   bend
 
   if verbose then begin
-    print p$; "{x92}: "; element_cnt(ty)
+    print var_name$; "{x92}: "; element_cnt(ty)
   bend
 
   element_cnt(ty) = element_cnt(ty) + 1
   return
 
+
+'---------------
 .set_output_file
 '---------------
   s$ = mid$(curr_src_line$, 8)
-  d$ = ",;"
+  delim$ = ",;"
   gosub parse_arguments
 
   if arg_cnt <> 0 then begin
@@ -430,7 +440,7 @@ tokens$(0)=" print input if then else do loop while until gosub goto open close 
   s$ = args$(0)
   tr$ = dbl_quote$
   gosub strip_tr$_from_beginning
-  gosub strip_characters  ' quotes left & right
+  gosub strip_tr$_from_end  ' quotes left & right
 
   if verbose then begin
     print "setting output file to {x12}" + s$ + "{x92}"
@@ -441,6 +451,7 @@ tokens$(0)=" print input if then else do loop while until gosub goto open close 
   return
 
 
+'------------------
 .add_to_label_table
 '------------------
   if verbose then begin
@@ -453,6 +464,8 @@ tokens$(0)=" print input if then else do loop while until gosub goto open close 
   label_cnt = label_cnt + 1  ' increase label count
   return
 
+
+'---------------------------
 .return_to_editor_with_error
 '---------------------------
   bank 4  ' set error mailbox flag
@@ -469,6 +482,7 @@ tokens$(0)=" print input if then else do loop while until gosub goto open close 
   goto chain_editor
 
 
+'------------------------
 .strip_tr$_from_beginning
 '------------------------
   ' -- strip tr$ from beginning of string in s$ --
@@ -478,8 +492,9 @@ tokens$(0)=" print input if then else do loop while until gosub goto open close 
   return
 
 
-.strip_characters
-'----------------
+'------------------
+.strip_tr$_from_end
+'------------------
   ' -- strip characters in tr$ from end of s$ --
   do while instr(tr$, right$(s$, 1))
     s$ = left$(s$, len(s$) - 1)
@@ -487,52 +502,55 @@ tokens$(0)=" print input if then else do loop while until gosub goto open close 
   return
 
 
+'---------------
 .parse_arguments
 '---------------
   ' -- parse arguments --
-  '     in: s$ = string, d$=delimiter
-  '    out: args$(x)=argument list, arg_cnt=argument count
-  '         args$(0)=first arg, args$(1)=second arg...
+  '     in: s$ = string, delim$ = delimiter
+  '    out: args$(x) = argument list, arg_cnt = argument count
+  '         args$(0) = first arg, args$(1) = second arg...
   
   arg_cnt = 0
   args_list$ = s$
   args_list_len = len(s$)
-  ig=0
+  ignore_flag = 0
 
   if args_list_len = 0 then begin
     arg_cnt = -1
     return  ' no string
   bend
 
-  for ai=0 to 31
-    args$(ai) = ""
-  next ai
+  for args_idx = 0 to 31
+    args$(args_idx) = ""
+  next args_idx
 
-  for ai = 1 to args_list_len
-  b$ = mid$(args_list$, ai, 1)
-  if b$ = "(" and ignore_brackets = 1 then ig = 1
-  if b$ = ")" and ignore_brackets = 1 then ig = 0
+  for args_idx = 1 to args_list_len
+    cur_ch$ = mid$(args_list$, args_idx, 1)
+    if cur_ch$ = "(" and ignore_brackets = 1 then ignore_flag = 1
+    if cur_ch$ = ")" and ignore_brackets = 1 then ignore_flag = 0
 
-  if instr(d$,b$) <> 0 and ig = 0 then begin
+    if instr(delim$, cur_ch$) <> 0 and ignore_flag = 0 then begin
       s$ = args$(arg_cnt)
       tr$ = " "
       gosub strip_tr$_from_beginning
-      gosub strip_characters
+      gosub strip_tr$_from_end
       args$(arg_cnt) = s$
       arg_cnt = arg_cnt + 1
     bend : else begin
-      args$(arg_cnt) = args$(arg_cnt) + b$
+      args$(arg_cnt) = args$(arg_cnt) + cur_ch$
     bend
-  next ai
+  next args_idx
+
   s$ = args$(arg_cnt)
   tr$=" "
   gosub strip_tr$_from_beginning
-  gosub strip_characters
+  gosub strip_tr$_from_end
   args$(arg_cnt) = s$
   s$ = args_list$  ' restore s$
   return
 
 
+'-----------------------
 .replace_vars_and_labels
 '-----------------------
   ' -- replace vars & labels in source string --
@@ -550,50 +568,50 @@ tokens$(0)=" print input if then else do loop while until gosub goto open close 
   struct_idx = 0
   tg = 0
   cx$ = "?<>=+-#*/^,.:;() "
-  d$ = cx$
+  delim$ = cx$
 
   for ii = 1 to len(s$)
-    b$ = mid$(s$, ii, 1)
-    if b$ = ":" and quote_flag = 0 then begin
+    cur_ch$ = mid$(s$, ii, 1)
+    if cur_ch$ = ":" and quote_flag = 0 then begin
       struct_idx = 0
       ri = 0
     bend
 
-    if struct_idx and b$ = "(" then begin
+    if struct_idx and cur_ch$ = "(" then begin
       ri = 0
-      d$ = cx$
+      delim$ = cx$
     bend
 
-    if struct_idx and b$=")" then begin
+    if struct_idx and cur_ch$ = ")" then begin
       ri = -1
-      d$ = cx$ + "dpub"
+      delim$ = cx$ + "dpub"
     bend
 
-    if b$ = dbl_quote$ then begin
+    if cur_ch$ = dbl_quote$ then begin
       quote_flag = abs(quote_flag - 1)
       if quote_flag = 1 then begin
         gosub check_token_for_subbing
         a$ = a$ + c$
         c$ = ""
       bend : else begin
-        a$ = a$ + b$
-        b$ = ""
+        a$ = a$ + cur_ch$
+        cur_ch$ = ""
       bend
     bend
 
     if quote_flag = 1 then begin
-      a$ = a$ + b$
+      a$ = a$ + cur_ch$
       goto rval_skip
     bend
 
-    if instr(d$, b$) <> 0 then begin
+    if instr(delim$, cur_ch$) <> 0 then begin
       gosub check_token_for_subbing
       a$ = a$ + c$
       c$ = ""
-      if b$ = " " then b$ = ""
-      a$ = a$ + b$
+      if cur_ch$ = " " then cur_ch$ = ""
+      a$ = a$ + cur_ch$
     bend : else begin
-      c$ = c$ + b$
+      c$ = c$ + cur_ch$
     bend
 
 .rval_skip
@@ -603,6 +621,8 @@ tokens$(0)=" print input if then else do loop while until gosub goto open close 
   return
   end
 
+
+'-----------------------
 .check_token_for_subbing
 '-----------------------
   if c$ = "" or c$ = "{x5F}" then return
@@ -632,21 +652,21 @@ tokens$(0)=" print input if then else do loop while until gosub goto open close 
 
   if left$(c$, 1) = "$" then begin
     hx$ = mid$(c$, 2)
-    gosub convert_hex
+    gosub check_hex
     return
-  bend
+   bend
 
   if left$(c$, 1) = "%" then begin
     bi$ = mid$(c$, 2)
-    gosub convert_binary
+    gosub check_binary
     return
   bend
 
-  p$ = " " + c$ + " "
+  tok_name$ = " " + c$ + " "
 
   for t = 0 to 6
-    if instr(tokens$(t), p$) <> 0 then begin
-      lc$=c$
+    if instr(tokens$(t), tok_name$) <> 0 then begin
+      lc$ = c$
       gosub check_if_command_triggers_shitty_syntax
       return
     bend
@@ -704,17 +724,22 @@ tokens$(0)=" print input if then else do loop while until gosub goto open close 
   return
 
 
+'---------------------------------------
 .check_if_command_triggers_shitty_syntax
 '---------------------------------------
   ' check if command triggers shitty syntax mode
   ' todo: compare ubik's logic here versus my own 4079 lc$="dopen" logic
   return
 
+
+'-------------
 .mark_c$_label
 '-------------
   c$ = mk$ + c$ + mk$
   return
 
+
+'-------------------------------
 .swap_out_label_in_c$_for_lineno
 '-------------------------------
   dr = 0
@@ -733,8 +758,10 @@ tokens$(0)=" print input if then else do loop while until gosub goto open close 
 
   return
 
-.convert_binary
-'--------------
+
+'------------
+.check_binary
+'------------
   br = 0  ' result
 
   for b = 0 to len(bi$) - 1
@@ -747,18 +774,19 @@ tokens$(0)=" print input if then else do loop while until gosub goto open close 
     if bc$="1" then br=br+bin_conv(b)
   next b
 
-  c$ = mid$(str$(br), 2)
   return
-  stop
 
-.convert_hex
-'-----------
+
+'---------
+.check_hex
+'---------
   trap illegal_hex_handler
   vl = dec(hx$)
-  c$ = mid$(str$(vl), 2)
   trap
   return
 
+
+'-------------------
 .illegal_hex_handler
 '-------------------
   trap
@@ -767,6 +795,7 @@ tokens$(0)=" print input if then else do loop while until gosub goto open close 
   goto unresolved_c$  ' jump into error handler
 
 
+'----------------
 .generate_varname
 '----------------
   ' generate varname from index
@@ -793,6 +822,7 @@ tokens$(0)=" print input if then else do loop while until gosub goto open close 
   stop
 
 
+'------------
 .get_filename
 '------------
   bank 4
@@ -825,6 +855,8 @@ tokens$(0)=" print input if then else do loop while until gosub goto open close 
   f$ = a$
   return
 
+
+'-------------
 .save_filename
 '-------------
   ad = $ff30
@@ -846,6 +878,8 @@ tokens$(0)=" print input if then else do loop while until gosub goto open close 
 
   return
 
+
+'------------
 .chain_editor
 '------------
   get a$
@@ -861,6 +895,8 @@ tokens$(0)=" print input if then else do loop while until gosub goto open close 
   poke 688, 13, 13 ' return chars
   end
 
+
+'-------------
 .is_s$_defined
 '-------------
   inside_ifdef = 1
@@ -871,6 +907,8 @@ tokens$(0)=" print input if then else do loop while until gosub goto open close 
   next k
   return
 
+
+'----------------------
 .read_in_struct_details
 '----------------------
   curr_src_line$ = mid$(curr_src_line$, 9)
@@ -887,12 +925,14 @@ tokens$(0)=" print input if then else do loop while until gosub goto open close 
   struct_idx = struct_idx + 1
   return
 
+
+'---------------
 .read_next_token
 '---------------
   ' read next token from curr_src_line$ into s$
   s$ = curr_src_line$
   gosub strip_tr$_from_beginning
-  gosub strip_characters
+  gosub strip_tr$_from_end
   curr_src_line$ = s$
   sf$ = " "
   sf = 0
@@ -916,6 +956,8 @@ tokens$(0)=" print input if then else do loop while until gosub goto open close 
 
   return
 
+
+'--------------
 .read_next_line
 '--------------
   ' read next line into curr_src_line$
@@ -943,6 +985,8 @@ tokens$(0)=" print input if then else do loop while until gosub goto open close 
   bank 1
   return
 
+
+'-------------------------
 .single_quote_comment_trim
 '-------------------------
   cut_tail_idx = instr(curr_src_line$, "'")  ' single quote
@@ -972,6 +1016,8 @@ tokens$(0)=" print input if then else do loop while until gosub goto open close 
   bend
   return
 
+
+'----------------------------
 .parse_preprocessor_directive
 '----------------------------
   if instr(curr_src_line$, "ifdef") = 2 then begin
@@ -1006,6 +1052,8 @@ tokens$(0)=" print input if then else do loop while until gosub goto open close 
   bend
   return
 
+
+'-----------------------------------
 .check_for_creation_of_struct_object
 '-----------------------------------
   co$ = s$
@@ -1045,16 +1093,19 @@ tokens$(0)=" print input if then else do loop while until gosub goto open close 
       if bl = 0 then begin
         s$ = sk$ + "_" + args$(zi)
         print "struct: "; s$
-        p$ = s$
+
+        var_name$ = s$
         gosub parse_declared_var 
       bend
 
       if bl <> 0 then begin
         s$ = left$(sk$, bl - 1) + "_" + args$(zi) + mid$(sk$, bl)
         print "struct: ";s$
-        p$ = s$
+
+        var_name$ = s$
         gosub parse_declared_var
-        struct_fields$(sz) = p$
+
+        struct_fields$(sz) = var_name$
         sz = sz + 1
       ' if next_line$<>"" then delete_line_flag=0:curr_src_line$="^^"+next_line$:else delete_line_flag=1
     bend
@@ -1152,6 +1203,8 @@ tokens$(0)=" print input if then else do loop while until gosub goto open close 
   zz$ = "z"
   return
 
+
+'---------------------------------
 .check_for_continue_onto_next_line
 '---------------------------------
   if right$(curr_dest_line$, 1) = "{x5F}" then begin
@@ -1163,6 +1216,8 @@ tokens$(0)=" print input if then else do loop while until gosub goto open close 
   bend
   return
 
+
+'--------------------------------
 .safe_add_to_current_or_next_line
 '--------------------------------
   ' --- safe add curr_dest_line$+s$ to current or next dest_line$(dest_lineno)
@@ -1194,6 +1249,8 @@ tokens$(0)=" print input if then else do loop while until gosub goto open close 
   if verbose then print "<<" dest_lineno; s$
   return
 
+
+'---------
 .dump_vars
 '---------
   for ty = 0 to 3
