@@ -13,7 +13,8 @@
 '         - bit1: autojump to line flag
 '         - bit2: autobackup flag
 '         - bit3: verbose flag
-'         - bit4-7: reserved
+'         - bit4: text-mode (0=80x25, 1=80x50)
+'         - bit5-7: reserved
 ' 4.FF08  error number to be displayed (>128 are preprocessor errors)
 ' 4.FF09  (2 bytes) line number for autojump
 '
@@ -117,7 +118,7 @@
   blank_line$ = t$ + t$ + t$
   t$ = ""
 
-  tokens$(0) = " print input if then else do loop while until gosub goto open close dopen dclose for next getkey hex$ dim peek poke wait dec chr$ asc sgn sqr str$
+tokens$(0)=" print input if then else do loop while until gosub goto open close dopen dclose for next getkey hex$ dim peek poke wait dec chr$ asc sgn sqr str$"
   tokens$(0) = tokens$(0) + " graphic clr screen def begin bend len mid$ right$ left$ instr for next step trap border and foreground "
   tokens$(1) = " background set abs sin cos tan log fre cursor pixel window rwindow line box circle ellipse palette restore data err$ er el cursor on off"
   tokens$(1) = tokens$(1) + " val scratch return rnd stop bank ti do or st if el er on to pen get end int not ds run using dot "
@@ -237,13 +238,17 @@
 
   for cur_dest_lineno = 0 to dest_lineno - 1
     s$ = dest_line$(cur_dest_lineno)
-    if verbose then print cur_dest_lineno; "{x7B}yel{x7D}=> " s$ : else print ".";
+    if verbose then print cur_dest_lineno; "{x9E}=> " s$ : else print ".";
 
     do while instr(s$, mk$) <> 0
        s1 = instr(s$, mk$) : s2 = instr(s$, mk$, s1 + 2)
-       c$ = mid$(s$, s1 + 2, s2 - s1 - 2)
-       gosub swap_out_label_in_c$_for_lineno
-       s$ = left$(s$, s1 - 1) + c$ + mid$(s$, s2 + 2)
+       if s2 = 0 then begin
+         exit  ' exit loop for cases where a pi symbol was used in the source
+       bend:else begin
+         c$ = mid$(s$, s1 + 2, s2 - s1 - 2)
+         gosub swap_out_label_in_c$_for_lineno
+         s$ = left$(s$, s1 - 1) + c$ + mid$(s$, s2 + 2)
+       bend
     loop
 
     if verbose then print "<= "; str$(cur_dest_lineno) + s$
@@ -256,11 +261,11 @@
     print #1, str$(32000 + r)
   next r  ' remove 11.tokenise.bas lines?
 
-  f$ = "dC:dS" + dbl_quote$ + "11tokenized" + dbl_quote$ {x5F}
-     + ":ifds<>0then?" + dbl_quote$ + "disc error: " {x5F}
-     + dbl_quote$ + ";ds$:else?" + dbl_quote$ {x5F}
-     +"{x13}{x13}{x11}{x11}{x11}{x11}{x11}{x11}{x11}{x11}{x11}{x11}{x11}{x11}{x11}{x11}{x11}{x11}{x11}{x11}{x11}{x11}{x11}{x11}{x11}{x11}" {x5F}
-     + dbl_quote$ + ":dL" + dbl_quote$ + "11.post"
+  f$ = "dC:dS" + dbl_quote$ + "11tokenized" + dbl_quote$
+  f$ = f$ + ":ifds<>0then?" + dbl_quote$ + "disc error: "
+  f$ = f$ + dbl_quote$ + ";ds$:else?" + dbl_quote$
+  f$ = f$ + "{x13}{x13}{x11}{x11}{x11}{x11}{x11}{x11}{x11}{x11}{x11}{x11}{x11}{x11}{x11}{x11}{x11}{x11}{x11}{x11}{x11}{x11}{x11}{x11}{x11}{x11}"
+  f$ = f$ + dbl_quote$ + ":dL" + dbl_quote$ + "11.post"
 
   print #1, f$
   close 1
@@ -440,6 +445,8 @@
 '------------------
   if verbose then begin
     print "label "; curr_src_line$; " at line "; dest_lineno
+  bend
+
   delete_line_flag = 1
   label_name$(label_cnt) = mid$(curr_src_line$, 2)
   label_lineno(label_cnt) = dest_lineno + 1
@@ -598,7 +605,7 @@
 
 .check_token_for_subbing
 '-----------------------
-  if c$ = "" or c$ = "_" then return
+  if c$ = "" or c$ = "{x5F}" then return
 
   if val(c$) <> 0 then begin
     tg = 0
@@ -1011,6 +1018,7 @@
     if s$=struct_name$(zi) then begin
       zz = zi
       zi = struct_idx
+    bend
   next zi
 
   if zz = -1 then begin
@@ -1070,7 +1078,7 @@
   sm=0  ' read next token from curr_src_line$ into s$
 
   do while s$ <> ""
-    if s$ = "_" then begin
+    if s$ = "{x5F}" then begin
       src_lineno = src_lineno + 1
       gosub read_next_line
       goto cfcoso_skip  ' read next line
@@ -1146,7 +1154,7 @@
 
 .check_for_continue_onto_next_line
 '---------------------------------
-  if right$(curr_dest_line$, 1) = "_" then begin
+  if right$(curr_dest_line$, 1) = "{x5F}" then begin
     curr_dest_line$ = left$(curr_dest_line$, len(curr_dest_line$) - 1)
     next_line_flag = 0
     cont_next_line_flag = 1
@@ -1195,4 +1203,5 @@
       cur_dest_lineno = cur_dest_lineno + 1
     next id
   next ty
+  return
 ÿ
