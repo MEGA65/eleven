@@ -89,13 +89,13 @@
 #declare whitespace$, src_lineno, cur_src_lineno, cb
 #declare curr_attic_addr, total_lines, s$, delete_line_flag
 #declare verbose, dest_lineno, inside_ifdef, z$, curr_dest_line$
-#declare cur_dest_lineno, s1, s2, c$, r, f$, define_flag, delim$
+#declare cur_dest_lineno, s1, s2, cur_tok$, r, f$, define_flag, delim$
 #declare ignore_brackets, arg_cnt, parser_error$, var_name$
 #declare dimension$, value$, bkt_open_idx, bkt_close_idx, equals_idx
 #declare tr$, hx$, bi$, dont_mark_label, ty, id, vn$, of$
 #declare args_list$, args_list_len, ignore_delim_flag, args_idx, cur_ch$
 #declare quote_flag, did_replace_flag
-#declare a$, expecting_label, cx$, ii, ri, t, lc$, ci, br, b, bc$, vl
+#declare a$, expecting_label, default_delim$, ii, ri, t, lc$, ci, br, b, bc$, vl
 #declare n1, n2, ba, a, ad, tf$, zz, k, sf$, sf
 #declare cur_line_len, src_line_ptr, src_linebuff_ptr, cut_tail_idx
 #declare cur_line_len_minus_one, cur_linebuff_addr, chr
@@ -251,9 +251,9 @@ tokens$(0)=" print input if then else do loop while until gosub goto open close 
        if s2 = 0 then begin
          exit  ' exit loop for cases where a pi symbol was used in the source
        bend:else begin
-         c$ = mid$(s$, s1 + 2, s2 - s1 - 2)
-         gosub swap_out_label_in_c$_for_lineno
-         s$ = left$(s$, s1 - 1) + c$ + mid$(s$, s2 + 2)
+         cur_tok$ = mid$(s$, s1 + 2, s2 - s1 - 2)
+         gosub swap_out_label_in_cur_tok$_for_lineno
+         s$ = left$(s$, s1 - 1) + cur_tok$ + mid$(s$, s2 + 2)
        bend
     loop
 
@@ -367,7 +367,7 @@ tokens$(0)=" print input if then else do loop while until gosub goto open close 
     delete_line_flag = 0
   bend
 
-  ty = 0  ' var type
+  ty = TYP_REAL  ' var type
   t$ = right$(var_name$, 1)  ' type (if any) in t$
 
   if verbose then begin
@@ -376,7 +376,7 @@ tokens$(0)=" print input if then else do loop while until gosub goto open close 
 
   if instr("%&$", t$) = 0 then begin
     t$ = ""
-    ty = 0
+    ty = TYP_REAL
   bend
 
   if define_flag = 1 then begin
@@ -567,11 +567,11 @@ tokens$(0)=" print input if then else do loop while until gosub goto open close 
 
   quote_flag = 0
   a$ = ""
-  c$ = ""
+  cur_tok$ = ""
   struct_idx = 0
   expecting_label = 0
-  cx$ = "?<>=+-#*/^,.:;() "
-  delim$ = cx$
+  default_delim$ = "?<>=+-#*/^,.:;() "
+  delim$ = default_delim$
 
   for ii = 1 to len(s$)
     cur_ch$ = mid$(s$, ii, 1)
@@ -582,20 +582,20 @@ tokens$(0)=" print input if then else do loop while until gosub goto open close 
 
     if struct_idx and cur_ch$ = "(" then begin
       ri = 0
-      delim$ = cx$
+      delim$ = default_delim$
     bend
 
     if struct_idx and cur_ch$ = ")" then begin
       ri = -1
-      delim$ = cx$ + "dpub"
+      delim$ = default_delim$ + "dpub"
     bend
 
     if cur_ch$ = dbl_quote$ then begin
       quote_flag = abs(quote_flag - 1)
       if quote_flag = 1 then begin
         gosub check_token_for_subbing
-        a$ = a$ + c$
-        c$ = ""
+        a$ = a$ + cur_tok$
+        cur_tok$ = ""
       bend : else begin
         a$ = a$ + cur_ch$
         cur_ch$ = ""
@@ -609,18 +609,18 @@ tokens$(0)=" print input if then else do loop while until gosub goto open close 
 
     if instr(delim$, cur_ch$) <> 0 then begin
       gosub check_token_for_subbing
-      a$ = a$ + c$
-      c$ = ""
+      a$ = a$ + cur_tok$
+      cur_tok$ = ""
       if cur_ch$ = " " then cur_ch$ = ""
       a$ = a$ + cur_ch$
     bend : else begin
-      c$ = c$ + cur_ch$
+      cur_tok$ = cur_tok$ + cur_ch$
     bend
 
 .rval_skip
   next
   gosub check_token_for_subbing 
-  s$ = a$ + c$
+  s$ = a$ + cur_tok$
   return
   end
 
@@ -628,55 +628,55 @@ tokens$(0)=" print input if then else do loop while until gosub goto open close 
 '-----------------------
 .check_token_for_subbing
 '-----------------------
-  if c$ = "" or c$ = "{x5F}" then return
+  if cur_tok$ = "" or cur_tok$ = "{x5F}" then return
 
-  if val(c$) <> 0 then begin
+  if val(cur_tok$) <> 0 then begin
     expecting_label = 0
     return  ' never change numbers
   bend
 
-  if c$ = "0" then begin
-    c$="."
+  if cur_tok$ = "0" then begin
+    cur_tok$="."
     return  ' stupid ms basic optimization
   bend
 
   if expecting_label and dont_mark_label = 0 then begin
-    gosub mark_c$_label
+    gosub mark_cur_tok$_label
     expecting_label = 0
     return  ' replace label
   bend
 
-  if c$ = "goto" then next_line_flag = 1
+  if cur_tok$ = "goto" then next_line_flag = 1
 
-  if c$ = "goto" or c$ = "gosub" or c$ = "trap" then begin
+  if cur_tok$ = "goto" or cur_tok$ = "gosub" or cur_tok$ = "trap" then begin
     expecting_label = 1
   bend
 
   did_replace_flag = 0  ' did replace flag
 
-  if left$(c$, 1) = "$" then begin
-    hx$ = mid$(c$, 2)
+  if left$(cur_tok$, 1) = "$" then begin
+    hx$ = mid$(cur_tok$, 2)
     gosub check_hex
     return
    bend
 
-  if left$(c$, 1) = "%" then begin
-    bi$ = mid$(c$, 2)
+  if left$(cur_tok$, 1) = "%" then begin
+    bi$ = mid$(cur_tok$, 2)
     gosub check_binary
     return
   bend
 
-  tok_name$ = " " + c$ + " "
+  tok_name$ = " " + cur_tok$ + " "
 
   for t = 0 to 6
     if instr(tokens$(t), tok_name$) <> 0 then begin
-      lc$ = c$
+      lc$ = cur_tok$
       gosub check_if_command_triggers_shitty_syntax
       return
     bend
   next
 
-  t$ = right$(c$, 1)
+  t$ = right$(cur_tok$, 1)
 
   ty = TYP_REAL
   if t$ = "%" then ty = TYP_INT
@@ -684,9 +684,9 @@ tokens$(0)=" print input if then else do loop while until gosub goto open close 
   if t$ = "&" then ty = TYP_BYTE
 
   for id = 0 to element_cnt(ty)
-    if c$ = var_table$(ty, id) then begin
+    if cur_tok$ = var_table$(ty, id) then begin
       gosub generate_varname
-      c$ = vn$ + type_ident$(ty)
+      cur_tok$ = vn$ + type_ident$(ty)
       id = element_cnt(ty)
       did_replace_flag = 1
     bend
@@ -695,8 +695,8 @@ tokens$(0)=" print input if then else do loop while until gosub goto open close 
   if did_replace_flag = 1 then return
 
   for id = 0 to element_cnt(TYP_DEF)  ' check defines table too
-    if c$ = var_table$(TYP_DEF, id) then begin
-      c$ = define_val$(id)
+    if cur_tok$ = var_table$(TYP_DEF, id) then begin
+      cur_tok$ = define_val$(id)
       return
     bend
   next id
@@ -704,7 +704,7 @@ tokens$(0)=" print input if then else do loop while until gosub goto open close 
   ci = -1
 
   for id = 0 to struct_idx - 1  ' check struct names
-    if c$ = struct_name$(id) then begin
+    if cur_tok$ = struct_name$(id) then begin
       gosub check_for_creation_of_struct_object
       ci = id
       id = struct_idx - 1  ' create new struct object
@@ -714,15 +714,18 @@ tokens$(0)=" print input if then else do loop while until gosub goto open close 
   if ci <> -1 then begin
     return
   bend: else begin
-    if asc(c$) = 222 then return  ' pi
+    if asc(cur_tok$) = 222 then return  ' pi
   bend
 
-  if instr(dumb_cmds$, lc$) <> 0 and (c$ = "r" or c$ = "p" or c$ = "u8" or c$ = "w") then begin
+  if instr(dumb_cmds$, lc$) <> 0 and {x5F}
+    (cur_tok$ = "r" or cur_tok$ = "p" 
+     or cur_tok$ = "u8" or cur_tok$ = "w") then begin
+
     return
   bend
 
-.unresolved_c$
-  parser_error$ = "?unresolved identifier: '" + c$ + "' in line " + str$(src_lineno)
+.unresolved_cur_tok$
+  parser_error$ = "?unresolved identifier: '" + cur_tok$ + "' in line " + str$(src_lineno)
   sleep 1
   goto return_to_editor_with_error
   return
@@ -737,26 +740,26 @@ tokens$(0)=" print input if then else do loop while until gosub goto open close 
 
 
 '-------------
-.mark_c$_label
+.mark_cur_tok$_label
 '-------------
-  c$ = mk$ + c$ + mk$
+  cur_tok$ = mk$ + cur_tok$ + mk$
   return
 
 
 '-------------------------------
-.swap_out_label_in_c$_for_lineno
+.swap_out_label_in_cur_tok$_for_lineno
 '-------------------------------
   did_replace_flag = 0
   for id = 0 to label_cnt - 1
-    if c$ = label_name$(id) then begin
-      c$ = str$(label_lineno(id))
+    if cur_tok$ = label_name$(id) then begin
+      cur_tok$ = str$(label_lineno(id))
       id = label_cnt
       did_replace_flag = 1
     bend
   next id
   if did_replace_flag then return
 
-  parser_error$ = "?unresolved label: '" + c$ + "' in line" + str$(map_dest_to_src_lineno%(cur_dest_lineno - 1))
+  parser_error$ = "?unresolved label: '" + cur_tok$ + "' in line" + str$(map_dest_to_src_lineno%(cur_dest_lineno - 1))
   sleep 1
   goto return_to_editor_with_error
 
@@ -773,7 +776,7 @@ tokens$(0)=" print input if then else do loop while until gosub goto open close 
     if bc$ <> "1" and bc$ <> "0" then begin
       bank 4
       poke $ff08, 132
-      goto unresolved_c$
+      goto unresolved_cur_tok$
     bend
     if bc$="1" then br=br+bin_conv(b)
   next b
@@ -796,7 +799,7 @@ tokens$(0)=" print input if then else do loop while until gosub goto open close 
   trap
   bank 4
   poke $ff08, 131  ' set illegal hex
-  goto unresolved_c$  ' jump into error handler
+  goto unresolved_cur_tok$  ' jump into error handler
 
 
 '----------------
