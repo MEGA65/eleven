@@ -92,10 +92,11 @@
 #declare cur_dest_lineno, s1, s2, cur_tok$, r, f$, define_flag, delim$
 #declare ignore_brackets, arg_cnt, parser_error$, var_name$
 #declare dimension$, value$, bkt_open_idx, bkt_close_idx, equals_idx
-#declare tr$, hx$, bi$, dont_mark_label, ty, id, vn$, of$
+#declare tr$, hx$, bi$, dont_mark_label, ty, id, gen_varname$, of$
 #declare args_list$, args_list_len, ignore_delim_flag, args_idx, cur_ch$
 #declare quote_flag, did_replace_flag
-#declare a$, expecting_label, default_delim$, ii, ri, t, lc$, ci, br, b, bc$, vl
+#declare a$, expecting_label, default_delim$, rv_idx
+#declare t, lc$, found_struct_idx, br, b, bc$, vl
 #declare n1, n2, ba, a, ad, tf$, zz, k, sf$, sf
 #declare cur_line_len, src_line_ptr, src_linebuff_ptr, cut_tail_idx
 #declare cur_line_len_minus_one, cur_linebuff_addr, chr
@@ -399,9 +400,9 @@ tokens$(0)=" print input if then else do loop while until gosub goto open close 
 
   if dimension$ <> "" then begin
     id = element_cnt(ty)
-    gosub generate_varname  ' fetch varname in vn$
+    gosub generate_varname  ' fetch varname in gen_varname$
     if define_flag = 0 then begin
-      next_line$ = next_line$ + "dim " + vn$ + t$ + "(" + dimension$ + "):"
+      next_line$ = next_line$ + "dim " + gen_varname$ + t$ + "(" + dimension$ + "):"
     bend
   bend
 
@@ -409,7 +410,7 @@ tokens$(0)=" print input if then else do loop while until gosub goto open close 
     id = element_cnt(ty)
     gosub generate_varname 
     if define_flag=0 then begin
-      next_line$ = next_line$ + vn$ + t$ + "=" + value$ + ":"
+      next_line$ = next_line$ + gen_varname$ + t$ + "=" + value$ + ":"
     bend
   bend
 
@@ -573,20 +574,17 @@ tokens$(0)=" print input if then else do loop while until gosub goto open close 
   default_delim$ = "?<>=+-#*/^,.:;() "
   delim$ = default_delim$
 
-  for ii = 1 to len(s$)
-    cur_ch$ = mid$(s$, ii, 1)
+  for rv_idx = 1 to len(s$)
+    cur_ch$ = mid$(s$, rv_idx, 1)
     if cur_ch$ = ":" and quote_flag = 0 then begin
       struct_idx = 0
-      ri = 0
     bend
 
     if struct_idx and cur_ch$ = "(" then begin
-      ri = 0
       delim$ = default_delim$
     bend
 
     if struct_idx and cur_ch$ = ")" then begin
-      ri = -1
       delim$ = default_delim$ + "dpub"
     bend
 
@@ -630,6 +628,9 @@ tokens$(0)=" print input if then else do loop while until gosub goto open close 
 '-----------------------
   if cur_tok$ = "" or cur_tok$ = "{x5F}" then return
 
+
+  ' decimal number check
+  ' - - - - - - - - - -
   if val(cur_tok$) <> 0 then begin
     expecting_label = 0
     return  ' never change numbers
@@ -640,26 +641,37 @@ tokens$(0)=" print input if then else do loop while until gosub goto open close 
     return  ' stupid ms basic optimization
   bend
 
+
+  ' check if we should mark this expected label
+  ' - - - - - - - - - - - - - - - - - - - - - -
   if expecting_label and dont_mark_label = 0 then begin
     gosub mark_cur_tok$_label
     expecting_label = 0
     return  ' replace label
   bend
 
+
   if cur_tok$ = "goto" then next_line_flag = 1
 
+
+  ' are we expecting a label next?
+  ' - - - - - - - - - - - - - - -
   if cur_tok$ = "goto" or cur_tok$ = "gosub" or cur_tok$ = "trap" then begin
     expecting_label = 1
   bend
 
-  did_replace_flag = 0  ' did replace flag
 
+  ' check hex value
+  ' - - - - - - - -
   if left$(cur_tok$, 1) = "$" then begin
     hx$ = mid$(cur_tok$, 2)
     gosub check_hex
     return
    bend
 
+
+  ' check binary value
+  ' - - - - - - - - -
   if left$(cur_tok$, 1) = "%" then begin
     bi$ = mid$(cur_tok$, 2)
     gosub check_binary
@@ -668,6 +680,9 @@ tokens$(0)=" print input if then else do loop while until gosub goto open close 
 
   tok_name$ = " " + cur_tok$ + " "
 
+
+  ' ignore existing vocabulary of functions/commands
+  ' - - - - - - - - - - - - - - - - - - - - - - - - 
   for t = 0 to 6
     if instr(tokens$(t), tok_name$) <> 0 then begin
       lc$ = cur_tok$
@@ -675,6 +690,11 @@ tokens$(0)=" print input if then else do loop while until gosub goto open close 
       return
     bend
   next
+
+
+  ' check to swap out variables with short names
+  ' - - - - - - - - - - - - - - - - - - - - - -
+  did_replace_flag = 0  ' did replace flag
 
   t$ = right$(cur_tok$, 1)
 
@@ -686,7 +706,7 @@ tokens$(0)=" print input if then else do loop while until gosub goto open close 
   for id = 0 to element_cnt(ty)
     if cur_tok$ = var_table$(ty, id) then begin
       gosub generate_varname
-      cur_tok$ = vn$ + type_ident$(ty)
+      cur_tok$ = gen_varname$ + type_ident$(ty)
       id = element_cnt(ty)
       did_replace_flag = 1
     bend
@@ -694,35 +714,50 @@ tokens$(0)=" print input if then else do loop while until gosub goto open close 
 
   if did_replace_flag = 1 then return
 
-  for id = 0 to element_cnt(TYP_DEF)  ' check defines table too
+
+  ' check defines table too
+  ' - - - - - - - - - - - -
+  for id = 0 to element_cnt(TYP_DEF)
     if cur_tok$ = var_table$(TYP_DEF, id) then begin
       cur_tok$ = define_val$(id)
       return
     bend
   next id
 
-  ci = -1
+
+  ' check for struct names
+  ' ----------------------
+  found_struct_idx = -1
 
   for id = 0 to struct_idx - 1  ' check struct names
     if cur_tok$ = struct_name$(id) then begin
       gosub check_for_creation_of_struct_object
-      ci = id
+      found_struct_idx = id
       id = struct_idx - 1  ' create new struct object
     bend
   next id
 
-  if ci <> -1 then begin
+  if found_struct_idx <> -1 then begin
     return
-  bend: else begin
-    if asc(cur_tok$) = 222 then return  ' pi
   bend
 
+
+  ' PI token check
+  ' - - - - - - -
+  if asc(cur_tok$) = 222 then return
+
+
+  ' check for dumb commands
+  ' - - - - - - - - - - - -
+  ' NOTE: I think lc$ below should be replaced with tok_name$
+  ' ----
   if instr(dumb_cmds$, lc$) <> 0 and {x5F}
     (cur_tok$ = "r" or cur_tok$ = "p" 
      or cur_tok$ = "u8" or cur_tok$ = "w") then begin
 
     return
   bend
+
 
 .unresolved_cur_tok$
   parser_error$ = "?unresolved identifier: '" + cur_tok$ + "' in line " + str$(src_lineno)
@@ -808,23 +843,23 @@ tokens$(0)=" print input if then else do loop while until gosub goto open close 
   ' generate varname from index
 
   if id < 26 then begin
-    vn$ = chr$(65 + id)
+    gen_varname$ = chr$(65 + id)
     return
   bend
 
   n2 = mod(id, 26)
   n1 = int(id / 26) - 1
-  vn$ = chr$(65 + n1) + chr$(65 + n2)
+  gen_varname$ = chr$(65 + n1) + chr$(65 + n2)
 
-  if vn$="do" then vn$="d1"  ' avoid any basic terms as var names
-  if vn$="go" then vn$="g1"
-  if vn$="to" then vn$="t1"
-  if vn$="ds" then vn$="d2"
-  if vn$="dt" then vn$="d3"
-  if vn$="el" then vn$="e1"
-  if vn$="er" then vn$="e2"
-  if vn$="fn" then vn$="f1"
-  if vn$="if" then vn$="i1"
+  if gen_varname$="do" then gen_varname$="d1"  ' avoid any basic terms as var names
+  if gen_varname$="go" then gen_varname$="g1"
+  if gen_varname$="to" then gen_varname$="t1"
+  if gen_varname$="ds" then gen_varname$="d2"
+  if gen_varname$="dt" then gen_varname$="d3"
+  if gen_varname$="el" then gen_varname$="e1"
+  if gen_varname$="er" then gen_varname$="e2"
+  if gen_varname$="fn" then gen_varname$="f1"
+  if gen_varname$="if" then gen_varname$="i1"
   return
   stop
 
@@ -1262,8 +1297,11 @@ tokens$(0)=" print input if then else do loop while until gosub goto open close 
 '---------
   for ty = 0 to 3
     for id = 0 to element_cnt(ty)
-      gosub generate_varname  ' get vn$ (optimised var name)
-      print#1, str$(cur_dest_lineno) + " rem " + var_table$(ty,id) + " = :" + vn$ + type_ident$(ty) + ":"
+      gosub generate_varname  ' get gen_varname$ (optimised var name)
+
+      print#1, str$(cur_dest_lineno) + " rem " {x5F}
+        + var_table$(ty,id) + " = :" + gen_varname$ + type_ident$(ty) + ":"
+
       cur_dest_lineno = cur_dest_lineno + 1
     next id
   next ty
