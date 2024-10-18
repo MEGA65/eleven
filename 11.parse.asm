@@ -69,13 +69,16 @@ basic_end:
 // -------------------
 ret_ptr_lo = $06  // (low-byte) address to return to after call to print_inline_text
 ret_ptr_hi = $07  // (high-byte) address to return to after call to print_inline_text
-FOURPTR = $18  // $18-$1C
-verbose = $20  // byte
+tr_ptr = $08  ; $08-$09
+s_ptr = $0a   ; $0a-$0b
 
+FOURPTR = $18  // $18-$1B
+SRCPTR = $1c   // $1C-$1F
+verbose = $20  // byte
+cur_src_lineno = $21  ; $21-$22
 
 initialise:
   sei
-  inc $d021
 
   lda #$00
   sta FOURPTR
@@ -86,7 +89,6 @@ initialise:
 
   jsr main
 
-  inc $d020
   cli
   rts
 
@@ -107,7 +109,20 @@ CHROUT = $ffd2
 ;   clr
 ; 
 ; #declare dbl_quote$, parser_file$, t$, blank_line$, type_ident$
+type_ident:
+!pet $00  ; type_ident$(TYP_REAL)=""
+!pet '%'  ; type_ident$(TYP_INT)="%"
+!pet '$'  ; type_ident$(TYP_STR)="$"
+!pet '&'  ; type_ident$(TYP_BYTE)="&"
+
 ; #declare cur_src_line$, next_line_flag, next_line$
+cur_src_line:
+!fill 256, $00
+next_line_flag:
+!byte $00
+cur_char:
+!byte $00
+
 ; #declare mk$, dbl_quote_char, sngl_quote_char
 ; #declare tokens$(10), dumb_cmds$, i
 ; #declare bin_conv(16)  ' bit shifter's fast binary conversion
@@ -129,8 +144,14 @@ CHROUT = $ffd2
 ; #declare struct_vars$(30)              ' struct vars (each entry has string of vars)
 ; #declare struct_cnt=0                  ' index to next free struct definition
 ; 
-; #declare whitespace$, src_lineno, cur_src_lineno, cb
+; #declare cb
+whitespace:
+!byte 32, 160, $1d, $09, $00
+
 ; #declare cur_attic_addr, total_lines, s$, delete_line_flag
+total_lines:
+!word $0000
+
 ; #declare verbose, dest_lineno, inside_ifdef, z$, cur_dest_line$
 ; #declare cur_dest_lineno, s1, s2, cur_tok$, r, f$, define_flag, delim$
 f_str:
@@ -140,16 +161,44 @@ f_str:
 ; #declare dimension$, value$, bkt_open_idx, bkt_close_idx, equals_idx
 ; #declare tr$, hx$, bi$, dont_mark_label, ty, id, gen_varname$, of$
 ; #declare args_list$, args_list_len, ignore_delim_flag, args_idx, cur_ch$
-; #declare quote_flag, did_replace_flag
+; #declare did_replace_flag
+quote_flag:
+!byte $00
 ; #declare a$, expecting_label, default_delim$, rv_idx
 ; #declare t, lc$, found_struct_idx, br, b, bc$, vl
 ; #declare n1, n2, ba, a, ad, tf$, found_idx, k, sf$, sf
-; #declare cur_line_len, src_line_ptr, src_linebuff_ptr, cut_tail_idx
+; #declare src_line_ptr, src_linebuff_ptr
+cur_line_len:
+!byte $00
+cut_tail_idx:
+!byte $00
+
 ; #declare cur_line_len_minus_one, cur_linebuff_addr, chr
 ; #declare co$, ridx, sk$, bl, sz, sr, sm, zz$
 ; #declare cont_next_line_flag, tok_name$, clean_varname$
 ; #declare shitty_syntax_flag, zz
 ; 
+
+dmatable:
+!byte $80   ; source addr MB selector
+!byte $80   ; $(80)3.0000
+!byte $00   ; end of options
+dmatable_cmd:
+!byte $00 ; cmd
+dmatable_len:
+!word $0000
+dmatable_src_addr:
+!word $0000
+dmatable_src_bank:
+!byte $00
+dmatable_dest_addr:
+!word $0000
+dmatable_dest_bank:
+!byte $00
+dmatable_cmd_msb:
+!byte $00
+dmatable_modulo:
+!word $0000
 
 ;----------------
 print_inline_text:
@@ -227,14 +276,7 @@ main:
 ;   gosub get_filename
   jsr get_filename
 
-  rts
-
 ;   bank 128
-; 
-;   type_ident$(TYP_REAL)=""
-;   type_ident$(TYP_INT)="%"
-;   type_ident$(TYP_STR)="$"
-;   type_ident$(TYP_BYTE)="&"
 ; 
 ;   bin_conv(0) = 1
 ;   for i = 1 to 16
@@ -244,28 +286,62 @@ main:
 ; 
 ; ; ------------------------- pass 1 ------------------------------------
 ; 
-; '------
-; .pass_1
-; '------
+;-----
+pass_1:
+;-----
 ;   next_line_flag = 0
-;   whitespace$ = chr$(32) + chr$(160) + "{x1D}{x9}"
-; 
-;   ' cleanup temporary files
-;   src_lineno = 0
+  lda #$00
+  sta next_line_flag
+
 ; 
 ;   print "pass 1 ";
-; 
+  jsr print_inline_text
+!pet "pass 1 ", $00
+
+ 
 ;   cur_src_lineno=0
-; 
+  lda #$00
+  sta cur_src_lineno
+  sta cur_src_lineno+1
+
 ;   clr ti  ' keep start time for timing
-; 
+
 ;   cb = $8030000   ' eleven source to be compiled is located here in attic ram
+    lda #$00
+    sta SRCPTR
+    sta SRCPTR+1
+    lda #$03
+    sta SRCPTR+2
+    lda #$08
+    sta SRCPTR+3
+
 ;   cur_attic_addr = cb
 ;   total_lines = wpeek(cur_attic_addr)
+    ldz #$00
+    lda [SRCPTR],z
+    sta total_lines
+    inz
+    lda [SRCPTR],z
+    sta total_lines+1
+
 ;   cur_attic_addr = cur_attic_addr + 2
-; 
+    lda #$02
+    sta SRCPTR
+    ldz #$00
+
 ;   do while cur_src_lineno <> total_lines  ' until target lines is reached
+  lda cur_src_lineno
+  cmp total_lines
+  beq @next_check
+
+@next_check:
+  lda cur_src_lineno+1
+  cmp total_lines+1
+  lbne @skip_pass1
+
 ;     gosub read_next_line
+  jsr read_next_line
+
 ;     gosub single_quote_comment_trim
 ; 
 ;     ' strip whitespace from end
@@ -276,7 +352,7 @@ main:
 ;     if cur_src_line$ <> "" then begin
 ;       delete_line_flag = 0
 ; 
-;       if verbose then print ">> DEST:" dest_lineno;", SRC: "; src_lineno;": "; cur_src_line$
+;       if verbose then print ">> DEST:" dest_lineno;", SRC: "; cur_src_lineno;": "; cur_src_line$
 ; 
 ;       if left$(cur_src_line$, 1) = "." then begin
 ;         next_line_flag = 1
@@ -311,10 +387,10 @@ main:
 ; 
 ; .parser_loop_skip
 ;     ' increase source code line (for error msgs...)
-;     src_lineno = src_lineno + 1
+;     cur_src_lineno = cur_src_lineno + 1
 ; 
 ;     if verbose then begin
-;       print "src_lineno="; src_lineno
+;       print "cur_src_lineno="; cur_src_lineno
 ;       get key z$
 ;     bend
 ;   loop
@@ -329,6 +405,10 @@ main:
 ;   scratch "11temp"
 ;   scratch "11tokenized"
 ; 
+@skip_pass1:
+
+  rts
+
 ; ; ------------------------- pass 2 ------------------------------------
 ; 
 ; 
@@ -396,7 +476,7 @@ main:
 ;   next_line$ = ""  ' new line if dimensioning...
 ; 
 ;   if arg_cnt < 0 then begin
-;     parser_error$ = "?declare parameter missing in line " + str$(src_lineno)
+;     parser_error$ = "?declare parameter missing in line " + str$(cur_src_lineno)
 ;     goto return_to_editor_with_error
 ;   bend
 ; 
@@ -528,7 +608,7 @@ main:
 ;   gosub parse_arguments
 ; 
 ;   if arg_cnt <> 0 then begin
-;     print "?invalid parameters in line ";src_lineno
+;     print "?invalid parameters in line ";cur_src_lineno
 ;     end
 ;   bend
 ; 
@@ -570,21 +650,43 @@ main:
 ;   next r
 ; 
 ;   poke $4ff30 + r - 1, 0
-;   poke $ff09, mod(src_lineno, 256)
-;   poke $ff0a, src_lineno / 256
+;   poke $ff09, mod(cur_src_lineno, 256)
+;   poke $ff0a, cur_src_lineno / 256
 ;   poke $ff07, peek($ff07) or 2  ' set autojump flag
 ;   dclose
 ;   goto chain_editor
 ; 
 ; 
-; '------------------------
-; .strip_tr$_from_beginning
-; '------------------------
+;-----------------------
+strip_tr_from_beginning:
+;-----------------------
 ;   ' -- strip tr$ from beginning of string in s$ --
+  ldx #$00
+
+@loop_next_char:
 ;   do while instr(tr$, (left$(s$, 1)))
+  lda (s_ptr,x)
+  sta cur_char
+  ldx #$00
+@loop_next_tr_char:
+    lda (tr_ptr),y
+    beq @skip_tr_list_check
+
+    cmp cur_char
+    beq @found_tr_char
+    iny
+    jmp @loop_next_tr_char
+
+@found_tr_char:
 ;     s$ = mid$(s$, 2)
+    inw s_ptr
+    dec cur_line_len
 ;   loop
+  jmp @loop_next_char
+
+@skip_tr_list_check:
 ;   return
+  rts
 ; 
 ; 
 ; '------------------
@@ -858,7 +960,7 @@ main:
 ; 
 ; 
 ; .unresolved_cur_tok$
-;   parser_error$ = "?unresolved identifier: '" + cur_tok$ + "' in line " + str$(src_lineno)
+;   parser_error$ = "?unresolved identifier: '" + cur_tok$ + "' in line " + str$(cur_src_lineno)
 ;   sleep 1
 ;   goto return_to_editor_with_error
 ;   return
@@ -1033,9 +1135,9 @@ get_filename:
     lda #$0d
     jsr CHROUT
 
-;     print "{x91}";
-    lda #$91
-    jsr CHROUT
+;     print "{x91}"; (up arrow)
+    ; lda #$91
+    ; jsr CHROUT
 
 ;   bend
 @skip_print_fname:
@@ -1043,6 +1145,7 @@ get_filename:
 @skip_sig_check:
 rts
 
+; TODO: consider doing this manual filename input logic another time
 ; 
 ;   input "filename"; a$
 ;   if a$ = "" then begin
@@ -1160,33 +1263,109 @@ rts
 ;   return
 ; 
 ; 
-; '--------------
-; .read_next_line
-; '--------------
+;-------------
+read_next_line:
+;-------------
 ;   ' read next line into cur_src_line$
 ;   bank 0
 ;   cur_line_len = peek(cur_attic_addr)
+  ldz #$00
+  ldy #$00
+  lda [SRCPTR],z
+  sta cur_line_len
+
 ;   cur_src_line$ = left$(blank_line$, cur_line_len)
 ;   src_line_ptr = pointer(cur_src_line$)
 ;   src_linebuff_ptr = $10000 + wpeek(src_line_ptr + 1)
 ;   cur_attic_addr = cur_attic_addr + 1
+  inw SRCPTR
 ; 
 ;   if cur_line_len <> 0 then begin
+  cmp #$00
+  beq @skip_dma_copy
+  
 ;     edma 0, cur_line_len, cur_attic_addr, src_linebuff_ptr
+    lda #$00  ; cmd = copy
+    sta dmatable_cmd
+    lda cur_line_len
+    sta dmatable_len
+    lda #$00
+    sta dmatable_len+1
+
+    lda SRCPTR
+    sta dmatable_src_addr
+    lda SRCPTR+1
+    sta dmatable_src_addr+1
+    lda SRCPTR+2
+    sta dmatable_src_bank
+
+    lda #<cur_src_line
+    sta dmatable_dest_addr
+    lda #>cur_src_line
+    sta dmatable_dest_addr+1
+    lda #$00
+    sta dmatable_dest_bank
+
+    // poke $d702, 0 ' dma list in bank 0
+    lda #$00
+    sta $d702
+
+    // poke $d701, $00 ' dma list msb
+    lda #>dmatable
+    sta $d701
+
+    // poke $d705, $00 ' dma list lsb
+    lda #<dmatable
+    sta $d705
+
 ;     cur_attic_addr = cur_attic_addr + cur_line_len
+    clc
+    lda cur_line_len
+    adc SRCPTR
+    sta SRCPTR
+    lda #$00
+    adc SRCPTR+1
+    sta SRCPTR+1
+
+    ldy cur_line_len
+    lda #$00
+    sta cur_src_lineno,y  ; add null terminator
+
 ;   bend
+@skip_dma_copy:
+
 ; 
 ;   cur_src_lineno = cur_src_lineno + 1
+  inw cur_src_lineno
+
 ; 
 ;   tr$ = whitespace$
+  lda #<whitespace
+  sta tr_ptr
+  lda #>whitespace
+  sta tr_ptr+1
+
 ;   s$ = cur_src_line$
+  lda #<cur_src_line
+  sta s_ptr
+  lda #>cur_src_line
+  sta s_ptr+1
+
 ;   gosub strip_tr$_from_beginning
+  jsr strip_tr_from_beginning
+
 ;   cur_src_line$ = s$
 ; 
 ;   quote_flag = 0    ' quotes on
+  lda #$00
+  sta quote_flag
+
 ;   cut_tail_idx = 0  ' cut chars from tail
+  sta cut_tail_idx
+
 ;   bank 1
 ;   return
+  rts
 ; 
 ; 
 ; '-------------------------
@@ -1333,7 +1512,6 @@ rts
 ; 
 ;   do while s$ <> ""
 ;     if s$ = "{x5F}" then begin
-;       src_lineno = src_lineno + 1
 ;       gosub read_next_line
 ;       goto cfcoso_skip  ' read next line
 ;     bend
@@ -1438,7 +1616,7 @@ rts
 ;   if next_line_flag = 1 then begin
 ;     dest_line$(dest_lineno) = cur_dest_line$
 ;     cur_dest_line$ = s$
-;     map_dest_to_src_lineno%(dest_lineno) = src_lineno
+;     map_dest_to_src_lineno%(dest_lineno) = cur_src_lineno
 ;     dest_lineno = dest_lineno + 1
 ;     next_line_flag = 0
 ;   bend : else begin  ' -- add to cur_dest_line$
