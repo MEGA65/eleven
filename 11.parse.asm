@@ -329,16 +329,17 @@ pass_1:
     sta SRCPTR
     ldz #$00
 
+@loop_pass1:
 ;   do while cur_src_lineno <> total_lines  ' until target lines is reached
   lda cur_src_lineno
   cmp total_lines
-  beq @next_check
+  bne @condition_passed
 
-@next_check:
   lda cur_src_lineno+1
   cmp total_lines+1
-  lbne @skip_pass1
+  lbeq @skip_pass1
 
+@condition_passed:
 ;     gosub read_next_line
   jsr read_next_line
 
@@ -394,6 +395,8 @@ pass_1:
 ;       get key z$
 ;     bend
 ;   loop
+  jmp @loop_pass1
+
 ;   
 ;   if cur_dest_line$ <> "" then begin
 ;     dest_line$(dest_lineno) = cur_dest_line$
@@ -667,7 +670,7 @@ strip_tr_from_beginning:
 ;   do while instr(tr$, (left$(s$, 1)))
   lda (s_ptr,x)
   sta cur_char
-  ldx #$00
+  ldy #$00
 @loop_next_tr_char:
     lda (tr_ptr),y
     beq @skip_tr_list_check
@@ -1274,6 +1277,8 @@ read_next_line:
   lda [SRCPTR],z
   sta cur_line_len
 
+  sty cur_src_line  ; put null-terminator at start of line (to empty it)
+
 ;   cur_src_line$ = left$(blank_line$, cur_line_len)
 ;   src_line_ptr = pointer(cur_src_line$)
 ;   src_linebuff_ptr = $10000 + wpeek(src_line_ptr + 1)
@@ -1329,7 +1334,7 @@ read_next_line:
 
     ldy cur_line_len
     lda #$00
-    sta cur_src_lineno,y  ; add null terminator
+    sta cur_src_line,y  ; add null terminator
 
 ;   bend
 @skip_dma_copy:
