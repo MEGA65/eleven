@@ -9,6 +9,13 @@ all:
 	petcat -65 -o autoboot.c65.bas -- autoboot.c65
 	# c1541 -attach MA110.D81 -read gurce.asm,s
 
+11.parse.prg: 11.parse.asm
+	acme --cpu m65 -o 11.parse.prg -f cbm -l 11.parse.sym -r 11.parse.rep 11.parse.asm
+	c1541 -attach /c/Users/phuon/AppData/Roaming/xemu-lgb/mega65/hdos/11.D81 -delete 11.parse -write 11.parse.prg 11.parse
+
+xemu:
+	/c/projs/xemu/build/bin/xmega65.native -rom /c/projs/mega65-rom/newrom.bin -hdosvirt -uartmon :4510 -8 /C/Users/phuon/AppData/Roaming/xemu-lgb/mega65/hdos/11.D81 &> /dev/null &
+
 tod81:
 	cp /c/Users/gurcei/AppData/Roaming/xemu-lgb/mega65/hdos/11.D81 .
 	c1541 -attach /c/Users/gurcei/AppData/Roaming/xemu-lgb/mega65/hdos/11.D81 -delete 11.defaults -write 11.defaults

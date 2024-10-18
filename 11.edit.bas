@@ -199,7 +199,7 @@
  5011 gosub 5001 : rem check filetype
  5012 if ft$=".prj" then pn$=cf$ : pi% = 0
  5020 open 1,1,5,cf$+",s,r":de=ds:de$=ds$
- 5030 if de<>0 thencf$=of$:close 1:return
+ 5030 if de<>0 then cf$=of$:close 1:return
  5040 fora=0tomx:li$(a)="":nexta:lc=0
  5050 nl=0:ct=0:yc=0:xc=0
  5060 do
