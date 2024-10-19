@@ -351,6 +351,8 @@ pass_1:
 ;     ' strip whitespace from end
 ;     s$ = cur_src_line$
 ;     gosub strip_tr$_from_end
+    jsr strip_tr_from_end
+
 ;     cur_src_line$ = s$
 ; 
 ;     if cur_src_line$ <> "" then begin
@@ -676,7 +678,7 @@ strip_tr_from_beginning:
   ldy #$00
 @loop_next_tr_char:
     lda (tr_ptr),y
-    beq @skip_tr_list_check
+    beq @bail_out
 
     cmp cur_char
     beq @found_tr_char
@@ -690,19 +692,45 @@ strip_tr_from_beginning:
 ;   loop
   jmp @loop_next_char
 
-@skip_tr_list_check:
+@bail_out
 ;   return
   rts
 ; 
 ; 
-; '------------------
-; .strip_tr$_from_end
-; '------------------
+;----------------
+strip_tr_from_end:
+;----------------
 ;   ' -- strip characters in tr$ from end of s$ --
+  ldy cur_line_len
+  beq @bail_out
 ;   do while instr(tr$, right$(s$, 1))
+@loop_next_char:
+  dey
+  lda (s_ptr),y
+  sta cur_char
+
+  ldz #$00
+@loop_next_tr_char:
+  lda (tr_ptr),z
+  beq @bail_out
+
+  cmp cur_char
+  beq @found_tr_char
+  inz
+  jmp @loop_next_tr_char
+
+@found_tr_char:
+  dec cur_line_len
+  jmp @loop_next_char
+
 ;     s$ = left$(s$, len(s$) - 1)
 ;   loop
-;   return
+
+@bail_out:
+  ldy cur_line_len
+  lda #$00
+  sta (s_ptr),y
+  rts
 ; 
 ; 
 ; '---------------
