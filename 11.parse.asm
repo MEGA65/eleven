@@ -71,6 +71,7 @@ ret_ptr_lo = $06  // (low-byte) address to return to after call to print_inline_
 ret_ptr_hi = $07  // (high-byte) address to return to after call to print_inline_text
 tr_ptr = $08  ; $08-$09
 s_ptr = $0a   ; $0a-$0b
+is_ptr = $0c  ; $0c-$0d
 
 FOURPTR = $18  // $18-$1B
 SRCPTR = $1c   // $1C-$1F
@@ -341,9 +342,11 @@ pass_1:
 
 @condition_passed:
 ;     gosub read_next_line
-  jsr read_next_line
+    jsr read_next_line
 
 ;     gosub single_quote_comment_trim
+    jsr single_quote_comment_trim
+  
 ; 
 ;     ' strip whitespace from end
 ;     s$ = cur_src_line$
@@ -1371,37 +1374,85 @@ read_next_line:
 ;   bank 1
 ;   return
   rts
-; 
-; 
-; '-------------------------
-; .single_quote_comment_trim
-; '-------------------------
-;   cut_tail_idx = instr(cur_src_line$, "'")  ' single quote
-; 
-;   if cut_tail_idx <> 0 then begin
-;     if instr(cur_src_line$, dbl_quote$) <> 0 then begin  ' double quote
+
+
+;------
+instr_chr:
+;------
+  ; returns:
+  ; - C=0 if found, C=1 if not found
+  ; - A=index of found char
+  stx is_ptr
+  sty is_ptr+1
+instr_chr_quick:
+  sta cur_char
+
+  ldy #$00
+@loop_next_char:
+  lda (is_ptr),y
+  beq @end_of_string
+
+  cmp cur_char
+  bne @not_found
+
+  tya ; found it, let a = index of found pos
+  clc ; indicates 'found'
+  rts
+
+@not_found:
+  iny
+  jmp @loop_next_char
+
+@end_of_string:
+  sec ; indicates 'not found'
+  rts
+
+ 
+;------------------------
+single_quote_comment_trim:
+;------------------------
+
 ;       cut_tail_idx = 0
-;       bank 0
-;       cur_line_len_minus_one = peek(src_line_ptr) - 1
-;       cur_linebuff_addr = wpeek(src_line_ptr + 1)
-;       bank 1
+      lda #$00
+      sta cut_tail_idx
+      ldy #$00
+@loop_next_char:
 ;       for r = 0 to cur_line_len_minus_one
 ;         chr = peek(cur_linebuff_addr + r)
+        lda (s_ptr),y
+        beq @bail_out   ; bail out if found null terminator
 ;         if chr = dbl_quote_char then begin
+        cmp #'"'
+        bne @char_not_a_dbl_quote
 ;           quote_flag = abs(quote_flag - 1)
+          lda quote_flag
+          eor #$01
+          sta quote_flag
+          jmp @skip_past_else
+
 ;         bend : else begin
+@char_not_a_dbl_quote:
 ;           if chr = sngl_quote_char and quote_flag=0 then begin
+          cmp #"'"
+          bne @skip_past_else
+          lda quote_flag
+          bne @skip_past_else
 ;             cut_tail_idx = r + 1
+            lda #$00
+            sta (s_ptr),y
+            sty cur_line_len
 ;             r = 999
+            jmp @bail_out
 ;           bend
 ;         bend
+@skip_past_else:
 ;       next
+      iny
+      jmp @loop_next_char
+
 ;     bend
-;     if cut_tail_idx then begin
-;       cur_src_line$ = left$(cur_src_line$, cut_tail_idx - 1)
-;     bend
-;   bend
-;   return
+@bail_out
+  rts
 ; 
 ; 
 ; '----------------------------
