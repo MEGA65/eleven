@@ -63,6 +63,20 @@ basic_end:
 ; $803,00yy  BYTE[LEN]  Chars for Line 2
 ; ...
 
+!macro alloc .inptr, size {
+  lda HEAPPTR
+  sta .inptr
+  lda HEAPPTR+1
+  sta .inptr+1
+
+  clc
+  lda HEAPPTR
+  adc #<size
+  sta HEAPPTR
+  lda HEAPPTR+1
+  adc #>size
+  sta HEAPPTR+1
+}
 
 // -------------------
 // zero page variables
@@ -72,11 +86,14 @@ ret_ptr_hi = $07  // (high-byte) address to return to after call to print_inline
 tr_ptr = $08  ; $08-$09
 s_ptr = $0a   ; $0a-$0b
 is_ptr = $0c  ; $0c-$0d
+tmp_ptr = $0e ; $0e-$0f
 
 FOURPTR = $18  // $18-$1B
 SRCPTR = $1c   // $1C-$1F
 verbose = $20  // byte
 cur_src_lineno = $21  ; $21-$22
+HEAPPTR = $23 ; $23-$24  (pointer to free location of heap)
+             ; (I'll try start it at $8000 and grow it upwards)
 
 initialise:
   sei
@@ -87,6 +104,20 @@ initialise:
   sta FOURPTR+3
   lda #$04
   sta FOURPTR+2
+
+  lda #$00
+  sta HEAPPTR
+  lda #$80
+  sta HEAPPTR+1
+
+  ; allocate label_name$(200)
+  +alloc label_name, 200*2
+
+  lda #$00
+  sta label_cnt
+
+  ; allocate label_lineno(200)
+  +alloc label_lineno, 200*2
 
   jsr main
 
@@ -140,8 +171,17 @@ cur_char:
 ; #declare define_val$(200)              ' define values table
 ; 
 ; #declare label_name$(200)              ' label table
+label_name:
+!word $0000   ; pointer to where array is allocated in heap
+
 ; #declare label_lineno(200)
+label_lineno:
+!word $0000   ; pointer to array
+
 ; #declare label_cnt=0
+label_cnt:
+!byte $00
+
 ; 
 ; #declare args$(32)                     ' argument list
 ; 
@@ -484,6 +524,8 @@ pass_1:
   jsr print_inline_text
 !pet "pass 1 ", $00
 
+  lda #$0d
+  jsr CHROUT
  
 ;   cur_src_lineno=0
   lda #$00
@@ -582,9 +624,17 @@ sta verbose
 @skip_verbose:
 ; 
 ;       if left$(cur_src_line$, 1) = "." then begin
+      ldy #$00
+      lda (s_ptr),y
+      cmp #'.'
+      bne @skip_add_label
 ;         next_line_flag = 1
+        lda #$01
+        sta next_line_flag
 ;         gosub add_to_label_table
+        jsr add_to_label_table
 ;       bend
+@skip_add_label:
 ; 
 ;       if left$(cur_src_line$, 1) = "#" then begin
 ;         gosub parse_preprocessor_directive
@@ -856,18 +906,100 @@ sta verbose
 ;   return
 ; 
 ; 
-; '------------------
-; .add_to_label_table
-; '------------------
+;-----------------
+add_to_label_table:
+;-----------------
 ;   if verbose then begin
+    lda verbose
+    beq @skip_verbose
 ;     print "label "; cur_src_line$; " at line "; dest_lineno
+      jsr print_inline_text
+!pet "label ", $00
+
+      jsr print_str
+
+      jsr print_inline_text
+!pet " at line ", $00
+
+      ldx dest_lineno
+      ldy dest_lineno+1
+      jsr print_uint
+
+      lda #$0d
+      jsr CHROUT
 ;   bend
+@skip_verbose:
 ; 
 ;   delete_line_flag = 1
+    lda #$01
+    sta delete_line_flag
+
 ;   label_name$(label_cnt) = mid$(cur_src_line$, 2)
+
+    ; temp16 = label_cnt * 2  (as each entry in array is a word)
+    lda label_cnt
+    clc
+    rol
+    sta temp16
+    lda #$00
+    rol
+    sta temp16+1
+
+    ; tmp_ptr is pointer to indexed address within label_name$()
+    clc
+    lda label_name
+    adc temp16
+    sta tmp_ptr
+    lda label_name+1
+    adc temp16+1
+    sta tmp_ptr+1
+
+    ; set tmp_ptr word to equal the current heap pointer
+    ldy #$00
+    lda HEAPPTR
+    sta (tmp_ptr),y
+    iny
+    lda HEAPPTR+1
+    sta (tmp_ptr),y
+
+    ; copy label name into heap
+    ldx #$00
+    ldy #$01
+@loop_next_char:
+    lda (s_ptr),y
+    sta (HEAPPTR,x)
+    pha
+    inw HEAPPTR
+    iny
+    pla
+    bne @loop_next_char
+
+
 ;   label_lineno(label_cnt) = dest_lineno + 1
+    ; tmp_ptr is pointer to indexed address within label_lineno()
+    clc
+    lda label_lineno
+    adc temp16
+    sta tmp_ptr
+    lda label_lineno+1
+    adc temp16+1
+    sta tmp_ptr+1
+
+    ldy #$00
+    lda dest_lineno
+    clc
+    adc #$01
+    sta (tmp_ptr),y
+    iny
+    lda dest_lineno+1
+    adc #$00
+    sta (tmp_ptr),y
+
 ;   label_cnt = label_cnt + 1  ' increase label count
+    inc label_cnt
+
 ;   return
+    rts
 ; 
 ; 
 ; '---------------------------
