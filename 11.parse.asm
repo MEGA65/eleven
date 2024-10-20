@@ -105,6 +105,11 @@ TYP_DEF = 4
 
 CHROUT = $ffd2
 
+MULDIVBUSY = $d70f
+DIVOUT  = $d768
+MULTINA = $d770
+MULTINB = $d774
+MULTOUT = $d778
 
 ; 
 ;   clr
@@ -149,11 +154,15 @@ cur_char:
 whitespace:
 !byte 32, 160, $1d, $09, $00
 
-; #declare cur_attic_addr, total_lines, s$, delete_line_flag
+; #declare cur_attic_addr, total_lines, s$
 total_lines:
 !word $0000
+delete_line_flag:
+!byte $00
 
-; #declare verbose, dest_lineno, inside_ifdef, z$, cur_dest_line$
+; #declare verbose, inside_ifdef, z$, cur_dest_line$
+dest_lineno:
+!word $0000
 ; #declare cur_dest_lineno, s1, s2, cur_tok$, r, f$, define_flag, delim$
 f_str:
 !fill 256, $00  ; string of max 256 bytes
@@ -237,7 +246,183 @@ print_text:
 found_null:
   rts
 
-; 
+
+cmp16res:
+!word $0000
+
+cmp16val:
+!word $0000
+
+
+;----
+cmp16:
+;----
+  stx cmp16res
+  sty cmp16res+1
+
+  sec
+  txa
+  sbc cmp16val
+  sta cmp16res
+
+  tya
+  sbc cmp16val+1
+  sta cmp16res
+
+  rts
+
+
+;----
+log10:
+;----
+  ; input: x=lo-byte, y=hi-byte
+
+  ; if val < 10 return 0
+  lda #$0a
+  sta cmp16val
+  lda #$00
+  sta cmp16val+1
+  jsr cmp16
+  bcs +
+  lda #$00
+  rts
+
++:
+  ; if val < 100 return 1
+  lda #$64
+  sta cmp16val
+  lda #$00
+  sta cmp16val+1
+  jsr cmp16
+  bcs +
+  lda #$01
+  rts
+
++:
+  ; if val < 1000 return 2
+  lda #$e8
+  sta cmp16val
+  lda #$03
+  sta cmp16val+1
+  jsr cmp16
+  bcs +
+  lda #$02
+  rts
+
++:
+  ; if val < 10000 return 3
+  lda #$10
+  sta cmp16val
+  lda #$27
+  sta cmp16val+1
+  jsr cmp16
+  bcs +
+  lda #$03
+  rts
+
++:
+  ; else return 4
+  lda #$04
+  rts
+
+column_vals:
+!word $0001   ; 1
+!word $000a   ; 10
+!word $0064   ; 100
+!word $03e8   ; 1000
+!word $2710   ; 10000
+
+temp16:
+!word $0000
+column_val:
+!word $0000
+
+;---------
+print_uint:
+;---------
+; num_digits = abs( log10(val) + 1)
+  jsr log10
+  taz
+  stx temp16
+  sty temp16+1
+
+@loop_next_digit:
+; do
+;   column_val = num_digits * 10
+    phz
+    tza
+    clc
+    rol
+    tax
+    lda column_vals,x
+    sta column_val
+    lda column_vals+1,x
+    sta column_val+1
+
+;   column_digit = abs(val / column_val)
+    ldz #$00
+    ldy #$00
+    ldx temp16+1
+    lda temp16
+    stq MULTINA
+
+    ldx column_val+1
+    lda column_val
+    stq MULTINB
+
+@wait_for_divide_to_finish:
+    bit MULDIVBUSY  ; bit6 (mulbusy) = overflow flag
+                    ; bit7 (divbusy) = negative flag
+    bmi @wait_for_divide_to_finish
+
+    ; print this digit
+    lda DIVOUT+4
+    clc
+    adc #'0'
+    jsr CHROUT
+
+;   value -= column_digit * column_val
+    ldx #$00
+    lda DIVOUT+4
+    stq MULTINA
+
+@wait_for_mult_to_finish:
+    bit MULDIVBUSY  ; bit6 (mulbusy) = overflow flag
+                    ; bit7 (divbusy) = negative flag
+    bvs @wait_for_mult_to_finish
+
+    sec
+    lda temp16
+    sbc MULTOUT
+    sta temp16
+    lda temp16+1
+    sbc MULTOUT+1
+    sta temp16+1
+
+;   num_digits--
+    plz
+    dez
+; while num_digits != 0
+    bpl @loop_next_digit
+
+  rts
+
+
+;--------
+print_str:
+;--------
+  ldy #$00
+@loop_next_char:
+  lda (s_ptr),y
+  beq @bail_out
+  jsr CHROUT
+  iny
+  jmp @loop_next_char
+
+@bail_out:
+  rts
+
+ 
 ;----
 main:
 ;----
@@ -356,9 +541,45 @@ pass_1:
 ;     cur_src_line$ = s$
 ; 
 ;     if cur_src_line$ <> "" then begin
+      lda cur_line_len
+      beq @skip_line_parse
 ;       delete_line_flag = 0
+        lda #$00
+        sta delete_line_flag
 ; 
 ;       if verbose then print ">> DEST:" dest_lineno;", SRC: "; cur_src_lineno;": "; cur_src_line$
+lda #$01
+sta verbose
+        lda verbose
+        beq @skip_verbose
+
+          jsr print_inline_text
+!pet ">> DEST: ", $00
+
+          ldx dest_lineno
+          ldy dest_lineno+1
+          jsr print_uint
+
+          jsr print_inline_text
+!pet ", SRC: ", $00
+
+          ldx cur_src_lineno
+          ldy cur_src_lineno+1
+          jsr print_uint
+
+          lda #':'
+          jsr CHROUT
+          lda #' '
+          jsr CHROUT
+
+          ldx s_ptr
+          ldy s_ptr+1
+          jsr print_str
+
+          lda #$0d
+          jsr CHROUT
+
+@skip_verbose:
 ; 
 ;       if left$(cur_src_line$, 1) = "." then begin
 ;         next_line_flag = 1
@@ -390,6 +611,7 @@ pass_1:
 ;         bend
 ;       bend  ' endif delete_line_flag = 0
 ;     bend  ' endif cur_src_line$ <> ""
+@skip_line_parse:
 ; 
 ; .parser_loop_skip
 ;     ' increase source code line (for error msgs...)
