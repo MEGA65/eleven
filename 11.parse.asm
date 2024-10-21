@@ -24,8 +24,8 @@ basic_end:
 ;         - bit0: autoload source enable flag
 ;         - bit1: autojump to line flag
 ;         - bit2: autobackup flag
-;         - bit3: verbose flag
-;         - bit4: text-mode (0=80x25, 1=80x50)
+;         - bit3: text-mode (0=80x25, 1=80x50)
+;         - bit4: verbose flag
 ;         - bit5-7: reserved
 ; 4.FF08  error number to be displayed (>128 are preprocessor errors)
 ; 4.FF09  (2 bytes) line number for autojump
@@ -63,6 +63,11 @@ basic_end:
 ; $803,00yy  BYTE[LEN]  Chars for Line 2
 ; ...
 
+
+; ------
+; MACROS
+; ------
+
 !macro alloc .inptr, size {
   lda HEAPPTR
   sta .inptr
@@ -78,6 +83,37 @@ basic_end:
   sta HEAPPTR+1
 }
 
+
+!macro cmp_preproc_str .str {
+;   if instr(cur_src_line$, "ifdef") = 2 then begin
+    ldx #<.str
+    ldy #>.str
+    lda s_ptr
+    ldz s_ptr+1
+    jsr instr
+}
+
+!macro add_to_pointer .ptr, .val {
+  clc
+  lda .ptr
+  adc #.val
+  sta .ptr
+  lda .ptr+1
+  adc #$00
+  sta .ptr+1
+}
+
+
+!macro plw .ptr {
+  pla
+  sta .ptr+1
+  pla
+  sta .ptr
+}
+
+
+
+
 // -------------------
 // zero page variables
 // -------------------
@@ -87,6 +123,9 @@ tr_ptr = $08  ; $08-$09
 s_ptr = $0a   ; $0a-$0b
 is_ptr = $0c  ; $0c-$0d
 tmp_ptr = $0e ; $0e-$0f
+needle_ptr = $10 ; $10-$11
+haystack_ptr = $12 ; $12-13
+a_ptr = $14 ; $14-$15
 
 FOURPTR = $18  // $18-$1B
 SRCPTR = $1c   // $1C-$1F
@@ -119,14 +158,29 @@ initialise:
   ; allocate label_lineno(200)
   +alloc label_lineno, 200*2
 
+  lda #$00
+  sta element_cnt
+  sta element_cnt+1
+  sta element_cnt+2
+  sta element_cnt+3
+
+  tsx
+  stx bailout_stack_pos
+
   jsr main
+
+bail_out_early:
+  ldx bailout_stack_pos
+  txs
 
   cli
   rts
 
+bailout_stack_pos:
+!byte $00
 
 ; '-------
-; .defines
+; DEFINES
 ; '-------
 TYP_REAL = 0
 TYP_INT = 1
@@ -135,6 +189,8 @@ TYP_BYTE = 3
 TYP_DEF = 4
 
 CHROUT = $ffd2
+CLOSE_ALL = $ff50
+GETLFS = $ff44
 
 MULDIVBUSY = $d70f
 DIVOUT  = $d768
@@ -152,11 +208,13 @@ type_ident:
 !pet '$'  ; type_ident$(TYP_STR)="$"
 !pet '&'  ; type_ident$(TYP_BYTE)="&"
 
-; #declare cur_src_line$, next_line_flag, next_line$
+; #declare next_line$
 cur_src_line:
 !fill 256, $00
 next_line_flag:
 !byte $00
+next_line:
+!fill 256, $00
 cur_char:
 !byte $00
 
@@ -167,8 +225,20 @@ cur_char:
 ; #declare map_dest_to_src_lineno%(1000) ' dest file line nr --> src file line nr
 ; #declare dest_line$(1000)              ' post processed lines
 ; #declare element_cnt(4)                ' element count per type
+element_cnt:
+!byte $00, $00, $00, $00, $00
+
 ; #declare var_table$(4,200)             ' variable table per type
+var_table = $1600   ; ptr to memory for array (4*200*2 = 1600 bytes in size, $640)
+
 ; #declare define_val$(200)              ' define values table
+define_val = $1c40  ; ptr to memory for array (200*2 = 400 bytes in size, $190)
+
+; #declare args$(32)                     ' argument list
+args = $1dd0        ; ptr to memory for array (32*2 = 64 bytes, $40)
+
+; next avail = $1e10
+
 ; 
 ; #declare label_name$(200)              ' label table
 label_name:
@@ -183,8 +253,6 @@ label_cnt:
 !byte $00
 
 ; 
-; #declare args$(32)                     ' argument list
-; 
 ; #declare struct_name$(30)
 ; #declare struct_fields$(30)
 ; #declare struct_vars$(30)              ' struct vars (each entry has string of vars)
@@ -193,6 +261,8 @@ label_cnt:
 ; #declare cb
 whitespace:
 !byte 32, 160, $1d, $09, $00
+space_only:
+!pet ' '
 
 ; #declare cur_attic_addr, total_lines, s$
 total_lines:
@@ -200,17 +270,30 @@ total_lines:
 delete_line_flag:
 !byte $00
 
-; #declare verbose, inside_ifdef, z$, cur_dest_line$
+; #declare verbose, z$, cur_dest_line$
+inside_ifdef:
+!byte $00
 dest_lineno:
 !word $0000
-; #declare cur_dest_lineno, s1, s2, cur_tok$, r, f$, define_flag, delim$
+; #declare cur_dest_lineno, s1, s2, cur_tok$, r, f$, delim$
+define_flag:
+!byte 00
+
 f_str:
 !fill 256, $00  ; string of max 256 bytes
 
-; #declare ignore_brackets, arg_cnt, parser_error$, var_name$
+; #declare var_name$
+parser_error:
+!fill 256, $00
+arg_cnt:
+!byte 00
+ignore_brackets:
+!byte $00
 ; #declare dimension$, value$, bkt_open_idx, bkt_close_idx, equals_idx
 ; #declare tr$, hx$, bi$, dont_mark_label, ty, id, gen_varname$, of$
-; #declare args_list$, args_list_len, ignore_delim_flag, args_idx, cur_ch$
+; #declare args_list$, args_list_len, args_idx, cur_ch$
+ignore_delim_flag:
+!byte $00
 ; #declare did_replace_flag
 quote_flag:
 !byte $00
@@ -269,13 +352,34 @@ print_inline_text:
   pha
   rts
 
+;-----------------------
+print_inline_text_to_str:
+;-----------------------
+  stx s_ptr
+  sty s_ptr+1
+  pla
+  clc
+  adc #$01
+  sta ret_ptr_lo
+  pla
+  adc #$00
+  sta ret_ptr_hi
+
+  jsr print_text_to_str
+
+  lda ret_ptr_hi
+  pha
+  lda ret_ptr_lo
+  pha
+  rts
+
 
 ;---------
 print_text:
 ;---------
   ldx #$00
   lda (ret_ptr_lo,x)
-  beq found_null
+  beq @found_null
 
   jsr CHROUT
   inc ret_ptr_lo
@@ -283,9 +387,57 @@ print_text:
   inc ret_ptr_hi
   bne print_text
 
-found_null:
+@found_null:
   rts
 
+;---------
+print_text_to_str:
+;---------
+  ldx #$00
+  lda (ret_ptr_lo,x)
+  beq @found_null
+
+  ldy cur_line_len
+  sta (s_ptr),y
+  inc cur_line_len
+
+  inc ret_ptr_lo
+  bne print_text_to_str
+  inc ret_ptr_hi
+  bne print_text_to_str
+
+@found_null:
+  rts
+
+
+;-------------------
+cmp_tmp_ptr_to_s_str:
+;-------------------
+  ; returns C=0 if equal, C=1 if unequal
+  clc
+  ldy #$0
+@loop:
+  lda (tmp_ptr),y
+  beq @bail_out_on_null_term
+
+  cmp (s_ptr),y
+  bne @bail_out_fail
+
+  lda (s_ptr),y
+  beq @bail_out_fail
+
+  iny
+  bra @loop
+
+@bail_out_fail:
+  sec
+  rts
+
+@bail_out_on_null_term:
+  lda (s_ptr),y
+  bne @bail_out_fail  ; if other string doesn't have a null-terminator too, then fail
+
+  rts
 
 cmp16res:
 !word $0000
@@ -376,6 +528,8 @@ temp16:
 !word $0000
 column_val:
 !word $0000
+to_str_flag:
+!byte $00
 
 ;---------
 print_uint:
@@ -419,8 +573,17 @@ print_uint:
     lda DIVOUT+4
     clc
     adc #'0'
+    ldx to_str_flag
+    bne @add_to_str
     jsr CHROUT
+    bra @skip
 
+@add_to_str:
+    ldy cur_line_len
+    sta (s_ptr),y
+    inc cur_line_len
+
+@skip:
 ;   value -= column_digit * column_val
     ldx #$00
     lda DIVOUT+4
@@ -590,8 +753,6 @@ pass_1:
         sta delete_line_flag
 ; 
 ;       if verbose then print ">> DEST:" dest_lineno;", SRC: "; cur_src_lineno;": "; cur_src_line$
-lda #$01
-sta verbose
         lda verbose
         beq @skip_verbose
 
@@ -637,8 +798,14 @@ sta verbose
 @skip_add_label:
 ; 
 ;       if left$(cur_src_line$, 1) = "#" then begin
+      ldy #$00
+      lda (s_ptr),y
+      cmp #'#'
+      bne +
 ;         gosub parse_preprocessor_directive
+        jsr parse_preprocessor_directive
 ;       bend
++:
 ; 
 ;       if inside_ifdef = 1 then goto parser_loop_skip
 ; 
@@ -743,22 +910,70 @@ sta verbose
 ;   end
 ; 
 ; 
-; '--------------
-; .declare_s$_var
-; '--------------
+;----------------
+declare_s_ptr_var:  ; declare_s$_var
+;----------------
 ;   ' declare var(s) in s$
 ;   s$ = mid$(cur_src_line$, 10 - define_flag)
-; 
+    +add_to_pointer s_ptr, 9
+    sec
+    lda cur_line_len
+    sbc #09
+    sta cur_line_len
+
+    ; the (- define_flag) part
+    lda define_flag
+    beq +
+    dew s_ptr
+    clc
+    inc cur_line_len
+
++:
 ;   ignore_brackets = 1
+    lda #$01
+    sta ignore_brackets
+
 ;   gosub parse_arguments
+    jsr parse_arguments
+
 ;   ignore_brackets = 0  ' split parameters
+    lda #$00
+    sta ignore_brackets
 ; 
 ;   next_line$ = ""  ' new line if dimensioning...
+    sta next_line
 ; 
 ;   if arg_cnt < 0 then begin
+    lda arg_cnt
+    cmp #$ff
+    bne +
 ;     parser_error$ = "?declare parameter missing in line " + str$(cur_src_lineno)
+    lda #$00
+    sta parser_error
+    sta cur_line_len
+    ldx #<parser_error
+    ldy #>parser_error
+    jsr print_inline_text_to_str
+
+!pet "?declare parameter missing in line ", $00
+
+    lda #$01
+    sta to_str_flag
+    ldx cur_src_lineno
+    ldy cur_src_lineno+1
+    jsr print_uint
+    lda #$00
+    sta to_str_flag
+
+    ldy cur_line_len
+    lda #$00
+    sta (s_ptr),y
+    inc cur_line_len
+
 ;     goto return_to_editor_with_error
+    jmp return_to_editor_with_error
 ;   bend
++:
 ; 
 ;   for i = 0 to arg_cnt
 ;     var_name$ = args$(i)
@@ -772,6 +987,7 @@ sta verbose
 ;     delete_line_flag = 1
 ;   bend
 ;   return
+    rts
 ; 
 ; 
 ; '------------------
@@ -974,7 +1190,6 @@ add_to_label_table:
     pla
     bne @loop_next_char
 
-
 ;   label_lineno(label_cnt) = dest_lineno + 1
     ; tmp_ptr is pointer to indexed address within label_lineno()
     clc
@@ -1002,21 +1217,54 @@ add_to_label_table:
     rts
 ; 
 ; 
-; '---------------------------
-; .return_to_editor_with_error
-; '---------------------------
+;--------------------------
+return_to_editor_with_error:
+;--------------------------
 ;   bank 4  ' set error mailbox flag
+    lda #$30
+    sta FOURPTR
+    lda #$ff
+    sta FOURPTR+1
 ; 
+    ldz #$ff
 ;   for r=1 to len(parser_error$)
+@loop_next_char:
+    inz
+    lda (s_ptr),z
 ;     poke $4ff30 + r - 1, asc(mid$(parser_error$, r, 1))
+    sta [FOURPTR],z
+
 ;   next r
-; 
 ;   poke $4ff30 + r - 1, 0
+    bne @loop_next_char:
+
+    ; decrement by one, as editor treats first line as line 0
+    dew cur_src_lineno
+
+    lda #$00
+    sta FOURPTR
 ;   poke $ff09, mod(cur_src_lineno, 256)
+    lda cur_src_lineno
+    ldz #$09
+    sta [FOURPTR],z
+
 ;   poke $ff0a, cur_src_lineno / 256
+    lda cur_src_lineno+1
+    inz
+    sta [FOURPTR],z
+
 ;   poke $ff07, peek($ff07) or 2  ' set autojump flag
+    ldz #$07
+    lda [FOURPTR],z
+    ora #$02
+    sta [FOURPTR],z
+
 ;   dclose
+    jsr GETLFS
+    txa
+    jsr CLOSE_ALL
 ;   goto chain_editor
+    jmp chain_editor
 ; 
 ; 
 ;-----------------------
@@ -1085,11 +1333,80 @@ strip_tr_from_end:
   lda #$00
   sta (s_ptr),y
   rts
-; 
-; 
-; '---------------
-; .parse_arguments
-; '---------------
+
+delim:
+!pet ",;", $00
+
+
+;-------------------------
+put_cur_arg_ptr_into_s_ptr:
+;-------------------------
+  lda arg_cnt
+  clc
+  rol
+  tay
+
+  lda (tmp_ptr),y
+  sta s_ptr
+  iny
+  lda (tmp_ptr),y
+  sta s_ptr+1
+  rts
+
+
+;-------------------------
+put_s_ptr_into_cur_arg_ptr:
+;-------------------------
+  lda arg_cnt
+  clc
+  rol
+  tay
+
+  lda s_ptr
+  sta (tmp_ptr),y
+  iny
+  lda s_ptr+1
+  sta (tmp_ptr),y
+  rts
+
+
+;--------------
+add_trimmed_arg:
+;--------------
+        ; add a null terminator
+        lda #$00
+        ldx #$00
+        sta (HEAPPTR,x)
+        inw HEAPPTR
+
+;       s$ = args$(arg_cnt)
+;       tr$ = " "
+        lda #<space_only
+        sta tr_ptr
+        lda #>space_only
+        sta tr_ptr+1
+
+        phw s_ptr   ; preserve original s_ptr
+
+        jsr put_cur_arg_ptr_into_s_ptr
+
+;       gosub strip_tr$_from_beginning
+        jsr strip_tr_from_beginning
+;       gosub strip_tr$_from_end
+        jsr strip_tr_from_end
+
+;       args$(arg_cnt) = s$
+        jsr put_s_ptr_into_cur_arg_ptr
+
+        +plw s_ptr
+        rts
+
+chr_idx:
+!byte $00
+
+;--------------
+parse_arguments:
+;--------------
 ;   ' -- parse arguments --
 ;   '     in: s$ = string
 ;   '    out: args$(x) = argument list, arg_cnt = argument count
@@ -1098,47 +1415,164 @@ strip_tr_from_end:
 ;   delim$ = ",;"
 ; 
 ;   arg_cnt = 0
+    lda #$00
+    sta arg_cnt
+
 ;   args_list$ = s$
 ;   args_list_len = len(s$)
 ;   ignore_delim_flag = 0
+    lda #$00
+    sta ignore_delim_flag
 ; 
 ;   if args_list_len = 0 then begin
+    lda cur_line_len
+    bmi +
+    bne ++
 ;     arg_cnt = -1
++:
+      lda #$ff
+      sta arg_cnt
+
 ;     return  ' no string
+      rts
 ;   bend
+++:
 ; 
+    lda #<args
+    sta tmp_ptr
+    lda #>args
+    sta tmp_ptr+1
+
+    ldy #$00
+    ldz #$00
+    lda #$0
+@loop_clr_ptrs:
 ;   for args_idx = 0 to 31
 ;     args$(args_idx) = ""
+      sta (tmp_ptr),y
+      iny
+      sta (tmp_ptr),y
+      iny
+      inz
 ;   next args_idx
-; 
+    cpz #32
+    bne @loop_clr_ptrs
+
+    ; set first args str pointer to heap end (temporarily)
+    ldy #$00
+    lda HEAPPTR
+    sta (tmp_ptr),y
+    lda HEAPPTR+1
+    iny
+    sta (tmp_ptr),y
+
+    phw HEAPPTR
+
+    ldy #$00
+    sty chr_idx
+@loop_next_char:
 ;   for args_idx = 1 to args_list_len
 ;     cur_ch$ = mid$(args_list$, args_idx, 1)
+      ldy chr_idx
+      lda (s_ptr),y
+      sta cur_char
 ;     if cur_ch$ = "(" and ignore_brackets = 1 then ignore_delim_flag = 1
+      cmp #'('
+      bne +
+      ldx ignore_brackets
+      beq +
+
+        ldx #$01
+        stx ignore_delim_flag
++:
+
 ;     if cur_ch$ = ")" and ignore_brackets = 1 then ignore_delim_flag = 0
+      cmp #')'
+      bne +
+      ldx ignore_brackets
+      beq +
+        
+        ldx #$00
+        stx ignore_delim_flag
++:
 ; 
 ;     if instr(delim$, cur_ch$) = 0 or ignore_delim_flag = 1 then begin
+      ldz #$00  ; count of successful clauses
+      ldx #<delim
+      ldy #>delim
+      lda cur_char
+      jsr instr_chr ; A=cur_ch,
+      bcc +
+        inz
++:
+      ldx ignore_delim_flag
+      cpx #$01
+      bne +
+        inz
+
++:
+      cpz #$00
+      beq @skip_to_else
 ;       args$(arg_cnt) = args$(arg_cnt) + cur_ch$
+        ldx #$00
+        lda cur_char
+        sta (HEAPPTR,x)
+        inw HEAPPTR
+        jmp @skip_after_else
+
 ;     bend : else begin
-;       s$ = args$(arg_cnt)
-;       tr$ = " "
-;       gosub strip_tr$_from_beginning
-;       gosub strip_tr$_from_end
-;       args$(arg_cnt) = s$
+@skip_to_else:  ; we found an arg
+    jsr add_trimmed_arg
+
 ; 
 ;       arg_cnt = arg_cnt + 1
+
+        ; copy across next heap pointer to next arg
+        lda arg_cnt
+        clc
+        rol
+        tay
+
+        lda (tmp_ptr),y
+        iny
+        iny
+        sta (tmp_ptr),y
+        dey
+        lda (tmp_ptr),y
+        iny
+        iny
+        sta (tmp_ptr),y
+
+        ; increment arg_cnt
+        inc arg_cnt
+
 ;     bend
-; 
+@skip_after_else:
+
 ;   next args_idx
+    inc chr_idx
+    ldy chr_idx
+    cpy cur_line_len
+    bne @loop_next_char
 ; 
-;   s$ = args$(arg_cnt)
-;   tr$=" "
-;   gosub strip_tr$_from_beginning
-;   gosub strip_tr$_from_end
-;   args$(arg_cnt) = s$
+    jsr add_trimmed_arg
+    ;   s$ = args$(arg_cnt)
+    ;   tr$=" "
+    ;   gosub strip_tr$_from_beginning
+    ;   gosub strip_tr$_from_end
+    ;   args$(arg_cnt) = s$
+
+    ; increment arg_cnt
+    inc arg_cnt
+
 ;   s$ = args_list$  ' restore s$
+
+    +plw HEAPPTR   ; restore original heap pointer (these vars are temporary)
+
 ;   return
-; 
-; 
+    rts
+
+
 ; '-----------------------
 ; .replace_vars_and_labels
 ; '-----------------------
@@ -1477,7 +1911,11 @@ get_filename:
     ldz #$07
     lda [FOURPTR],z
     pha
-    and #$08
+    and #$10
+    asr
+    asr
+    asr
+    asr
     sta verbose
     pla
     and #$01
@@ -1573,9 +2011,9 @@ rts
 ;   return
 ; 
 ; 
-; '------------
-; .chain_editor
-; '------------
+;-----------
+chain_editor:
+;-----------
 ;   get a$
 ;   if a$ <> "" then begin
 ;     input zz
@@ -1583,23 +2021,81 @@ rts
 ;   bend
 ; 
 ;   print "{x13}{x13}{x93}{x11}{x11}edma 0,$d400,$8000000,$2001:new restore{x11}{x11}"
+    jsr print_inline_text
+!pet $13, $13, $93, $11, $11, "edma 0,$d400,$8000000,$2001:new restore", $11, $11, $0d, $00
+
 ;   print "run{x13}";  ' load '11.edit' from cache
+    jsr print_inline_text
+!pet "run", $13, $00
+
 ;   bank 128
 ;   poke 208, 2      ' no# of chars in keyboard buffer
+    lda #$02
+    sta $d0
+
 ;   poke 688, 13, 13 ' return chars
+    lda #$0d
+    sta $2b0
+    sta $2b1
+
+    jmp bail_out_early
 ;   end
 ; 
 ; 
-; '-------------
-; .is_s$_defined
-; '-------------
+;---------------
+is_s_ptr_defined  ; is_s$_defined
+;---------------
 ;   inside_ifdef = 1
+  lda #$01
+  sta inside_ifdef
+
+  ldy #$00
+@loop:
 ;   for k = 0 to element_cnt(TYP_DEF)
+  cpy element_cnt + TYP_DEF
+  beq @bail_out
 ;     if var_table$(TYP_DEF, k) = s$ then begin
+
+    ; temp16 = 200*2*TYP_DEF + k * 2  (as each entry in array is a word)
+    clc
+    lda #<200*2*TYP_DEF
+    sta temp16
+    lda #>200*2*TYP_DEF
+    sta temp16+1
+
+    tya
+    clc
+    rol
+    adc temp16
+    sta temp16
+    lda #$00
+    rol
+    adc temp16+1
+    sta temp16+1
+
+    ; tmp_ptr is pointer to indexed address within var_table$()
+    clc
+    lda #<var_table
+    adc temp16
+    sta tmp_ptr
+    lda #>var_table
+    adc temp16+1
+    sta tmp_ptr+1
+
+      jsr cmp_tmp_ptr_to_s_str
+      bcs + ; skip if string not foud
 ;       inside_ifdef = 0
+        lda #$00
+        sta inside_ifdef
 ;     bend
++:
 ;   next k
+  iny
+  bra @loop
+
+@bail_out:
 ;   return
+  rts
 ; 
 ; 
 ; '----------------------
@@ -1761,6 +2257,7 @@ read_next_line:
 ;------
 instr_chr:
 ;------
+  ; finds A in str at ptr YX
   ; returns:
   ; - C=0 if found, C=1 if not found
   ; - A=index of found char
@@ -1789,7 +2286,62 @@ instr_chr_quick:
   sec ; indicates 'not found'
   rts
 
- 
+cur_scan_idx:
+!byte $00
+
+;----
+instr:
+;----
+  ; looks for needle str (at ptr YX) inside haystack str (at ptr ZA)
+  ; returns:
+  ; - C=0 if found, C=1 if not found
+  ; - A=index of found str
+  stx needle_ptr
+  sty needle_ptr+1
+  sta haystack_ptr
+  stz haystack_ptr+1
+
+  ldy #$00  ; pointer to haystack
+  ldz #$00  ; pointer to needle
+
+@loop_next_needle_char:
+  cpz #$00
+  bne +
+  sty cur_scan_idx  ; store what index in haystack we are currently
+                    ; checking for needle in
+
++:
+  lda (needle_ptr),z
+  beq @bail_out_succeed
+  sta cur_char
+
+@loop_next_haystack_char:
+  lda (haystack_ptr),y
+  beq @bail_out_fail
+  cmp cur_char
+  bne @not_found
+
+  ; found-logic (go to next needle_char)
+  inz
+  iny
+  bra @loop_next_needle_char
+
+@not_found:
+  ldz #$00
+  ldy cur_scan_idx
+  iny
+  bra @loop_next_needle_char
+
+@bail_out_fail:
+  sec
+  rts
+
+@bail_out_succeed:
+  lda cur_scan_idx
+  clc
+  rts
+
+
 ;------------------------
 single_quote_comment_trim:
 ;------------------------
@@ -1835,27 +2387,79 @@ single_quote_comment_trim:
 ;     bend
 @bail_out
   rts
+
+
+s_ifdef:
+!pet "ifdef", $00
+s_endif:
+!pet "endif", $00
+s_define:
+!pet "define", $00
+
 ; 
-; 
-; '----------------------------
-; .parse_preprocessor_directive
-; '----------------------------
+;---------------------------
+parse_preprocessor_directive
+;---------------------------
 ;   if instr(cur_src_line$, "ifdef") = 2 then begin
+    +cmp_preproc_str s_ifdef
+    bcs +
+    cmp #$01
+    bne +
+
 ;     s$ = mid$(cur_src_line$, 8)
+      +add_to_pointer s_ptr, $07
+      sec
+      lda cur_line_len
+      sbc #$07
+      sta cur_line_len
+
 ;     gosub is_s$_defined
+      jsr is_s_ptr_defined
+
 ;     delete_line_flag = 1
+      lda #$01
+      sta delete_line_flag
+
 ;   bend
++:
 ; 
 ;   if instr(cur_src_line$, "endif") = 2 then begin
+    +cmp_preproc_str s_endif
+    bcs +
+    cmp #$01
+    bne +
+
 ;     inside_ifdef = 0
+      lda #$00
+      sta inside_ifdef
+
 ;     delete_line_flag = 1
+      lda #$01
+      sta delete_line_flag
+
 ;   bend
++:
+
 ; 
 ;   if instr(cur_src_line$, "define") = 2 then begin
+    +cmp_preproc_str s_define
+    bcs +
+    cmp #$01
+    bne +
 ;     define_flag = 1
+      lda #$01
+      sta define_flag
+
 ;     gosub declare_s$_var
+      jsr declare_s_ptr_var
+
 ;     define_flag = 0
+      lda #$00
+      sta define_flag
 ;   bend
++:
+
+  rts
 ; 
 ;   if instr(cur_src_line$, "declare") = 2 then begin
 ;     define_flag = 0

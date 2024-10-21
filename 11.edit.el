@@ -147,7 +147,7 @@ goto general_init_and_main_loop  ' buffer of past line location
       if t$="{CTRL-W}" then gosub next_word  ' ctrl-w = next word
       if t$="{CTRL-U}" then gosub previous_word ' ctrl-u = previous word
       if t$="{inst}" then gosub delete_curr_char ' shift-del = delete current char
-      if t$="{blu}" then poke $4ff07,peek($4ff07) xor 8:if peek($4ff07)and8 then play "t0o5sg"  ' toggle debug on/off
+      if t$="{blu}" then poke $4ff07,peek($4ff07) xor 16:if peek($4ff07)and 16 then play "t0o5sg"  ' toggle debug on/off
       if t$="p" then gosub post_file_to_pc
       if t$="z" then gosub navigate_to_label_under_cursor
       if t$="f" then fr%=0 : gosub find_replace  ' find
