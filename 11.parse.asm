@@ -93,6 +93,15 @@ basic_end:
   sta .dest+1
 }
 
+!macro assign_u16v_eq_deref_ptr_u16 .dest, .src {
+  +assign_u16v_eq_u16v tmp_ptr, .src
+  ldy #$00
+  lda (tmp_ptr),y
+  sta .dest
+  iny
+  lda (tmp_ptr),y
+  sta .dest+1
+}
 
 !macro alloc .inptr, size {
   lda HEAPPTR
@@ -190,6 +199,9 @@ initialise:
   sta element_cnt+1
   sta element_cnt+2
   sta element_cnt+3
+
+  ; allocate args$(32)
+  +alloc args, 32*2
 
   tsx
   stx bailout_stack_pos
@@ -440,8 +452,6 @@ print_text:
 ;---------
 print_text_to_str:
 ;---------
-  ldy #$00
-@loop:
   ldx #$00
   lda (ret_ptr_lo,x)
   beq @found_null
@@ -451,9 +461,9 @@ print_text_to_str:
   inc cur_line_len
 
   inc ret_ptr_lo
-  bne @loop
+  bne print_text_to_str
   inc ret_ptr_hi
-  bne @loop
+  bne print_text_to_str
 
 @found_null:
   rts
@@ -1079,7 +1089,7 @@ parse_declared_var:
 ;   bkt_open_idx = instr(var_name$, "(")
     lda #'('
     ldx var_name
-    ldy var_name
+    ldy var_name+1
     jsr instr_chr
     sta bkt_open_idx
 
@@ -1608,10 +1618,7 @@ parse_arguments:
 ;   bend
 ++:
 ; 
-    lda #<args
-    sta tmp_ptr
-    lda #>args
-    sta tmp_ptr+1
+    +assign_u16v_eq_u16v tmp_ptr, args
 
     ldy #$00
     ldz #$00
