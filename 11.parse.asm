@@ -5,8 +5,10 @@
 // BASIC Stub
   !word basic_end   // pointer to next basic line
   !word $0a         // line 10
+  !byte $fe,$02     // 'BANK' command
+  !text "128:"       // '128:'
   !byte $9e         // 'SYS' command
-  !text "8205"      // '8205'
+  !text "8211"      // '8211'
   !byte $00         // end of current basic line
 
 basic_end:
@@ -1077,6 +1079,9 @@ arg_idx:
 ;-----------------
 parse_declared_var:
 ;-----------------
+; input: var_name$
+; output:
+
 ;   dimension$ = ""
     lda #$00
     sta dimension
