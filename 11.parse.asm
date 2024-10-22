@@ -68,6 +68,32 @@ basic_end:
 ; MACROS
 ; ------
 
+!macro assign_u32v_eq_addr .dest, .addr1, .addr2 {
+  lda #<.addr2
+  sta .dest
+  lda #>.addr2
+  sta .dest+1
+  lda #<.addr1
+  sta .dest+2
+  lda #>.addr1
+  sta .dest+3
+}
+
+!macro assign_u16v_eq_addr .dest, .addr {
+  lda #<.addr
+  sta .dest
+  lda #>.addr
+  sta .dest+1
+}
+
+!macro assign_u16v_eq_u16v .dest, .src {
+  lda .src
+  sta .dest
+  lda .src+1
+  sta .dest+1
+}
+
+
 !macro alloc .inptr, size {
   lda HEAPPTR
   sta .inptr
@@ -167,7 +193,11 @@ initialise:
   tsx
   stx bailout_stack_pos
 
+!ifdef RUN_TESTS {
+  jsr run_tests
+} else {
   jsr main
+}
 
 bail_out_early:
   ldx bailout_stack_pos
@@ -178,6 +208,10 @@ bail_out_early:
 
 bailout_stack_pos:
 !byte $00
+
+!ifdef RUN_TESTS {
+!source "11.parse.test.asm"
+}
 
 ; '-------
 ; DEFINES
@@ -283,14 +317,28 @@ f_str:
 !fill 256, $00  ; string of max 256 bytes
 
 ; #declare var_name$
+var_name:
+!word $0000 ; ptr to string
 parser_error:
 !fill 256, $00
 arg_cnt:
 !byte 00
 ignore_brackets:
 !byte $00
-; #declare dimension$, value$, bkt_open_idx, bkt_close_idx, equals_idx
-; #declare tr$, hx$, bi$, dont_mark_label, ty, id, gen_varname$, of$
+dimension:
+!word $0000 ; ptr to string
+value:
+!word $0000 ; ptr to string
+bkt_open_idx:
+!byte $00
+bkt_close_idx:
+!byte $00
+equals_idx:
+!byte $00
+
+; #declare tr$, hx$, bi$, ty, id, gen_varname$, of$
+dont_mark_label:
+!byte $00
 ; #declare args_list$, args_list_len, args_idx, cur_ch$
 ignore_delim_flag:
 !byte $00
@@ -436,7 +484,7 @@ cmp_tmp_ptr_to_s_str:
 @bail_out_on_null_term:
   lda (s_ptr),y
   bne @bail_out_fail  ; if other string doesn't have a null-terminator too, then fail
-
+  clc
   rts
 
 cmp16res:
@@ -639,7 +687,7 @@ main:
 ;   print "{x12}ELEVEN preprocessor v0.6.0{x92}"
 
   jsr print_inline_text
-!pet $12, "ELEVEN preprocessor v0.6.1", $92, $00
+!pet $12, "ELEVEN preprocessor v0.6.1", $92, $0d, $00
 
 ;   print
   lda #$0d
@@ -975,10 +1023,32 @@ declare_s_ptr_var:  ; declare_s$_var
 ;   bend
 +:
 ; 
+    +assign_u16v_eq_u16v is_ptr, args
+
+    lda #$00
+    sta arg_idx
 ;   for i = 0 to arg_cnt
+@loop_next_arg:
 ;     var_name$ = args$(i)
+      lda arg_idx
+      clc
+      rol
+      tay
+      
+      lda (is_ptr),y
+      sta var_name
+      iny
+      lda (is_ptr),y
+      sta var_name+1
+
 ;     gosub parse_declared_var
+      jsr parse_declared_var
+
 ;   next i
+    inc arg_idx
+    cmp arg_cnt
+    bne @loop_next_arg
+
 ; 
 ;   if next_line$ <> "" then begin
 ;     delete_line_flag = 0
@@ -988,31 +1058,85 @@ declare_s_ptr_var:  ; declare_s$_var
 ;   bend
 ;   return
     rts
+
+arg_idx:
+!byte $00
+
 ; 
 ; 
-; '------------------
-; .parse_declared_var
-; '------------------
+;-----------------
+parse_declared_var:
+;-----------------
 ;   dimension$ = ""
+    lda #$00
+    sta dimension
+    sta dimension+1
+
 ;   value$ = ""
+    sta value
+    sta value+1
+
 ;   bkt_open_idx = instr(var_name$, "(")
+    lda #'('
+    ldx var_name
+    ldy var_name
+    jsr instr_chr
+    sta bkt_open_idx
+
 ;   bkt_close_idx = instr(var_name$, ")")
+    lda #')'
+    jsr instr_chr_quick
+    sta bkt_close_idx
+
 ;   equals_idx = instr(var_name$, "=")
+    lda #'='
+    jsr instr_chr_quick
+    sta equals_idx
 ; 
 ;   if equals_idx <> 0 then begin  ' --- assignment
+    bmi @skip_found_equals
 ;     value$ = mid$(var_name$, equals_idx + 1)
+      clc
+      lda var_name
+      adc equals_idx
+      sta value
+      lda var_name+1
+      adc #$00
+      sta value+1
+      inc value
+      bne +
+      inc value+1
++:
+
 ;     var_name$ = left$(var_name$, equals_idx - 1)
+      lda #$00
+      ldy equals_idx
+      sta (is_ptr),y
+      sty cur_line_len
 ; 
 ;     tr$ = whitespace$
+      +assign_u16v_eq_addr tr_ptr, whitespace
+
 ;     s$ = var_name$
+      +assign_u16v_eq_u16v s_ptr, var_name
+
 ;     gosub strip_tr$_from_end
+      jsr strip_tr_from_end
+
 ;     var_name$ = s$
 ; 
 ;     s$ = value$
+      +assign_u16v_eq_u16v s_ptr, value
+      jsr get_s_ptr_length
+
 ;     gosub strip_tr$_from_beginning
+      jsr strip_tr_from_beginning
 ;     gosub strip_tr$_from_end
+      jsr strip_tr_from_end
 ;     value$ = s$
+      +assign_u16v_eq_u16v value, s_ptr
 ; 
+; NOTE: Skip hex/binary checking for now, as latest rom permits such values
 ;     if left$(value$, 1) = "$" then begin
 ;       hx$ = mid$(value$, 2)
 ;       gosub check_hex
@@ -1024,13 +1148,42 @@ declare_s_ptr_var:  ; declare_s$_var
 ;     bend
 ; 
 ;   bend
+@skip_found_equals:
 ; 
 ;   if bkt_open_idx <> 0 and bkt_close_idx <> 0 then begin  ' --- dimension
+    lda bkt_open_idx
+    beq @skip_found_brackets
 ;     dimension$ = mid$(var_name$, bkt_open_idx + 1, bkt_close_idx - bkt_open_idx - 1)
+      clc
+      lda var_name
+      adc bkt_open_idx
+      sta dimension
+      lda var_name+1
+      adc #$01
+      sta dimension+1
+      inc dimension
+      beq +
+      inc dimension+1
++:
+
+      ; put a null-term on the close bracket
+      +assign_u16v_eq_u16v s_ptr, var_name
+      lda #$00
+      ldy bkt_close_idx
+      sta (s_ptr),y
+
 ;     clean_varname$ = left$(var_name$, bkt_open_idx - 1)
+      ldy bkt_open_idx
+      sta (s_ptr),y
+
 ; 
 ;     s$ = dimension$
+      +assign_u16v_eq_u16v s_ptr, dimension
+
 ;     dont_mark_label = 1
+      lda #$01
+      sta dont_mark_label
+
 ;     gosub replace_vars_and_labels
 ;     dont_mark_label = 0
 ;     dimension$ = s$
@@ -1038,6 +1191,7 @@ declare_s_ptr_var:  ; declare_s$_var
 ;     var_name$ = clean_varname$  ' check for define tokens
 ;     delete_line_flag = 0
 ;   bend
+@skip_found_brackets:
 ; 
 ;   ty = TYP_REAL  ' var type
 ;   t$ = right$(var_name$, 1)  ' type (if any) in t$
@@ -1095,6 +1249,7 @@ declare_s_ptr_var:  ; declare_s$_var
 ; 
 ;   element_cnt(ty) = element_cnt(ty) + 1
 ;   return
+    rts
 ; 
 ; 
 ; '---------------
@@ -1265,8 +1420,23 @@ return_to_editor_with_error:
     jsr CLOSE_ALL
 ;   goto chain_editor
     jmp chain_editor
-; 
-; 
+
+
+;---------------
+get_s_ptr_length:
+;---------------
+  ldy #$00
+@loop_next_char:
+  lda (s_ptr),y
+  beq +
+  iny
+  bra @loop_next_char
+
++:
+  sty cur_line_len
+  rts
+  
+
 ;-----------------------
 strip_tr_from_beginning:
 ;-----------------------
@@ -2259,7 +2429,7 @@ instr_chr:
 ;------
   ; finds A in str at ptr YX
   ; returns:
-  ; - C=0 if found, C=1 if not found
+  ; - C=0 if found, C=1 if not found (and A = $ff)
   ; - A=index of found char
   stx is_ptr
   sty is_ptr+1
@@ -2284,6 +2454,7 @@ instr_chr_quick:
 
 @end_of_string:
   sec ; indicates 'not found'
+  lda #$ff
   rts
 
 cur_scan_idx:
