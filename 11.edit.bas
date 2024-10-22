@@ -108,7 +108,7 @@
  2321     if t$="{CTRL-W}" then gosub 9510:rem ctrl-w = next word
  2322     if t$="{CTRL-U}" then gosub 9700:rem ctrl-u = previous word
  2323     if t$="{inst}" then gosub 9900:rem shift-del = delete current char
- 2324     if t$="{blu}" then poke $4ff07,peek($4ff07) xor 8:if peek($4ff07)and8 then play "t0o5sg"
+ 2324     if t$="{blu}" then poke $4ff07,peek($4ff07) xor 16:if peek($4ff07)and 16 then play "t0o5sg"
  2325     if t$="p" thengosub9300:rem post current file to pc
  2326     if t$="z" thengosub11000:rem navigate to label under cursor
  2330     if t$="f" then fr%=0 : gosub8000: rem find
