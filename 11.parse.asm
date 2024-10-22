@@ -404,8 +404,6 @@ print_inline_text:
 ;-----------------------
 print_inline_text_to_str:
 ;-----------------------
-  stx s_ptr
-  sty s_ptr+1
   pla
   clc
   adc #$01
@@ -442,6 +440,8 @@ print_text:
 ;---------
 print_text_to_str:
 ;---------
+  ldy #$00
+@loop:
   ldx #$00
   lda (ret_ptr_lo,x)
   beq @found_null
@@ -451,9 +451,9 @@ print_text_to_str:
   inc cur_line_len
 
   inc ret_ptr_lo
-  bne print_text_to_str
+  bne @loop
   inc ret_ptr_hi
-  bne print_text_to_str
+  bne @loop
 
 @found_null:
   rts
@@ -1000,8 +1000,7 @@ declare_s_ptr_var:  ; declare_s$_var
     lda #$00
     sta parser_error
     sta cur_line_len
-    ldx #<parser_error
-    ldy #>parser_error
+    +assign_u16v_eq_addr s_ptr, parser_error
     jsr print_inline_text_to_str
 
 !pet "?declare parameter missing in line ", $00
