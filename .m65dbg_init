@@ -1,0 +1,16 @@
+autowatch
+autocls
+# ww ret_ptr_lo
+scope 15
+ws cur_src_line
+ww cur_src_lineno
+ww temp16
+# wd MULTINA
+# wd MULTINB
+# wd MULTOUT
+# wd d768 DIVOUT_0to3
+# wd d76c DIVOUT_4to7
+# ww column_val
+
+ww s_ptr
+wb /d cur_line_len

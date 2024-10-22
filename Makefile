@@ -14,6 +14,7 @@ all:
 	c1541 -attach /c/Users/phuon/AppData/Roaming/xemu-lgb/mega65/hdos/11.D81 -delete 11.parse -write 11.parse.prg 11.parse
 
 test: 11.parse.asm 11.parse.test.asm
+	./tests_autogen.sh
 	acme -DRUN_TESTS=1 --cpu m65 -o 11.parse.prg -f cbm -l 11.parse.sym -r 11.parse.rep 11.parse.asm
 	c1541 -attach /c/Users/phuon/AppData/Roaming/xemu-lgb/mega65/hdos/11.D81 -delete 11.parse -write 11.parse.prg 11.parse
 	# /c/projs/xemu/build/bin/xmega65.native -rom /c/projs/mega65-rom/newrom.bin -hdosvirt -uartmon :4510 -prg 11.parse.prg &> /dev/null &

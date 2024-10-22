@@ -12,34 +12,88 @@
 ; -----
 
 run_tests:
+  +assign_u16v_eq_addr TESTPTR, test_array
+
   ; lower-case
   lda #$0e
   jsr CHROUT
 
+  lda #$00
+  sta $d020
+  sta $d021
+
   jsr set_font_a
 
-  jsr test__read_next_line
+  jsr print_inline_text
+!pet 147, "---------------------",$0d,$00
+  jsr print_inline_text
+!pet "'11.parse' test suite",$0d,$00
+  jsr print_inline_text
+!pet "---------------------",$0d,$00
+
+@loop_next_test:
+  clc
+  ldy #$00
+  lda (TESTPTR),y
+  iny
+  adc (TESTPTR),y
+  beq @bail_out  ; if word pointer is zero, then bail out
+
+  jsr print_inline_text
+!pet $05, "[    ] ",$00
+
+  ldy #$00
+  lda (TESTPTR),y
+  sta ret_ptr_lo
+  iny
+  lda (TESTPTR),y
+  sta ret_ptr_hi
+  jsr print_text
+
+  ; go back to start of line
+  lda #27
+  jsr CHROUT
+  lda #'J'
+  jsr CHROUT
+
+  inw TESTPTR
+  inw TESTPTR
+
+  ldy #$00
+  lda (TESTPTR),y
+  sta tmp_ptr
+  iny
+  lda (TESTPTR),y
+  sta tmp_ptr+1
+
+  jsr (tmp_ptr)  ; test__read_next_line
   bcc +
 
   jsr print_inline_text
-!pet "[FAIL] ",$00
+!pet $05, "[", $1c, "FAIL", $05, "] ",$00
   bra ++
 
 +:
   jsr print_inline_text
-!pet "[PASS] ",$00
+!pet $05, "[", $1e, "PASS", $05, "] ",$00
 
 ++:
-  +assign_u16v_eq_addr ret_ptr_lo, name__read_next_line
-  jsr print_text
+  inw TESTPTR
+  inw TESTPTR
 
   lda #$0d
   jsr CHROUT
+
+  bra @loop_next_test
+
+@bail_out:
   rts
 
 
-name__read_next_line:
-!pet "read_next_line:",$00
+test__read_fish:
+  sec
+  rts
+
 test__read_next_line:
   jsr prepare_SRCPTR
 
@@ -129,3 +183,5 @@ set_font_a:
     dex
     bne -
     rts
+
+!source "tests_autogen.asm"

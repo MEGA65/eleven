@@ -159,6 +159,7 @@ verbose = $20  // byte
 cur_src_lineno = $21  ; $21-$22
 HEAPPTR = $23 ; $23-$24  (pointer to free location of heap)
              ; (I'll try start it at $8000 and grow it upwards)
+TESTPTR = $25
 
 initialise:
   sei
