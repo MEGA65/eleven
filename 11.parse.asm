@@ -1891,11 +1891,7 @@ replace_vars_and_labels:
 @skip_to_else:
           ; else this is an ending quote
 ;         a$ = a$ + cur_ch$
-          ldx a_str   ; string length
-          inx
-          lda cur_char
-          sta a_str,x
-          ldx a_str   ; store new length
+          jsr add_curchar_to_astr
 
 ;         cur_ch$ = ""
           +assign_u8v_eq_imm cur_char, $00
@@ -1904,9 +1900,12 @@ replace_vars_and_labels:
 @skip_dbl_quote_check:
 ; 
 ;     if quote_flag = 1 then begin
+      lda quote_flag
+      beq +
 ;       a$ = a$ + cur_ch$
 ;       goto rval_skip
 ;     bend
++:
 ; 
 ;     if instr(delim$, cur_ch$) <> 0 then begin
 ;       gosub check_token_for_subbing
@@ -1924,6 +1923,23 @@ replace_vars_and_labels:
 ;   s$ = a$ + cur_tok$
 ;   return
 ;   end
+
+
+;------------------
+add_curchar_to_astr:
+;------------------
+  ldx a_str   ; string length
+  inx
+  lda cur_char
+  sta a_str,x
+  stx a_str   ; store new length
+
+  ; add a null-term, just as a nicety
+  inx
+  lda #$00
+  sta a_str,x
+
+  rts
 
 
 ;-----------------
@@ -1946,6 +1962,11 @@ add_curtok_to_astr:
 
 @bail_out:
   stx a_str   ; store new length of a_str
+
+  ; add a null-term, just as a nicety
+  inx
+  lda #$00
+  sta a_str,x
 
   rts
 

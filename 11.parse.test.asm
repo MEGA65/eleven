@@ -379,12 +379,6 @@ test__add_curtok_to_astr:
 !pet "hello world",$00
 
 +:
-  ; add null terminator for final test
-  ldx a_str
-  inx
-  lda #$00
-  sta a_str,x
-  
   +STR_MATCH a_str+1, @expected
   bcc +
 
@@ -392,6 +386,29 @@ test__add_curtok_to_astr:
   rts
 
 +:
+  rts
+
+
+;------------------------
+test__add_curchar_to_astr:
+;------------------------
+  +assign_u16v_eq_addr s_ptr, a_str
+  +assign_u8v_eq_imm cur_line_len, $00
+  jsr print_inline_text_to_str
+!pet $04, "hell", $00  ; length-encoded in first byte
+
+  lda #'O'
+  sta cur_char
+
+  jsr add_curchar_to_astr
+
+  bra +
+@expected:
+!pet $05, "hello", $00
+
++:
+  +STR_MATCH a_str, @expected
+
   rts
 
 
