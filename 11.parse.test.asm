@@ -73,11 +73,10 @@ run_tests:
   lda #$00
   sta fail_reason_flag
 
-  clc
   ldy #$00
   lda (TESTPTR),y
   iny
-  adc (TESTPTR),y
+  ora (TESTPTR),y
   beq @bail_out  ; if word pointer is zero, then bail out
 
   inc total_cnt
@@ -272,7 +271,6 @@ test__add_to_label_table:
 +:
   ; SCENARIO2: 1st label lineno
   ; ---------------------------
-scen2:
   ldz #$00
   jsr get_label_lineno_at_idx
   cpx #$06    ; NOTE: oddly, the line number recorded is +1 ($06 instead of $05)
@@ -408,6 +406,118 @@ test__add_curchar_to_astr:
 
 +:
   +STR_MATCH a_str, @expected
+
+  rts
+
+
+;------------------------
+test__add_curchar_to_curtok:
+;------------------------
+  +assign_u16v_eq_addr s_ptr, cur_tok
+  +assign_u8v_eq_imm cur_line_len, $00
+  jsr print_inline_text_to_str
+!pet $04, "hell", $00  ; length-encoded in first byte
+
+  lda #'O'
+  sta cur_char
+
+  jsr add_curchar_to_curtok
+
+  bra +
+@expected:
+!pet $05, "hello", $00
+
++:
+  +STR_MATCH cur_tok, @expected
+
+  rts
+
+
+;--------------------
+test__dbl_quote_check:
+;--------------------
+  ; SCEN1: char is not a quote, so do nothing to a_str
+  +assign_u8v_eq_imm cur_char, 'z'
+  +set_lstring a_str, $02, "xy"
+  +set_lstring cur_tok, $05, "token"
+  +assign_u8v_eq_imm quote_flag, $00
+
+  jsr dbl_quote_check
+
+  ; check C=0 (not a char within (and including) pair of quotes)
+  bcc +:
+  +FAIL_REASON "SCEN1: expected C=0, but got C=1"
+  rts
+
++:
+  +STR_MATCH a_str, a_str
+  bcc +:
+  +FAIL_REASON "SCEN1: a_str should not have changed"
++:
+
+  ; - - - - - -
+  ; SCEN2: char is a starting quote, so a_str += cur_tok + ", cur_tok="", C=0
+  +assign_u8v_eq_imm cur_char, '"'
+
+  jsr dbl_quote_check
+
+  bcs +
+  +FAIL_REASON "SCEN2: expected C=1, but got C=0"
+  rts
+
+@expected2:
+!pet $08, "xytoken\"", $00
++:
+
+  +STR_MATCH a_str, @expected2
+  bcc +:
+  +FAIL_REASON "SCEN2: fail on a_str += cur_tok"
++:
+
+  lda cur_tok
+  beq +
+  +FAIL_REASON "SCEN2: cur_tok is not empty"
++:
+
+  ; - - - - - -
+  ; SCEN3: char is not quote, but we are in quote mode
+  ;        ...so a_str += cur_char, C=1
+  +assign_u8v_eq_imm cur_char, 'S'
+
+  jsr dbl_quote_check
+
+  bcs +
+  +FAIL_REASON "SCEN3: expected C=1, but got C=0"
+  rts
+
+@expected3:
+!pet $09, "xytoken\"s", $00
++:
+
+  +STR_MATCH a_str, @expected3
+  bcc +:
+  +FAIL_REASON "SCEN3: fail on a_str += cur_char"
++:
+
+  ; - - - - - -
+  ; SCEN4: char is ending quote
+  ;        ...so a_str += cur_char, C=1
+  +assign_u8v_eq_imm cur_char, '"'
+
+  jsr dbl_quote_check
+
+  bcs +
+  +FAIL_REASON "SCEN4: expected C=1, but got C=0"
+  rts
+
+@expected4:
+!pet $0a, "xytoken\"s\"", $00
++:
+
+  +STR_MATCH a_str, @expected4
+  bcc +:
+  +FAIL_REASON "SCEN4: fail on a_str += cur_char"
++:
 
   rts
 

@@ -70,6 +70,14 @@ basic_end:
 ; MACROS
 ; ------
 
+!macro set_lstring .var, .len, .val {
+  +assign_u16v_eq_addr s_ptr, .var
+  +assign_u8v_eq_imm cur_line_len, $00
+  jsr print_inline_text_to_str
+!pet .len, .val, $00  ; length-encoded in first byte
+}
+
+
 !macro assign_u8v_eq_imm .dest, .val {
   lda #.val
   sta .dest
@@ -153,6 +161,11 @@ basic_end:
   sta .ptr
 }
 
+!macro toggle_flag .flag {
+  lda .flag
+  eor #$01
+  sta .flag
+}
 
 
 
@@ -1825,11 +1838,15 @@ replace_vars_and_labels:
 ;   delim$ = default_delim$
     +assign_u16v_eq_addr is_ptr, default_delim
 
+    jsr get_s_ptr_length
 ; 
     sta rv_idx
 ;   for rv_idx = 1 to len(s$)
 @loop_next_char:
       ldy rv_idx
+      cpy cur_line_len
+      lbeq @bail_for_loop
+
 ;     cur_ch$ = mid$(s$, rv_idx, 1)
       lda (s_ptr),y
       sta cur_char
@@ -1869,14 +1886,84 @@ replace_vars_and_labels:
       ; assess if a starting double-quote appeared
       ; (this implies that the prior content is a token)
 
+      jsr dbl_quote_check
+      bcs @rval_for_continue
+
+; 
+;     if instr(delim$, cur_ch$) <> 0 then begin
+      jsr instr_chr_quick
+      bcs @skip_to_delim_check_else
+
+;       gosub check_token_for_subbing
+        jsr check_token_for_subbing
+;       a$ = a$ + cur_tok$
+        jsr add_curtok_to_astr
+;       cur_tok$ = ""
+        +assign_u8v_eq_imm cur_tok, $00
+;       if cur_ch$ = " " then cur_ch$ = ""
+        lda cur_char
+        cmp #' '
+        bne +
+          +assign_u8v_eq_imm cur_char, $00
++:
+;       a$ = a$ + cur_ch$
+        jsr add_curchar_to_astr
+        bra @skip_delim_check
+;     bend : else begin
+@skip_to_delim_check_else:
+;       cur_tok$ = cur_tok$ + cur_ch$
+        jsr add_curchar_to_curtok
+;     bend
+@skip_delim_check:
+; 
+@rval_for_continue:
+;   next
+    inc rv_idx
+    jmp @loop_next_char
+    
+@bail_for_loop:
+
+;   gosub check_token_for_subbing 
+    jsr check_token_for_subbing
+;   s$ = a$ + cur_tok$
+    jsr add_curtok_to_astr
+    +assign_u16v_eq_addr s_ptr, a_str+1
+;   return
+    rts
+;   end
+
+
+;--------------
+dbl_quote_check:
+;--------------
+; inputs:
+;   - cur_char, a_str, cur_tok, quote_flag
+; outputs:
+;   - C=1 if this is a dbl-quote, or a char within a pair of quotes
+;         (such chars are added to a_str immediately)
+;   - C=0 if this is a char that accumulates in a token first
+;         (such chars are later added to cur_tok, but not within this routine)
+
+;   - if cur_char is a starting quote, then:
+;       - a_str += (subbed)cur_tok  (token accumulating prior to the quote)
+;       - a_str += cur_char (the ")
+;       - cur_tok = ""
+;       - C = 1
+
+;   - else if ending quote, then:
+;       - a_str += cur_char
+;       - C = 1
+
+;   - if we are within quotes, then:
+;       - a_str += cur_char  (text within quotes does not need to be tokenised)
+;       - C = 1
+
 ;     if cur_ch$ = dbl_quote$ then begin
       lda cur_char
       cmp #'"'
       bne @skip_dbl_quote_check
 ;       quote_flag = abs(quote_flag - 1)
-        lda quote_flag
-        eor #$01
-        sta quote_flag
+        +toggle_flag quote_flag
 
         ; if this a starting quote?
 ;       if quote_flag = 1 then begin
@@ -1884,45 +1971,38 @@ replace_vars_and_labels:
 ;         gosub check_token_for_subbing
           jsr check_token_for_subbing
 ;         a$ = a$ + cur_tok$
-          jsr add_curtok_to_astr
+          jsr add_curtok_to_astr  ; add the starting dbl quote
 ;         cur_tok$ = ""
           +assign_u8v_eq_imm cur_tok, $00
+
+          jsr add_curchar_to_astr
+          sec  ; trigger for's continue
+          rts
 ;       bend : else begin
 @skip_to_else:
           ; else this is an ending quote
 ;         a$ = a$ + cur_ch$
           jsr add_curchar_to_astr
-
-;         cur_ch$ = ""
-          +assign_u8v_eq_imm cur_char, $00
+  ;       goto rval_for_continue
+          sec  ; trigger for's continue
+          rts
 ;       bend
 ;     bend
 @skip_dbl_quote_check:
-; 
+
+      ; this logic is to handle the chars within two double-quotes
 ;     if quote_flag = 1 then begin
       lda quote_flag
       beq +
 ;       a$ = a$ + cur_ch$
-;       goto rval_skip
+        jsr add_curchar_to_astr
+;       goto rval_for_continue
+        sec
+        rts
 ;     bend
 +:
-; 
-;     if instr(delim$, cur_ch$) <> 0 then begin
-;       gosub check_token_for_subbing
-;       a$ = a$ + cur_tok$
-;       cur_tok$ = ""
-;       if cur_ch$ = " " then cur_ch$ = ""
-;       a$ = a$ + cur_ch$
-;     bend : else begin
-;       cur_tok$ = cur_tok$ + cur_ch$
-;     bend
-; 
-; .rval_skip
-;   next
-;   gosub check_token_for_subbing 
-;   s$ = a$ + cur_tok$
-;   return
-;   end
+    clc
+    rts
 
 
 ;------------------
@@ -1930,7 +2010,13 @@ add_curchar_to_astr:
 ;------------------
   ldx a_str   ; string length
   inx
+
   lda cur_char
+  cmp #$00    ; if cur_char=$00, then ignore it (consider it "don't add a char")
+  bne +
+  rts
+
++:
   sta a_str,x
   stx a_str   ; store new length
 
@@ -1938,6 +2024,28 @@ add_curchar_to_astr:
   inx
   lda #$00
   sta a_str,x
+
+  rts
+
+;--------------------
+add_curchar_to_curtok:
+;--------------------
+  ldx cur_tok   ; string length
+  inx
+
+  lda cur_char
+  cmp #$00    ; if cur_char=$00, then ignore it (consider it "don't add a char")
+  bne +
+  rts
+
++:
+  sta cur_tok,x
+  stx cur_tok   ; store new length
+
+  ; add a null-term, just as a nicety
+  inx
+  lda #$00
+  sta cur_tok,x
 
   rts
 
@@ -1974,6 +2082,7 @@ add_curtok_to_astr:
 ;----------------------
 check_token_for_subbing:
 ;----------------------
+; inputs: cur_tok$
 ;   if cur_tok$ = "" or cur_tok$ = "{x5F}" then return
     lda cur_tok  ; length of str is 0?
     bne +
@@ -2122,6 +2231,7 @@ check_token_for_subbing:
 ;   sleep 1
 ;   goto return_to_editor_with_error
 ;   return
+    rts
 ; 
 ; 
 ; '---------------------------------------
