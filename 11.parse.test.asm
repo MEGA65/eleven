@@ -332,6 +332,69 @@ scen2:
   rts
 
 
+;-----------------------
+test__parse_declared_var:
+;-----------------------
+  sec
+  rts
+
+
+;----------------------------
+test__replace_vars_and_labels:
+;----------------------------
+  sec
+  rts
+
+
+;----------------------------
+test__check_token_for_subbing:
+;----------------------------
+  sec
+  rts
+
+
+;-----------------------
+test__add_curtok_to_astr:
+;-----------------------
+  +assign_u16v_eq_addr s_ptr, a_str
+  +assign_u8v_eq_imm cur_line_len, $00
+  jsr print_inline_text_to_str
+!pet $06, "hello ", $00  ; length-encoded in first byte
+
+  +assign_u16v_eq_addr s_ptr, cur_tok
+  +assign_u8v_eq_imm cur_line_len, $00
+  jsr print_inline_text_to_str
+!pet $05, "world", $00  ; length-encoded in first byte
+
+  jsr add_curtok_to_astr
+
+  ; SCEN1: check new astr length
+  lda a_str
+  cmp #11
+  beq +
+  +FAIL_REASON "SCEN1: a_str has wrong length"
+  rts
+
+@expected:
+!pet "hello world",$00
+
++:
+  ; add null terminator for final test
+  ldx a_str
+  inx
+  lda #$00
+  sta a_str,x
+  
+  +STR_MATCH a_str+1, @expected
+  bcc +
+
+  +FAIL_REASON "SCEN2: a_str has wrong contents"
+  rts
+
++:
+  rts
+
+
 ; -------
 ; HELPERS
 ; -------

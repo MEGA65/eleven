@@ -70,6 +70,11 @@ basic_end:
 ; MACROS
 ; ------
 
+!macro assign_u8v_eq_imm .dest, .val {
+  lda #.val
+  sta .dest
+}
+
 !macro assign_u32v_eq_addr .dest, .addr1, .addr2 {
   lda #<.addr2
   sta .dest
@@ -163,6 +168,7 @@ tmp_ptr = $0e ; $0e-$0f
 needle_ptr = $10 ; $10-$11
 haystack_ptr = $12 ; $12-13
 a_ptr = $14 ; $14-$15
+sr_ptr = $16 ; $16-17
 
 FOURPTR = $18  // $18-$1B
 SRCPTR = $1c   // $1C-$1F
@@ -325,6 +331,8 @@ inside_ifdef:
 dest_lineno:
 !word $0000
 ; #declare cur_dest_lineno, s1, s2, cur_tok$, r, f$, delim$
+cur_tok:
+!fill 256, $00  ; length-encoded string of max 255 bytes
 define_flag:
 !byte 00
 
@@ -360,7 +368,13 @@ ignore_delim_flag:
 ; #declare did_replace_flag
 quote_flag:
 !byte $00
-; #declare a$, expecting_label, default_delim$, rv_idx
+; #declare expecting_label, default_delim$, rv_idx
+rv_idx:
+!byte $00
+expecting_label:
+!byte $00
+a_str:
+!fill 256, $00  ; length-encoded string of max 255 bytes
 ; #declare t, lc$, found_struct_idx, br, b, bc$, vl
 ; #declare n1, n2, ba, a, ad, tf$, found_idx, k, sf$, sf
 ; #declare src_line_ptr, src_linebuff_ptr
@@ -373,6 +387,8 @@ cut_tail_idx:
 ; #declare co$, ridx, sk$, bl, sz, sr, sm, zz$
 ; #declare cont_next_line_flag, tok_name$, clean_varname$
 ; #declare shitty_syntax_flag, zz
+shitty_syntax_flag:
+!byte $00
 ; 
 
 dmatable:
@@ -1200,6 +1216,8 @@ parse_declared_var:
       sta dont_mark_label
 
 ;     gosub replace_vars_and_labels
+      jsr replace_vars_and_labels
+
 ;     dont_mark_label = 0
 ;     dimension$ = s$
 ; 
@@ -1754,55 +1772,136 @@ parse_arguments:
 ;   return
     rts
 
+;   default_delim$ = "?<>=+-#*/^,.:;() "
+default_delim:
+!pet "?<>=+-#*/^,.:;() ",$00
+default_plus_dpub_delim:
+!pet "?<>=+-#*/^,.:;() dpub",$00
 
-; '-----------------------
-; .replace_vars_and_labels
-; '-----------------------
+
+;----------------------
+replace_vars_and_labels:
+;----------------------
 ;   ' -- replace vars & labels in source string --
 ;   '    in:   s$ = source string
 ;   '    out:  s$ = dest string with replaced items
 ;   
+    +assign_u16v_eq_addr sr_ptr, f_str
+
 ;   if left$(s$, 2) = "^^" then begin
+    ldy #$00
+    lda (s_ptr),y
+    cmp #'^'
+    bne +
+    iny
+    lda (s_ptr),y
+    cmp #'^'
+    bne +
 ;     s$ = right$(s$,len(s$)-2)
+      inc s_ptr
+      inc s_ptr
 ;     return
+      rts
 ;   bend
++:
 ; 
 ;   quote_flag = 0
+    lda #$00
+    sta quote_flag
+
 ;   a$ = ""
+    sta a_str
+
 ;   cur_tok$ = ""
+    sta cur_tok
 ; 
 ;   shitty_syntax_flag = 0
+    sta shitty_syntax_flag
 ; 
 ;   expecting_label = 0
+    sta expecting_label
+
 ;   default_delim$ = "?<>=+-#*/^,.:;() "
 ;   delim$ = default_delim$
+    +assign_u16v_eq_addr is_ptr, default_delim
+
 ; 
+    sta rv_idx
 ;   for rv_idx = 1 to len(s$)
+@loop_next_char:
+      ldy rv_idx
 ;     cur_ch$ = mid$(s$, rv_idx, 1)
+      lda (s_ptr),y
+      sta cur_char
 ; 
 ;     if cur_ch$ = ":" and quote_flag = 0 then begin
+      cmp #':'
+      bne +
+      lda quote_flag
+      bne +
 ;       shitty_syntax_flag = 0
+        +assign_u8v_eq_imm shitty_syntax_flag, $00
 ;     bend
-; 
++:
+
 ;     if shitty_syntax_flag and cur_ch$ = "(" then begin
+      lda shitty_syntax_flag
+      beq +
+      lda cur_char
+      cmp #'('
+      bne +
 ;       delim$ = default_delim$
+        +assign_u16v_eq_addr is_ptr, default_delim
 ;     bend
-; 
++:
+
 ;     if shitty_syntax_flag and cur_ch$ = ")" then begin
+      lda shitty_syntax_flag
+      beq +
+      lda cur_char
+      cmp #'('
+      bne +
 ;       delim$ = default_delim$ + "dpub"
+        +assign_u16v_eq_addr is_ptr, default_plus_dpub_delim
 ;     bend
-; 
++:
+
+      ; assess if a starting double-quote appeared
+      ; (this implies that the prior content is a token)
+
 ;     if cur_ch$ = dbl_quote$ then begin
+      lda cur_char
+      cmp #'"'
+      bne @skip_dbl_quote_check
 ;       quote_flag = abs(quote_flag - 1)
+        lda quote_flag
+        eor #$01
+        sta quote_flag
+
+        ; if this a starting quote?
 ;       if quote_flag = 1 then begin
+        beq @skip_to_else
 ;         gosub check_token_for_subbing
+          jsr check_token_for_subbing
 ;         a$ = a$ + cur_tok$
+          jsr add_curtok_to_astr
 ;         cur_tok$ = ""
+          +assign_u8v_eq_imm cur_tok, $00
 ;       bend : else begin
+@skip_to_else:
+          ; else this is an ending quote
 ;         a$ = a$ + cur_ch$
+          ldx a_str   ; string length
+          inx
+          lda cur_char
+          sta a_str,x
+          ldx a_str   ; store new length
+
 ;         cur_ch$ = ""
+          +assign_u8v_eq_imm cur_char, $00
 ;       bend
 ;     bend
+@skip_dbl_quote_check:
 ; 
 ;     if quote_flag = 1 then begin
 ;       a$ = a$ + cur_ch$
@@ -1825,14 +1924,48 @@ parse_arguments:
 ;   s$ = a$ + cur_tok$
 ;   return
 ;   end
-; 
-; 
-; '-----------------------
-; .check_token_for_subbing
-; '-----------------------
+
+
+;-----------------
+add_curtok_to_astr:
+;-----------------
+  ldx a_str     ; X = current length of a_str
+  ldy #$00
+
+@loop_next_char:
+  cpy cur_tok   ; compare to length of cur_tok
+                ; assure we haven't gone over end of cur_tok string
+  beq @bail_out
+
+  iny
+  lda cur_tok,y
+
+  inx
+  sta a_str,x
+  bra @loop_next_char
+
+@bail_out:
+  stx a_str   ; store new length of a_str
+
+  rts
+
+
+;----------------------
+check_token_for_subbing:
+;----------------------
 ;   if cur_tok$ = "" or cur_tok$ = "{x5F}" then return
-; 
-; 
+    lda cur_tok  ; length of str is 0?
+    bne +
+    rts       ; if so, then bail out early
++:
+    cmp #$01  ; is length is one?
+    bne +
+    lda cur_tok+1
+    cmp #$5f  ; left-arrow char?
+    bne +
+    rts       ; if so, then bail out early
+
++:
 ;   ' decimal number check
 ;   ' - - - - - - - - - -
 ;   if val(cur_tok$) <> 0 then begin
