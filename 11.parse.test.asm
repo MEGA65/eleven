@@ -628,6 +628,44 @@ test__add_trimmed_args:
   rts
 
 
+;-----------------------------
+test__declare_assignment_check:
+;-----------------------------
+  lda #$02
+  sta equals_idx
+
+  +set_string f_str, "a = 1"
+  ; this will set s_ptr to point to it too
+
+  +assign_u16v_eq_addr var_name, f_str
+
+  jsr declare_assignment_check
+  
+  bra +
+@expected1:
+!pet "a", $00
+
+@expected2:
+!pet "1", $00
++:
+
+  +assign_u16v_eq_u16v s_ptr, var_name
+  +STR_MATCH_TO_SPTR @expected1
+  bcc +
+  +FAIL_REASON "var_name != 'a'"
+  rts
++:
+
+  +assign_u16v_eq_u16v s_ptr, value
+  +STR_MATCH_TO_SPTR @expected2
+  bcc +
+  +FAIL_REASON "value != '1'"
+  rts
+
+  clc
+  rts
+
+
 ; -------
 ; HELPERS
 ; -------

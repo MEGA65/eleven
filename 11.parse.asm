@@ -522,6 +522,9 @@ print_text_to_str:
   bne print_text_to_str
 
 @found_null:
+  ldy cur_line_len  ; add null terminator
+  lda #$00
+  sta (s_ptr),y
   rts
 
 
@@ -1150,6 +1153,95 @@ parse_declared_var:
     sta value
     sta value+1
 
+    jsr get_bkt_and_equals_indices
+
+    jsr declare_assignment_check
+
+    jsr declare_dimension_check
+
+    jsr declare_type_check
+
+;   var_table$(ty, element_cnt(ty)) = var_name$
+    jsr add_varname_to_vartable
+
+    jsr generate_dest_line_for_dimensioned_var
+
+    jsr generate_dest_line_for_assigned_var
+
+    jsr add_define_value_to_table
+
+    jsr verbose_print_varname_and_el_cnt
+
+;   element_cnt(ty) = element_cnt(ty) + 1
+    ldx ty
+    inc element_cnt,x
+;   return
+    rts
+
+
+;-------------------------------
+verbose_print_varname_and_el_cnt:
+;-------------------------------
+;   if verbose then begin
+    lda verbose
+    beq +
+
+;     print var_name$; "{x92}: "; element_cnt(ty)
+      +assign_u16v_eq_addr s_ptr, var_name
+      jsr print_text
+
+      jsr print_inline_text
+!pet $92, ": ", $00
+
+      ldx ty
+      lda element_cnt,x
+      tax
+      ldy #$00
+      jsr print_uint
+;   bend
++:
+    rts
+
+;------------------------
+add_define_value_to_table:
+;------------------------
+;   if define_flag = 1 then begin
+    lda define_flag
+    beq @skip_add_define_val
+;     define_val$(element_cnt(ty)) = value$
+;   bend
+@skip_add_define_val:
+    rts
+
+
+;----------------------------------
+generate_dest_line_for_assigned_var:
+;----------------------------------
+;   if value$ <> "" then begin
+;     id = element_cnt(ty)
+;     gosub generate_varname 
+;     if define_flag=0 then begin
+;       next_line$ = next_line$ + gen_varname$ + t$ + "=" + value$ + ":"
+;     bend
+;   bend
+    rts
+; 
+
+;-------------------------------------
+generate_dest_line_for_dimensioned_var:
+;-------------------------------------
+;   if dimension$ <> "" then begin
+;     id = element_cnt(ty)
+;     gosub generate_varname  ' fetch varname in gen_varname$
+;     if define_flag = 0 then begin
+;       next_line$ = next_line$ + "dim " + gen_varname$ + t$ + "(" + dimension$ + "):"
+;     bend
+;   bend
+    rts
+
+;-------------------------
+get_bkt_and_equals_indices:
+;-------------------------
 ;   bkt_open_idx = instr(var_name$, "(")
     lda #'('
     ldx var_name
@@ -1166,44 +1258,7 @@ parse_declared_var:
     lda #'='
     jsr instr_chr_quick
     sta equals_idx
-; 
-    jsr declare_assignment_check
-; 
-    jsr declare_dimension_check
-
-    jsr declare_type_check
-
-;   var_table$(ty, element_cnt(ty)) = var_name$
-    jsr add_varname_to_vartable
-; 
-;   if dimension$ <> "" then begin
-;     id = element_cnt(ty)
-;     gosub generate_varname  ' fetch varname in gen_varname$
-;     if define_flag = 0 then begin
-;       next_line$ = next_line$ + "dim " + gen_varname$ + t$ + "(" + dimension$ + "):"
-;     bend
-;   bend
-; 
-;   if value$ <> "" then begin
-;     id = element_cnt(ty)
-;     gosub generate_varname 
-;     if define_flag=0 then begin
-;       next_line$ = next_line$ + gen_varname$ + t$ + "=" + value$ + ":"
-;     bend
-;   bend
-; 
-;   if define_flag = 1 then begin
-;     define_val$(element_cnt(ty)) = value$
-;   bend
-; 
-;   if verbose then begin
-;     print var_name$; "{x92}: "; element_cnt(ty)
-;   bend
-; 
-;   element_cnt(ty) = element_cnt(ty) + 1
-;   return
     rts
-
 
 ;----------------------
 add_varname_to_vartable:
@@ -1368,6 +1423,13 @@ declare_dimension_check:
 ;-----------------------
 declare_assignment_check:
 ;-----------------------
+; inputs:
+;   - equals_idx
+;   - var_name   (e.g., "A = 1")
+; outputs:
+;   - var_name "A"
+;   - value "1"
+
 ;   if equals_idx <> 0 then begin  ' --- assignment
     cmp #$ff
     beq @skip_found_equals
