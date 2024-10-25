@@ -1113,9 +1113,11 @@ check:
 
 ;   next i
     inc arg_idx
+    lda arg_idx
     cmp arg_cnt
     bne @loop_next_arg
 
+;todo: finish this off
 ; 
 ;   if next_line$ <> "" then begin
 ;     delete_line_flag = 0
@@ -1165,116 +1167,79 @@ parse_declared_var:
     jsr instr_chr_quick
     sta equals_idx
 ; 
-;   if equals_idx <> 0 then begin  ' --- assignment
-    cmp #$ff
-    beq @skip_found_equals
-;     value$ = mid$(var_name$, equals_idx + 1)
-      clc
-      lda var_name
-      adc equals_idx
-      sta value
-      lda var_name+1
-      adc #$00
-      sta value+1
-      inc value
-      bne +
-      inc value+1
-+:
-
-;     var_name$ = left$(var_name$, equals_idx - 1)
-      lda #$00
-      ldy equals_idx
-      sta (is_ptr),y
-      sty cur_line_len
+    jsr declare_assignment_check
 ; 
-;     tr$ = whitespace$
-      +assign_u16v_eq_addr tr_ptr, whitespace
+    jsr declare_dimension_check
 
-;     s$ = var_name$
-      +assign_u16v_eq_u16v s_ptr, var_name
+    jsr declare_type_check
 
-;     gosub strip_tr$_from_end
-      jsr strip_tr_from_end
-
-;     var_name$ = s$
+;   var_table$(ty, element_cnt(ty)) = var_name$
+    jsr add_varname_to_vartable
 ; 
-;     s$ = value$
-      +assign_u16v_eq_u16v s_ptr, value
-      jsr get_s_ptr_length
-
-;     gosub strip_tr$_from_beginning
-      jsr strip_tr_from_beginning
-;     gosub strip_tr$_from_end
-      jsr strip_tr_from_end
-;     value$ = s$
-      +assign_u16v_eq_u16v value, s_ptr
-; 
-; NOTE: Skip hex/binary checking for now, as latest rom permits such values
-;     if left$(value$, 1) = "$" then begin
-;       hx$ = mid$(value$, 2)
-;       gosub check_hex
+;   if dimension$ <> "" then begin
+;     id = element_cnt(ty)
+;     gosub generate_varname  ' fetch varname in gen_varname$
+;     if define_flag = 0 then begin
+;       next_line$ = next_line$ + "dim " + gen_varname$ + t$ + "(" + dimension$ + "):"
 ;     bend
+;   bend
 ; 
-;     if left$(value$, 1) = "%" then begin
-;       bi$ = mid$(value$, 2)
-;       gosub check_binary
+;   if value$ <> "" then begin
+;     id = element_cnt(ty)
+;     gosub generate_varname 
+;     if define_flag=0 then begin
+;       next_line$ = next_line$ + gen_varname$ + t$ + "=" + value$ + ":"
 ;     bend
-; 
 ;   bend
-@skip_found_equals:
 ; 
-;   if bkt_open_idx <> 0 and bkt_close_idx <> 0 then begin  ' --- dimension
-    lda bkt_open_idx
-    cmp #$ff
-    beq @skip_found_brackets
-    lda bkt_close_idx
-    cmp #$ff
-    beq @skip_found_brackets
-;     dimension$ = mid$(var_name$, bkt_open_idx + 1, bkt_close_idx - bkt_open_idx - 1)
-      clc
-      lda var_name
-      adc bkt_open_idx
-      sta dimension
-      lda var_name+1
-      adc #$01
-      sta dimension+1
-      inc dimension
-      beq +
-      inc dimension+1
-+:
-
-      ; put a null-term on the close bracket
-      +assign_u16v_eq_u16v s_ptr, var_name
-      lda #$00
-      ldy bkt_close_idx
-      sta (s_ptr),y
-
-;     clean_varname$ = left$(var_name$, bkt_open_idx - 1)
-      ldy bkt_open_idx
-      sta (s_ptr),y
-
-; 
-;     s$ = dimension$
-      +assign_u16v_eq_u16v s_ptr, dimension
-
-;     dont_mark_label = 1
-      lda #$01
-      sta dont_mark_label
-
-;     gosub replace_vars_and_labels
-      jsr replace_vars_and_labels
-
-;     dont_mark_label = 0
-      +assign_u8v_eq_imm dont_mark_label, $00
-;     dimension$ = s$
-      +assign_u16v_eq_u16v dimension, s_ptr
-; 
-;     var_name$ = clean_varname$  ' check for define tokens
-;     delete_line_flag = 0
-      +assign_u8v_eq_imm delete_line_flag, $00
+;   if define_flag = 1 then begin
+;     define_val$(element_cnt(ty)) = value$
 ;   bend
-@skip_found_brackets:
 ; 
+;   if verbose then begin
+;     print var_name$; "{x92}: "; element_cnt(ty)
+;   bend
+; 
+;   element_cnt(ty) = element_cnt(ty) + 1
+;   return
+    rts
+
+
+;----------------------
+add_varname_to_vartable:
+;----------------------
+    ; var_table(,) = ptr to memory for array (4*200*2 = 1600 bytes in size, $640)
+    +assign_u16v_eq_u16v is_ptr, var_table
+    ldx #$00
+@loop_next_type:
+    cpx ty
+    beq @bail_type
+    clc
+
+    +add_to_pointer_u16 is_ptr, 200*2
+    
+    inx
+    bra @loop_next_type
+@bail_type:
+   
+    lda element_cnt,x
+    tay
+    
+    ; warning: i suspect that varname comes from temporary args
+    ; (which will eventually be removed from the heap)
+    ; it might be safer to copy the var_name contents to a new string
+    ; (but then I need to reconsider my 'temp' use of the heap)
+    lda var_name
+    sta (is_ptr),y
+    iny
+    lda var_name+1
+    sta (is_ptr),y
+    rts
+
+
+;-----------------
+declare_type_check:
+;-----------------
 ;   ty = TYP_REAL  ' var type
     +assign_u8v_eq_imm ty, TYP_REAL
 
@@ -1340,62 +1305,126 @@ parse_declared_var:
       +assign_u8v_eq_imm ty, TYP_BYTE
 ;   bend
 +:
-; 
-;   var_table$(ty, element_cnt(ty)) = var_name$
-    ; var_table(,) = ptr to memory for array (4*200*2 = 1600 bytes in size, $640)
-    
-    +assign_u16v_eq_u16v is_ptr, var_table
-    ldx #$00
-@loop_next_type:
-    cpx ty
-    beq @bail_type
-    clc
+    rts
 
-    +add_to_pointer_u16 is_ptr, 200*2
-    
-    inx
-    bra @loop_next_type
-@bail_type:
-   
-    lda element_cnt,x
-    tay
-    
-    ; warning: i suspect that varname comes from temporary args
-    ; (which will eventually be removed from the heap)
-    ; it might be safer to copy the var_name contents to a new string
-    ; (but then I need to reconsider my 'temp' use of the heap)
-    lda var_name
-    sta (is_ptr),y
-    iny
-    lda var_name+1
-    sta (is_ptr),y
+
+;----------------------
+declare_dimension_check:
+;----------------------
+;   if bkt_open_idx <> 0 and bkt_close_idx <> 0 then begin  ' --- dimension
+    lda bkt_open_idx
+    cmp #$ff
+    beq @skip_found_brackets
+    lda bkt_close_idx
+    cmp #$ff
+    beq @skip_found_brackets
+;     dimension$ = mid$(var_name$, bkt_open_idx + 1, bkt_close_idx - bkt_open_idx - 1)
+      clc
+      lda var_name
+      adc bkt_open_idx
+      sta dimension
+      lda var_name+1
+      adc #$01
+      sta dimension+1
+      inc dimension
+      beq +
+      inc dimension+1
++:
+
+      ; put a null-term on the close bracket
+      +assign_u16v_eq_u16v s_ptr, var_name
+      lda #$00
+      ldy bkt_close_idx
+      sta (s_ptr),y
+
+;     clean_varname$ = left$(var_name$, bkt_open_idx - 1)
+      ldy bkt_open_idx
+      sta (s_ptr),y
+
 ; 
-;   if dimension$ <> "" then begin
-;     id = element_cnt(ty)
-;     gosub generate_varname  ' fetch varname in gen_varname$
-;     if define_flag = 0 then begin
-;       next_line$ = next_line$ + "dim " + gen_varname$ + t$ + "(" + dimension$ + "):"
+;     s$ = dimension$
+      +assign_u16v_eq_u16v s_ptr, dimension
+
+;     dont_mark_label = 1
+      lda #$01
+      sta dont_mark_label
+
+;     gosub replace_vars_and_labels
+      jsr replace_vars_and_labels
+
+;     dont_mark_label = 0
+      +assign_u8v_eq_imm dont_mark_label, $00
+;     dimension$ = s$
+      +assign_u16v_eq_u16v dimension, s_ptr
+; 
+;     var_name$ = clean_varname$  ' check for define tokens
+;     delete_line_flag = 0
+      +assign_u8v_eq_imm delete_line_flag, $00
+;   bend
+@skip_found_brackets:
+    rts
+
+
+;-----------------------
+declare_assignment_check:
+;-----------------------
+;   if equals_idx <> 0 then begin  ' --- assignment
+    cmp #$ff
+    beq @skip_found_equals
+;     value$ = mid$(var_name$, equals_idx + 1)
+      clc
+      lda var_name
+      adc equals_idx
+      sta value
+      lda var_name+1
+      adc #$00
+      sta value+1
+      inc value
+      bne +
+      inc value+1
++:
+
+;     var_name$ = left$(var_name$, equals_idx - 1)
+      lda #$00
+      ldy equals_idx
+      sta (is_ptr),y
+      sty cur_line_len
+; 
+;     tr$ = whitespace$
+      +assign_u16v_eq_addr tr_ptr, whitespace
+
+;     s$ = var_name$
+      +assign_u16v_eq_u16v s_ptr, var_name
+
+;     gosub strip_tr$_from_end
+      jsr strip_tr_from_end
+
+;     var_name$ = s$
+; 
+;     s$ = value$
+      +assign_u16v_eq_u16v s_ptr, value
+      jsr get_s_ptr_length
+
+;     gosub strip_tr$_from_beginning
+      jsr strip_tr_from_beginning
+;     gosub strip_tr$_from_end
+      jsr strip_tr_from_end
+;     value$ = s$
+      +assign_u16v_eq_u16v value, s_ptr
+; 
+; NOTE: Skip hex/binary checking for now, as latest rom permits such values
+;     if left$(value$, 1) = "$" then begin
+;       hx$ = mid$(value$, 2)
+;       gosub check_hex
 ;     bend
-;   bend
 ; 
-;   if value$ <> "" then begin
-;     id = element_cnt(ty)
-;     gosub generate_varname 
-;     if define_flag=0 then begin
-;       next_line$ = next_line$ + gen_varname$ + t$ + "=" + value$ + ":"
+;     if left$(value$, 1) = "%" then begin
+;       bi$ = mid$(value$, 2)
+;       gosub check_binary
 ;     bend
-;   bend
 ; 
-;   if define_flag = 1 then begin
-;     define_val$(element_cnt(ty)) = value$
 ;   bend
-; 
-;   if verbose then begin
-;     print var_name$; "{x92}: "; element_cnt(ty)
-;   bend
-; 
-;   element_cnt(ty) = element_cnt(ty) + 1
-;   return
+@skip_found_equals:
     rts
 
 
