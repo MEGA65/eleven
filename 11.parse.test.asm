@@ -7,6 +7,28 @@
   jsr cmp_tmp_ptr_to_s_str
 }
 
+!macro STR_MATCH_PTR_TO_STR .ptr, .str {
+  +assign_u16v_eq_u16v tmp_ptr, .ptr
+  +assign_u16v_eq_addr s_ptr, .str
+  jsr cmp_tmp_ptr_to_s_str
+}
+
+!macro U16_MATCH .uint1, .uint2 {
+  lda .uint1
+  cmp .uint2
+  bne +
+  lda .uint1+1
+  cmp .uint2+1
+  bne +
+
+  clc
+  bra ++
+
++:
+  sec
+++:
+}
+
 !macro STR_MATCH_TO_SPTR .str1 {
   +assign_u16v_eq_addr tmp_ptr, .str1
   jsr cmp_tmp_ptr_to_s_str
@@ -61,7 +83,7 @@ run_tests:
   jsr set_font_a
 
   jsr print_inline_text
-!pet 147, "^\"11.parse\"", $0d,$00
+!pet 147, $05, "^\"11.parse\"", $0d,$00
   jsr print_inline_text
 !pet "---------------------",$0d,$00
   jsr print_inline_text
@@ -384,6 +406,7 @@ test__add_curtok_to_astr:
   rts
 
 +:
+  clc
   rts
 
 
@@ -453,6 +476,7 @@ test__dbl_quote_check:
   +STR_MATCH a_str, a_str
   bcc +:
   +FAIL_REASON "SCEN1: a_str should not have changed"
+  rts
 +:
 
   ; - - - - - -
@@ -472,11 +496,13 @@ test__dbl_quote_check:
   +STR_MATCH a_str, @expected2
   bcc +:
   +FAIL_REASON "SCEN2: fail on a_str += cur_tok"
+  rts
 +:
 
   lda cur_tok
   beq +
   +FAIL_REASON "SCEN2: cur_tok is not empty"
+  rts
 +:
 
   ; - - - - - -
@@ -497,6 +523,7 @@ test__dbl_quote_check:
   +STR_MATCH a_str, @expected3
   bcc +:
   +FAIL_REASON "SCEN3: fail on a_str += cur_char"
+  rts
 +:
 
   ; - - - - - -
@@ -517,8 +544,87 @@ test__dbl_quote_check:
   +STR_MATCH a_str, @expected4
   bcc +:
   +FAIL_REASON "SCEN4: fail on a_str += cur_char"
+  rts
 +:
 
+  clc
+  rts
+
+
+;------------------------------
+test__add_subbed_curtok_to_astr:
+;------------------------------
+  sec
+  rts
+
+
+;--------------------
+test__parse_arguments:
+;--------------------
+  +set_string f_str, "  a=1  ,b=2  ,c = 3"
+  ; this will set s_ptr to point to it too
+
+  jsr parse_arguments
+
+  bra +
+@expected1:
+!pet "a=1",$00
+@expected2:
+!pet "b=2",$00
+@expected3:
+!pet "c = 3",$00
++:
+
+  +STR_MATCH_PTR_TO_STR args, @expected1
+  bcc +:
+  +FAIL_REASON "args[0] not as expected"
+  rts
++:
+
+  +STR_MATCH_PTR_TO_STR args+2, @expected2
+  bcc +:
+  +FAIL_REASON "args[1] not as expected"
+  rts
++:
+
+  +STR_MATCH_PTR_TO_STR args+4, @expected3
+  bcc +:
+  +FAIL_REASON "args[2] not as expected"
+  rts
++:
+
+  clc
+  rts
+
+;---------------------
+test__add_trimmed_args:
+;---------------------
+  +assign_u16v_eq_addr args, tempheap
+  +assign_u8v_eq_imm arg_idx, $00
+  +assign_u8v_eq_imm arg_cnt, $00
+
+  +assign_u16v_eq_addr s_ptr, tempheap
+  +assign_u8v_eq_imm cur_line_len, $00
+  jsr print_inline_text_to_str
+!pet "  a=1  ", $00
+
+  bra +
+@expected:
+!pet "a=1",$00
+
++:
+  
+  jsr add_trimmed_arg
+
+  ; +STR_MATCH args, @expected
+
+  +STR_MATCH_PTR_TO_STR args, @expected
+
+  bcc +:
+  +FAIL_REASON "args[0] failed to trim as expected"
+  rts
++:
+  clc
   rts
 
 

@@ -77,6 +77,13 @@ basic_end:
 !pet .len, .val, $00  ; length-encoded in first byte
 }
 
+!macro set_string .var, .val {
+  +assign_u16v_eq_addr s_ptr, .var
+  +assign_u8v_eq_imm cur_line_len, $00
+  jsr print_inline_text_to_str
+!pet .val, $00
+}
+
 
 !macro assign_u8v_eq_imm .dest, .val {
   lda #.val
@@ -143,13 +150,24 @@ basic_end:
     jsr instr
 }
 
-!macro add_to_pointer .ptr, .val {
+!macro add_to_pointer_u8 .ptr, .val {
   clc
   lda .ptr
   adc #.val
   sta .ptr
   lda .ptr+1
   adc #$00
+  sta .ptr+1
+}
+
+
+!macro add_to_pointer_u16 .ptr, .val {
+  clc
+  lda .ptr
+  adc #<.val
+  sta .ptr
+  lda .ptr+1
+  adc #>.val
   sta .ptr+1
 }
 
@@ -189,7 +207,8 @@ verbose = $20  // byte
 cur_src_lineno = $21  ; $21-$22
 HEAPPTR = $23 ; $23-$24  (pointer to free location of heap)
              ; (I'll try start it at $8000 and grow it upwards)
-TESTPTR = $25
+TMPHEAPPTR = $25 ;  $25-$26
+TESTPTR = $27 ; $27-$28
 
 initialise:
   sei
@@ -221,8 +240,9 @@ initialise:
   sta element_cnt+2
   sta element_cnt+3
 
-  ; allocate args$(32)
-  +alloc args, 32*2
+; #declare var_table$(4,200)             ' variable table per type
+  ; ptr to memory for array (4*200*2 = 1600 bytes in size, $640)
+  +alloc var_table, 4*200*2
 
   tsx
   stx bailout_stack_pos
@@ -303,7 +323,10 @@ var_table = $1600   ; ptr to memory for array (4*200*2 = 1600 bytes in size, $64
 define_val = $1c40  ; ptr to memory for array (200*2 = 400 bytes in size, $190)
 
 ; #declare args$(32)                     ' argument list
-args = $1dd0        ; ptr to memory for array (32*2 = 64 bytes, $40)
+args:
+!fill 32*2    ; pointers to strings in tempheap
+tempheap:
+!fill 32*64   ; each string is 64bytes max
 
 ; next avail = $1e10
 
@@ -373,6 +396,8 @@ equals_idx:
 !byte $00
 
 ; #declare tr$, hx$, bi$, ty, id, gen_varname$, of$
+ty:
+!byte $00
 dont_mark_label:
 !byte $00
 ; #declare args_list$, args_list_len, args_idx, cur_ch$
@@ -1005,7 +1030,7 @@ declare_s_ptr_var:  ; declare_s$_var
 ;----------------
 ;   ' declare var(s) in s$
 ;   s$ = mid$(cur_src_line$, 10 - define_flag)
-    +add_to_pointer s_ptr, 9
+    +add_to_pointer_u8 s_ptr, 9
     sec
     lda cur_line_len
     sbc #09
@@ -1066,6 +1091,7 @@ declare_s_ptr_var:  ; declare_s$_var
 ; 
     +assign_u16v_eq_u16v is_ptr, args
 
+check:
     lda #$00
     sta arg_idx
 ;   for i = 0 to arg_cnt
@@ -1076,10 +1102,10 @@ declare_s_ptr_var:  ; declare_s$_var
       rol
       tay
       
-      lda (is_ptr),y
+      lda args,y
       sta var_name
       iny
-      lda (is_ptr),y
+      lda args,y
       sta var_name+1
 
 ;     gosub parse_declared_var
@@ -1108,8 +1134,10 @@ arg_idx:
 ;-----------------
 parse_declared_var:
 ;-----------------
-; input: var_name$
+; input: var_name$ (e.g. '#define fishy = 1')
 ; output:
+;   - var is added to var_table()
+;   - any var declaration text is added to next_line$
 
 ;   dimension$ = ""
     lda #$00
@@ -1138,7 +1166,8 @@ parse_declared_var:
     sta equals_idx
 ; 
 ;   if equals_idx <> 0 then begin  ' --- assignment
-    bmi @skip_found_equals
+    cmp #$ff
+    beq @skip_found_equals
 ;     value$ = mid$(var_name$, equals_idx + 1)
       clc
       lda var_name
@@ -1196,6 +1225,10 @@ parse_declared_var:
 ; 
 ;   if bkt_open_idx <> 0 and bkt_close_idx <> 0 then begin  ' --- dimension
     lda bkt_open_idx
+    cmp #$ff
+    beq @skip_found_brackets
+    lda bkt_close_idx
+    cmp #$ff
     beq @skip_found_brackets
 ;     dimension$ = mid$(var_name$, bkt_open_idx + 1, bkt_close_idx - bkt_open_idx - 1)
       clc
@@ -1232,42 +1265,110 @@ parse_declared_var:
       jsr replace_vars_and_labels
 
 ;     dont_mark_label = 0
+      +assign_u8v_eq_imm dont_mark_label, $00
 ;     dimension$ = s$
+      +assign_u16v_eq_u16v dimension, s_ptr
 ; 
 ;     var_name$ = clean_varname$  ' check for define tokens
 ;     delete_line_flag = 0
+      +assign_u8v_eq_imm delete_line_flag, $00
 ;   bend
 @skip_found_brackets:
 ; 
 ;   ty = TYP_REAL  ' var type
+    +assign_u8v_eq_imm ty, TYP_REAL
+
 ;   t$ = right$(var_name$, 1)  ' type (if any) in t$
+    +assign_u16v_eq_u16v s_ptr, var_name
+    ldy cur_line_len
+    dey
+    lda (s_ptr),y
+    sta cur_char
 ; 
 ;   if verbose then begin
+    lda verbose
+    beq @skip_verbose
 ;     print "adding {x12}";
+      jsr print_inline_text
+!pet "adding ", $12, $00
 ;   bend
+@skip_verbose:
 ; 
 ;   if instr("%&$", t$) = 0 then begin
+    ldx #<vartype_delim
+    ldy #>vartype_delim
+    lda cur_char
+    jsr instr_chr
+    bcs @skip_check_real
 ;     t$ = ""
+      +assign_u8v_eq_imm cur_char, $00
 ;     ty = TYP_REAL
+      +assign_u8v_eq_imm ty, TYP_REAL
 ;   bend
+@skip_check_real:
+
 ; 
 ;   if define_flag = 1 then begin
+    lda define_flag
+    beq +:
 ;     ty = TYP_DEF
+      +assign_u8v_eq_imm ty, TYP_DEF
 ;   bend
++:
 ; 
 ;   if t$ = "%" then begin
+    lda cur_char
+    cmp #'%'
+    bne +
 ;     ty = TYP_INT
+      +assign_u8v_eq_imm ty, TYP_INT
 ;   bend
++:
 ; 
 ;   if t$ = "$" then begin
+    cmp #'$'
+    bne +
 ;     ty = TYP_STR
+      +assign_u8v_eq_imm ty, TYP_STR
 ;   bend
++:
 ; 
 ;   if t$ = "&" then begin
+    cmp #'&'
+    bne +
 ;     ty = TYP_BYTE
+      +assign_u8v_eq_imm ty, TYP_BYTE
 ;   bend
++:
 ; 
 ;   var_table$(ty, element_cnt(ty)) = var_name$
+    ; var_table(,) = ptr to memory for array (4*200*2 = 1600 bytes in size, $640)
+    
+    +assign_u16v_eq_u16v is_ptr, var_table
+    ldx #$00
+@loop_next_type:
+    cpx ty
+    beq @bail_type
+    clc
+
+    +add_to_pointer_u16 is_ptr, 200*2
+    
+    inx
+    bra @loop_next_type
+@bail_type:
+   
+    lda element_cnt,x
+    tay
+    
+    ; warning: i suspect that varname comes from temporary args
+    ; (which will eventually be removed from the heap)
+    ; it might be safer to copy the var_name contents to a new string
+    ; (but then I need to reconsider my 'temp' use of the heap)
+    lda var_name
+    sta (is_ptr),y
+    iny
+    lda var_name+1
+    sta (is_ptr),y
 ; 
 ;   if dimension$ <> "" then begin
 ;     id = element_cnt(ty)
@@ -1296,7 +1397,11 @@ parse_declared_var:
 ;   element_cnt(ty) = element_cnt(ty) + 1
 ;   return
     rts
-; 
+
+
+vartype_delim:
+!pet "%&$", $00
+
 ; 
 ; '---------------
 ; .set_output_file
@@ -1557,15 +1662,15 @@ delim:
 ;-------------------------
 put_cur_arg_ptr_into_s_ptr:
 ;-------------------------
-  lda arg_cnt
+  lda arg_idx
   clc
   rol
-  tay
+  tax
 
-  lda (tmp_ptr),y
+  lda args,x
   sta s_ptr
-  iny
-  lda (tmp_ptr),y
+  inx
+  lda args,x
   sta s_ptr+1
   rts
 
@@ -1573,28 +1678,28 @@ put_cur_arg_ptr_into_s_ptr:
 ;-------------------------
 put_s_ptr_into_cur_arg_ptr:
 ;-------------------------
-  lda arg_cnt
+  lda arg_idx
   clc
   rol
-  tay
+  tax
 
   lda s_ptr
-  sta (tmp_ptr),y
-  iny
+  sta args,x
+  inx
   lda s_ptr+1
-  sta (tmp_ptr),y
+  sta args,x
   rts
 
 
 ;--------------
 add_trimmed_arg:
 ;--------------
-        ; add a null terminator
-        lda #$00
-        ldx #$00
-        sta (HEAPPTR,x)
-        inw HEAPPTR
-
+; input:
+;   - arg_idx
+;   - args[arg_idx] containing pointer to string like "  a = 1  "
+; output:
+;   - args[arg_idx] containing pointer to string like "a=1"
+;
 ;       s$ = args$(arg_cnt)
 ;       tr$ = " "
         lda #<space_only
@@ -1603,8 +1708,13 @@ add_trimmed_arg:
         sta tr_ptr+1
 
         phw s_ptr   ; preserve original s_ptr
+        lda cur_line_len
+        pha
 
+        lda arg_cnt
+        sta arg_idx
         jsr put_cur_arg_ptr_into_s_ptr
+        jsr get_s_ptr_length
 
 ;       gosub strip_tr$_from_beginning
         jsr strip_tr_from_beginning
@@ -1614,19 +1724,24 @@ add_trimmed_arg:
 ;       args$(arg_cnt) = s$
         jsr put_s_ptr_into_cur_arg_ptr
 
+        pla
+        sta cur_line_len
         +plw s_ptr
         rts
 
 chr_idx:
+!byte $00
+cur_arg_len:
 !byte $00
 
 ;--------------
 parse_arguments:
 ;--------------
 ;   ' -- parse arguments --
-;   '     in: s$ = string
+;   '     in: s$ = string   (e.g., "a=1, b=2")
 ;   '    out: args$(x) = argument list, arg_cnt = argument count
 ;   '         args$(0) = first arg, args$(1) = second arg...
+;                        (e.g., arg$(0) = "a=1", arg$(1) = "b=2")
 ;   
 ;   delim$ = ",;"
 ; 
@@ -1654,38 +1769,29 @@ parse_arguments:
 ;   bend
 ++:
 ; 
-    +assign_u16v_eq_u16v tmp_ptr, args
+    +assign_u16v_eq_addr TMPHEAPPTR, tempheap
 
     ldy #$00
-    ldz #$00
     lda #$0
 @loop_clr_ptrs:
-;   for args_idx = 0 to 31
-;     args$(args_idx) = ""
-      sta (tmp_ptr),y
+;   for arg_idx = 0 to 31
+;     args$(arg_idx) = ""
+      sta args,y
       iny
-      sta (tmp_ptr),y
-      iny
-      inz
-;   next args_idx
-    cpz #32
+;   next arg_idx
+    cpy #64
     bne @loop_clr_ptrs
 
-    ; set first args str pointer to heap end (temporarily)
-    ldy #$00
-    lda HEAPPTR
-    sta (tmp_ptr),y
-    lda HEAPPTR+1
-    iny
-    sta (tmp_ptr),y
-
-    phw HEAPPTR
+    ; set args$(0) to point at latest TMPHEAPPTR
+    +assign_u16v_eq_u16v args, TMPHEAPPTR
+    +assign_u16v_eq_u16v tmp_ptr, args
+    +assign_u8v_eq_imm cur_arg_len, $00
 
     ldy #$00
     sty chr_idx
 @loop_next_char:
-;   for args_idx = 1 to args_list_len
-;     cur_ch$ = mid$(args_list$, args_idx, 1)
+;   for chr_idx = 1 to args_list_len
+;     cur_ch$ = mid$(args_list$, chr_idx, 1)
       ldy chr_idx
       lda (s_ptr),y
       sta cur_char
@@ -1729,8 +1835,15 @@ parse_arguments:
 ;       args$(arg_cnt) = args$(arg_cnt) + cur_ch$
         ldx #$00
         lda cur_char
-        sta (HEAPPTR,x)
-        inw HEAPPTR
+        ldy cur_arg_len
+        sta (tmp_ptr),y
+        iny
+        lda #$00
+        sta (tmp_ptr),y
+        sty cur_arg_len
+
+        inw TMPHEAPPTR
+
         jmp @skip_after_else
 
 ;     bend : else begin
@@ -1739,34 +1852,34 @@ parse_arguments:
 
 ; 
 ;       arg_cnt = arg_cnt + 1
+        inc arg_cnt
 
-        ; copy across next heap pointer to next arg
+        ; copy across next temp heap pointer to next arg
         lda arg_cnt
         clc
         rol
         tay
 
-        lda (tmp_ptr),y
+        ; +assign_u16v_eq_u16v args, TMPHEAPPTR
+        ; +assign_u16v_eq_u16v tmp_ptr, args
+        inw TMPHEAPPTR
+        lda TMPHEAPPTR
+        sta args,y
+        sta tmp_ptr
         iny
-        iny
-        sta (tmp_ptr),y
-        dey
-        lda (tmp_ptr),y
-        iny
-        iny
-        sta (tmp_ptr),y
+        lda TMPHEAPPTR+1
+        sta args,y
+        sta tmp_ptr+1
 
-        ; increment arg_cnt
-        inc arg_cnt
-
+        +assign_u8v_eq_imm cur_arg_len, $00
 ;     bend
 @skip_after_else:
 
-;   next args_idx
+;   next chr_idx
     inc chr_idx
     ldy chr_idx
     cpy cur_line_len
-    bne @loop_next_char
+    lbne @loop_next_char
 ; 
     jsr add_trimmed_arg
     ;   s$ = args$(arg_cnt)
@@ -1779,8 +1892,6 @@ parse_arguments:
     inc arg_cnt
 
 ;   s$ = args_list$  ' restore s$
-
-    +plw HEAPPTR   ; restore original heap pointer (these vars are temporary)
 
 ;   return
     rts
@@ -1894,12 +2005,7 @@ replace_vars_and_labels:
       jsr instr_chr_quick
       bcs @skip_to_delim_check_else
 
-;       gosub check_token_for_subbing
-        jsr check_token_for_subbing
-;       a$ = a$ + cur_tok$
-        jsr add_curtok_to_astr
-;       cur_tok$ = ""
-        +assign_u8v_eq_imm cur_tok, $00
+        jsr add_subbed_curtok_to_astr
 ;       if cur_ch$ = " " then cur_ch$ = ""
         lda cur_char
         cmp #' '
@@ -1923,15 +2029,23 @@ replace_vars_and_labels:
     
 @bail_for_loop:
 
-;   gosub check_token_for_subbing 
-    jsr check_token_for_subbing
-;   s$ = a$ + cur_tok$
-    jsr add_curtok_to_astr
+    jsr add_subbed_curtok_to_astr
+
     +assign_u16v_eq_addr s_ptr, a_str+1
 ;   return
     rts
-;   end
 
+
+;------------------------
+add_subbed_curtok_to_astr:
+;------------------------
+; gosub check_token_for_subbing
+  jsr check_token_for_subbing
+; a$ = a$ + cur_tok$
+  jsr add_curtok_to_astr
+; cur_tok$ = ""
+  +assign_u8v_eq_imm cur_tok, $00
+  rts
 
 ;--------------
 dbl_quote_check:
@@ -1968,12 +2082,7 @@ dbl_quote_check:
         ; if this a starting quote?
 ;       if quote_flag = 1 then begin
         beq @skip_to_else
-;         gosub check_token_for_subbing
-          jsr check_token_for_subbing
-;         a$ = a$ + cur_tok$
-          jsr add_curtok_to_astr  ; add the starting dbl quote
-;         cur_tok$ = ""
-          +assign_u8v_eq_imm cur_tok, $00
+          jsr add_subbed_curtok_to_astr
 
           jsr add_curchar_to_astr
           sec  ; trigger for's continue
@@ -2854,7 +2963,7 @@ parse_preprocessor_directive
     bne +
 
 ;     s$ = mid$(cur_src_line$, 8)
-      +add_to_pointer s_ptr, $07
+      +add_to_pointer_u8 s_ptr, $07
       sec
       lda cur_line_len
       sbc #$07

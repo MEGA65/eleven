@@ -9,7 +9,9 @@ all:
 	petcat -65 -o autoboot.c65.bas -- autoboot.c65
 	# c1541 -attach MA110.D81 -read gurce.asm,s
 
-11.parse.prg: 11.parse.asm
+FORCE: ;
+
+11.parse.prg: FORCE 11.parse.asm
 	acme --cpu m65 -o 11.parse.prg -f cbm -l 11.parse.sym -r 11.parse.rep 11.parse.asm
 	c1541 -attach /c/Users/phuon/AppData/Roaming/xemu-lgb/mega65/hdos/11.D81 -delete 11.parse -write 11.parse.prg 11.parse
 
