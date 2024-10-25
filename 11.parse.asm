@@ -1366,6 +1366,15 @@ declare_type_check:
 ;----------------------
 declare_dimension_check:
 ;----------------------
+; inputs:
+;   - bkt_open_idx
+;   - bkt_close_idx
+;   - var_name   (e.g., "fish$(10)")
+;
+; outputs:
+;   - var_name   (e.g. "fish$")
+;   - dimension  (e.g. "10")  (if dimension was a declared (SIZE=10), then sub it)
+
 ;   if bkt_open_idx <> 0 and bkt_close_idx <> 0 then begin  ' --- dimension
     lda bkt_open_idx
     cmp #$ff
@@ -1379,10 +1388,10 @@ declare_dimension_check:
       adc bkt_open_idx
       sta dimension
       lda var_name+1
-      adc #$01
+      adc #$00
       sta dimension+1
       inc dimension
-      beq +
+      bne +
       inc dimension+1
 +:
 
@@ -1410,7 +1419,6 @@ declare_dimension_check:
 ;     dont_mark_label = 0
       +assign_u8v_eq_imm dont_mark_label, $00
 ;     dimension$ = s$
-      +assign_u16v_eq_u16v dimension, s_ptr
 ; 
 ;     var_name$ = clean_varname$  ' check for define tokens
 ;     delete_line_flag = 0

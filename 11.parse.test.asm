@@ -631,8 +631,7 @@ test__add_trimmed_args:
 ;-----------------------------
 test__declare_assignment_check:
 ;-----------------------------
-  lda #$02
-  sta equals_idx
+  +assign_u8v_eq_imm equals_idx, $02
 
   +set_string f_str, "a = 1"
   ; this will set s_ptr to point to it too
@@ -661,10 +660,46 @@ test__declare_assignment_check:
   bcc +
   +FAIL_REASON "value != '1'"
   rts
++:
 
   clc
   rts
 
+
+;----------------------------
+test__declare_dimension_check:
+;----------------------------
+  +set_string f_str, "fish$(10)"
+  +assign_u16v_eq_addr var_name, f_str
+
+  +assign_u8v_eq_imm bkt_open_idx, $05
+  +assign_u8v_eq_imm bkt_close_idx, $08
+
+  jsr declare_dimension_check
+
+  bra +
+@expected1:
+!pet "fish$",$00
+@expected2:
+!pet "10",$00
++:
+
+  +assign_u16v_eq_u16v s_ptr, var_name
+  +STR_MATCH_TO_SPTR @expected1
+  bcc +
+  +FAIL_REASON "var_name != 'fish$'"
+  rts
++:
+
+  +assign_u16v_eq_u16v s_ptr, dimension
+  +STR_MATCH_TO_SPTR @expected2
+  bcc +
+  +FAIL_REASON "dimension != '10'"
+  rts
++:
+  
+  clc
+  rts
 
 ; -------
 ; HELPERS
