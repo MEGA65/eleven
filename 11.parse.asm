@@ -70,6 +70,48 @@ basic_end:
 ; MACROS
 ; ------
 
+!macro check_09_range {
+    cmp #'0'
+    bcs @skip_09_range_check
+    cmp #'9'+1
+    bcc @skip_09_range_check
+      ; if not, sec
+      sec
+      rts
+@skip_09_range_check:
+}
+
+!macro add_multout_to_u16result {
+    clc
+    lda u16result
+    adc MULTOUT
+    sta u16result
+    lda u16result+1
+    adc MULTOUT+1
+    sta u16result+1
+}
+
+!macro multiply_a_by_column_value {
+    ldx #$00
+    ldy #$00
+    ldz #$00
+    stq MULTINA
+
+    ldx column_val+1
+    lda column_val
+    stq MULTINB
+
+@wait_for_mult_to_finish:
+    bit MULDIVBUSY  ; bit6 (mulbusy) = overflow flag
+                    ; bit7 (divbusy) = negative flag
+    bvs @wait_for_mult_to_finish
+}
+
+!macro CMP_U8V_TO_IMM .var, .val {
+  lda .var
+  cmp #.val
+}
+
 !macro set_lstring .var, .len, .val {
   +assign_u16v_eq_addr s_ptr, .var
   +assign_u8v_eq_imm cur_line_len, $00
@@ -84,6 +126,12 @@ basic_end:
 !pet .val, $00
 }
 
+!macro assign_u16v_eq_imm .dest, .val {
+  lda #<.val
+  sta .dest
+  lda #>.val
+  sta .dest+1
+}
 
 !macro assign_u8v_eq_imm .dest, .val {
   lda #.val
@@ -649,6 +697,21 @@ column_val:
 to_str_flag:
 !byte $00
 
+;---------------
+get_column_value:
+;---------------
+; input: a = column digit
+; output: column_val
+
+  clc
+  rol
+  tax
+  lda column_vals,x
+  sta column_val
+  lda column_vals+1,x
+  sta column_val+1
+  rts
+
 ;---------
 print_uint:
 ;---------
@@ -663,13 +726,7 @@ print_uint:
 ;   column_val = num_digits * 10
     phz
     tza
-    clc
-    rol
-    tax
-    lda column_vals,x
-    sta column_val
-    lda column_vals+1,x
-    sta column_val+1
+    jsr get_column_value
 
 ;   column_digit = abs(val / column_val)
     ldz #$00
@@ -2050,6 +2107,7 @@ replace_vars_and_labels:
 
     jsr get_s_ptr_length
 ; 
+    lda #$00
     sta rv_idx
 ;   for rv_idx = 1 to len(s$)
 @loop_next_char:
@@ -2101,6 +2159,7 @@ replace_vars_and_labels:
 
 ; 
 ;     if instr(delim$, cur_ch$) <> 0 then begin
+      lda cur_char
       jsr instr_chr_quick
       bcs @skip_to_delim_check_else
 
@@ -2302,71 +2361,111 @@ check_token_for_subbing:
     cmp #$5f  ; left-arrow char?
     bne +
     rts       ; if so, then bail out early
-
 +:
-;   ' decimal number check
-;   ' - - - - - - - - - -
-;   if val(cur_tok$) <> 0 then begin
-;     expecting_label = 0
-;     return  ' never change numbers
-;   bend
-; 
-;   if cur_tok$ = "0" then begin
-;     cur_tok$="."
-;     return  ' stupid ms basic optimization
-;   bend
-; 
-; 
-;   ' check if we should mark this expected label
-;   ' - - - - - - - - - - - - - - - - - - - - - -
-;   if expecting_label and dont_mark_label = 0 then begin
-;     gosub mark_cur_tok$_label
-;     expecting_label = 0
-;     return  ' replace label
-;   bend
-; 
-; 
+
+    jsr decimal_number_check
+    jsr check_mark_expected_label
 ;   if cur_tok$ = "goto" then next_line_flag = 1
-; 
-; 
-;   ' are we expecting a label next?
-;   ' - - - - - - - - - - - - - - -
-;   if cur_tok$ = "goto" or cur_tok$ = "gosub" or cur_tok$ = "trap" then begin
-;     expecting_label = 1
-;   bend
-; 
-; 
-;   ' check hex value
-;   ' - - - - - - - -
-;   if left$(cur_tok$, 1) = "$" then begin
-;     hx$ = mid$(cur_tok$, 2)
-;     gosub check_hex
-;     return
-;    bend
-; 
-; 
-;   ' check binary value
-;   ' - - - - - - - - -
-;   if left$(cur_tok$, 1) = "%" then begin
-;     bi$ = mid$(cur_tok$, 2)
-;     gosub check_binary
-;     return
-;   bend
-; 
+    jsr check_expect_label_next
+    jsr check_hex_and_binary_value
+    bcc +
+    rts
++:
 ;   tok_name$ = " " + cur_tok$ + " "
+    jsr check_ignore_existing_vocab
+    bcc +
+    rts
++:
+    jsr check_swap_vars_with_short_names
+;   if did_replace_flag = 1 then return
+    jsr check_defines_table
+    jsr check_struct_names
+    bcc +
+    rts
++:
+
+;   ' PI token check
+;   ' - - - - - - -
+;   if asc(cur_tok$) = 222 then return
+
+    jsr check_dumb_commands
+
+; .unresolved_cur_tok$
+;   parser_error$ = "?unresolved identifier: '" + cur_tok$ + "' in line " + str$(cur_src_lineno)
+;   sleep 1
+;   goto return_to_editor_with_error
+;   return
+    rts
+
+
+;------------------
+check_dumb_commands:
+;------------------
+;   ' check for dumb commands
+;   ' - - - - - - - - - - - -
+;   ' NOTE: I think lc$ below should be replaced with tok_name$
+;   ' ----
+;   if instr(dumb_cmds$, lc$) <> 0 and {x5F}
+;     (cur_tok$ = "r" or cur_tok$ = "p" 
+;      or cur_tok$ = "u8" or cur_tok$ = "w") then begin
 ; 
+;     return
+;   bend
+    clc
+    rts
+
+
+;-----------------
+check_struct_names:
+;-----------------
+;   ' check for struct names
+;   ' ----------------------
+;   found_struct_idx = -1
 ; 
-;   ' ignore existing vocabulary of functions/commands
-;   ' - - - - - - - - - - - - - - - - - - - - - - - - 
-;   for t = 0 to 6
-;     if instr(tokens$(t), tok_name$) <> 0 then begin
-;       lc$ = cur_tok$
-;       gosub check_if_command_triggers_shitty_syntax
+;   for id = 0 to struct_cnt - 1  ' check struct names
+;     if cur_tok$ = struct_name$(id) then begin
+;       gosub check_for_creation_of_struct_object
+;       found_struct_idx = id
+;       id = struct_cnt - 1  ' create new struct object
+;     bend
+;   next id
+; 
+;   if found_struct_idx <> -1 then begin
+;     return
+;   bend
+    clc
+    rts
+
+
+;------------------
+check_defines_table:
+;------------------
+; input: cur_tok  (e.g., "TESTDEFVAL")
+; output:
+;   - cur_tok (changed to defined value)
+;   - C=1 (if subbed)
+;   - C=0 (if not subbed)
+;
+;   ' check defines table too
+;   ' - - - - - - - - - - - -
+;   for id = 0 to element_cnt(TYP_DEF)
+;     if cur_tok$ = var_table$(TYP_DEF, id) then begin
+;       cur_tok$ = define_val$(id)
 ;       return
 ;     bend
-;   next
-; 
-; 
+;   next id
+    rts
+
+
+;-------------------------------
+check_swap_vars_with_short_names:
+;-------------------------------
+;  input: cur_tok (e.g., "fishy$")
+;  output:
+;    - ty
+;    - cur_tok (if in var_table, then replace with auto-generated name "a$)
+;    - did_replace_flag (=1 if subbed, =0 if not)
+
 ;   ' check to swap out variables with short names
 ;   ' - - - - - - - - - - - - - - - - - - - - - -
 ;   did_replace_flag = 0  ' did replace flag
@@ -2386,62 +2485,181 @@ check_token_for_subbing:
 ;       did_replace_flag = 1
 ;     bend
 ;   next id
-; 
-;   if did_replace_flag = 1 then return
-; 
-; 
-;   ' check defines table too
-;   ' - - - - - - - - - - - -
-;   for id = 0 to element_cnt(TYP_DEF)
-;     if cur_tok$ = var_table$(TYP_DEF, id) then begin
-;       cur_tok$ = define_val$(id)
+    rts
+
+;--------------------------
+check_ignore_existing_vocab:
+;--------------------------
+;  input: cur_tok
+;  output:
+;    - C=1 if token exists in vocab
+;    - C=0 if token doesn't exist in vocab
+
+;   ' ignore existing vocabulary of functions/commands
+;   ' - - - - - - - - - - - - - - - - - - - - - - - - 
+;   for t = 0 to 6
+;     if instr(tokens$(t), tok_name$) <> 0 then begin
+;       lc$ = cur_tok$
+;       gosub check_if_command_triggers_shitty_syntax
 ;       return
 ;     bend
-;   next id
-; 
-; 
-;   ' check for struct names
-;   ' ----------------------
-;   found_struct_idx = -1
-; 
-;   for id = 0 to struct_cnt - 1  ' check struct names
-;     if cur_tok$ = struct_name$(id) then begin
-;       gosub check_for_creation_of_struct_object
-;       found_struct_idx = id
-;       id = struct_cnt - 1  ' create new struct object
-;     bend
-;   next id
-; 
-;   if found_struct_idx <> -1 then begin
-;     return
-;   bend
-; 
-; 
-;   ' PI token check
-;   ' - - - - - - -
-;   if asc(cur_tok$) = 222 then return
-; 
-; 
-;   ' check for dumb commands
-;   ' - - - - - - - - - - - -
-;   ' NOTE: I think lc$ below should be replaced with tok_name$
-;   ' ----
-;   if instr(dumb_cmds$, lc$) <> 0 and {x5F}
-;     (cur_tok$ = "r" or cur_tok$ = "p" 
-;      or cur_tok$ = "u8" or cur_tok$ = "w") then begin
-; 
-;     return
-;   bend
-; 
-; 
-; .unresolved_cur_tok$
-;   parser_error$ = "?unresolved identifier: '" + cur_tok$ + "' in line " + str$(cur_src_lineno)
-;   sleep 1
-;   goto return_to_editor_with_error
-;   return
+;   next
+    clc
     rts
+
+
+;-------------------------
+check_hex_and_binary_value:
+;-------------------------
+; input: cur_tok
+; output:
+;   - none (potentially trigger trap to illegal_hex_handler: if invalid number)
+
+;   ' check hex value
+;   ' - - - - - - - -
+;   if left$(cur_tok$, 1) = "$" then begin
+;     hx$ = mid$(cur_tok$, 2)
+;     gosub check_hex
+;     return
+;    bend
 ; 
 ; 
+;   ' check binary value
+;   ' - - - - - - - - -
+;   if left$(cur_tok$, 1) = "%" then begin
+;     bi$ = mid$(cur_tok$, 2)
+;     gosub check_binary
+;     return
+;   bend
+    clc
+    rts
+
+;----------------------
+check_expect_label_next:
+;----------------------
+;  input: cur_tok
+;  output expecting_label
+
+;   ' are we expecting a label next?
+;   ' - - - - - - - - - - - - - - -
+;   if cur_tok$ = "goto" or cur_tok$ = "gosub" or cur_tok$ = "trap" then begin
+;     expecting_label = 1
+;   bend
+    rts
+
+
+;------------------------
+check_mark_expected_label:
+;------------------------
+; input:
+;  - expecting_label
+;  - dont_mark_label
+;  - cur_tok
+;
+; output:
+;  - expecting_label
+;  - cur_tok (may have '@pi' markers added to front and end of it)
+;      (the mk$ markers are used later in pass2 to sub out labels for line-no's)
+
+;   ' check if we should mark this expected label
+;   ' - - - - - - - - - - - - - - - - - - - - - -
+;   if expecting_label and dont_mark_label = 0 then begin
+;     gosub mark_cur_tok$_label
+;     expecting_label = 0
+;     return  ' replace label
+;   bend
+    rts
+
+u16result:
+!word $0000
+
+;---------------------
+get_u16_val_of_cur_tok:
+;---------------------
+; input: cur_tok
+; output:
+;   - u16result
+;   - C = 0 (token is a valid number)
+;   - C = 1 (token appears not to be a number)
+
+  ; initialise result to zero
+  +assign_u16v_eq_imm u16result, $00
+
+  ldy cur_tok   ; holds the length
+  tya
+  tax
+  ; iterate over each column
+@loop_next_char:
+  cpy #$00
+  beq @skip
+    lda cur_tok,x
+    sta cur_char
+    ; check if char in '0' to '9' range
+    +check_09_range
+
+    phx
+
+    dey
+    tya
+    jsr get_column_value
+    iny
+
+    phy
+    ; multiply char-value - '0' by column_values
+    lda cur_char
+    sec
+    sbc #'0'
+    +multiply_a_by_column_value
+
+    ; add to total
+    +add_multout_to_u16result
+
+    ply
+    dey
+    plx
+    inx
+  bne @loop_next_char
+@skip
+
+  clc
+  rts
+
+;-------------------
+decimal_number_check:
+;-------------------
+;  input: cur_tok
+;  output:
+;    - expecting_label = 0 (if we assured this token is just a number)
+;    - cur_tok = "." (if this token was just "0", optimize it to ".")
+
+;   ' decimal number check
+;   ' - - - - - - - - - -
+;   if val(cur_tok$) <> 0 then begin
+    jsr get_u16_val_of_cur_tok
+    bcs +
+    lda u16result
+    ora u16result+1
+    beq +
+;     expecting_label = 0
+      +assign_u8v_eq_imm expecting_label, $00
+;     return  ' never change numbers
+      rts
+;   bend
++:
+; 
+;   if cur_tok$ = "0" then begin
+    +CMP_U8V_TO_IMM cur_tok, $01
+    bne @skip
+    +CMP_U8V_TO_IMM cur_tok+1, '0'
+    bne @skip
+;     cur_tok$="."
+    +assign_u8v_eq_imm cur_tok+1, '.'
+;     return  ' stupid ms basic optimization
+;   bend
+@skip;
+    rts
+
+
 ; '---------------------------------------
 ; .check_if_command_triggers_shitty_syntax
 ; '---------------------------------------

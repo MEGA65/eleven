@@ -362,15 +362,37 @@ test__parse_declared_var:
 ;----------------------------
 test__replace_vars_and_labels:
 ;----------------------------
-  sec
+  // NOTE: This test relies on the prior "test__add_to_label_table:" adding the
+  // label ".testlabel1" into the label table already
+
+  +set_string f_str, "a$(testlabel1)"
+  ; this will set s_ptr to point to it too
+
+  jsr replace_vars_and_labels
+
+  bra +
+@expected:
+!pet "a$(5)",$00
++:
+
+  +assign_u16v_eq_u16v s_ptr, var_name
+  +STR_MATCH_TO_SPTR @expected
+  bcc +
+  +FAIL_REASON "s_ptr != 'a$(5)'"
+  rts
++:
+  
+  clc
   rts
 
 
 ;----------------------------
 test__check_token_for_subbing:
 ;----------------------------
+  ; TODO: Handle this routine next.............
   sec
   rts
+
 
 
 ;-----------------------
@@ -700,6 +722,59 @@ test__declare_dimension_check:
   
   clc
   rts
+
+
+;-------------------------
+test__decimal_number_check:
+;-------------------------
+  +assign_u16v_eq_addr s_ptr, cur_tok
+
+  ; SCEN1: cur_tok = "5"
+  ; - - - - - - - - -
+  +assign_u8v_eq_imm cur_line_len, $00
+  jsr print_inline_text_to_str
+@expected1:
+!pet $01, "5", $00  ; length-encoded in first byte
+
+  jsr decimal_number_check
+
+  +CMP_U8V_TO_IMM expecting_label, $00
+  beq +
+  +FAIL_REASON "SCEN1: expecting_label != 0"
+  rts
++:
+
+  +STR_MATCH_TO_SPTR @expected1
+  bcc +
+  +FAIL_REASON "SCEN1: s_ptr has not expected value"
+  rts
++:
+
+  ; SCEN2: cur_tok = "0"
+  ; - - - - - - - - -
+  +assign_u8v_eq_imm cur_line_len, $00
+  jsr print_inline_text_to_str
+!pet $01, "0", $00  ; length-encoded in first byte
+
+  jsr decimal_number_check
+
+  +CMP_U8V_TO_IMM expecting_label, $00
+  beq +
+  +FAIL_REASON "SCEN2: expecting_label != 0"
+  rts
+@expected2:
+!pet $01, ".", $00
++:
+
+  +STR_MATCH_TO_SPTR @expected2
+  bcc +
+  +FAIL_REASON "SCEN2: s_ptr has not expected value"
+  rts
++:
+
+  clc
+  rts
+
 
 ; -------
 ; HELPERS

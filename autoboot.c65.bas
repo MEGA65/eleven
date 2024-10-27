@@ -154,6 +154,7 @@
  1590 do:loop
  1600 :
  1610 rem --- quick and dirty attic ram sanity check
+ 1615 return
  1620 print "checking attic ram sanity";
  1630 a=$30000:b=$8000000
  1640 edma 0,$10000,a,b

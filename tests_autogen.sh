@@ -1,6 +1,6 @@
 #!/bin/sh
 rm -f tests_autogen.asm
-results=($(grep -o "\btest__[a-zA-Z0-9_]*:" 11.parse.test.asm | sed "s/://g"))
+results=($(grep -o "^\btest__[a-zA-Z0-9_]*:" 11.parse.test.asm | sed "s/://g"))
 
 exec 3>&1
 
