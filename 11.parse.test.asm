@@ -822,7 +822,7 @@ test__mark_cur_tok_label:
 ;-----------------------
   +assign_u16v_eq_addr s_ptr, cur_tok
 
-  ; SCEN1: cur_tok = "5"
+  ; SCEN1: cur_tok = "dummy", expecting markers added on both ends
   ; - - - - - - - - -
   +assign_u8v_eq_imm cur_line_len, $00
   jsr print_inline_text_to_str
@@ -838,6 +838,44 @@ test__mark_cur_tok_label:
   +STR_MATCH_TO_SPTR @expected
   bcc +
   +FAIL_REASON "s_ptr has not expected value"
+  rts
++:
+
+  clc
+  rts
+
+
+;----------------------------
+test__check_expect_label_next:
+;----------------------------
+  ; SCEN1: cur_tok = "gosub", so expect_label_next flag should be set
+  ; - - - - - - - - -
+  +assign_u8v_eq_imm expecting_label, $00
+  +assign_u16v_eq_addr s_ptr, cur_tok
+  +assign_u8v_eq_imm cur_line_len, $00
+  jsr print_inline_text_to_str
+!pet $05, "gosub", $00  ; length-encoded in first byte
+
+  jsr check_expect_label_next
+
+  +CMP_U8V_TO_IMM expecting_label, $01
+  beq +
+  +FAIL_REASON "SCEN1: expecting_label == 1"
+  rts
++:
+
+  ; SCEN2: cur_tok = "blah", so expect_label_next flag should = 0
+  ; - - - - - - - - -
+  +assign_u8v_eq_imm expecting_label, $00
+  +assign_u8v_eq_imm cur_line_len, $00
+  jsr print_inline_text_to_str
+!pet $04, "blah", $00  ; length-encoded in first byte
+
+  jsr check_expect_label_next
+
+  +CMP_U8V_TO_IMM expecting_label, $00
+  beq +
+  +FAIL_REASON "SCEN2: expecting_label == 0"
   rts
 +:
 

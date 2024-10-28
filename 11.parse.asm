@@ -2542,9 +2542,28 @@ check_expect_label_next:
 
 ;   ' are we expecting a label next?
 ;   ' - - - - - - - - - - - - - - -
+    bra +
+@exp1:
+!pet $04, "goto", $00
+@exp2:
+!pet $05, "gosub", $00
+@exp3:
+!pet $04, "trap", $00
++:
+
 ;   if cur_tok$ = "goto" or cur_tok$ = "gosub" or cur_tok$ = "trap" then begin
+    +STR_MATCH_TO_SPTR @exp1
+    bcc +
+    +STR_MATCH_TO_SPTR @exp2
+    bcc +
+    +STR_MATCH_TO_SPTR @exp3
+    bcc +
+    bra ++
++:
 ;     expecting_label = 1
+      +assign_u8v_eq_imm expecting_label, $01
 ;   bend
+++:
     rts
 
 
