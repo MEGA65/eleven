@@ -776,6 +776,41 @@ test__decimal_number_check:
   rts
 
 
+;------------------------------
+test__check_mark_expected_label:
+;------------------------------
+  sec
+  rts
+
+
+;-----------------------
+test__mark_cur_tok_label:
+;-----------------------
+  +assign_u16v_eq_addr s_ptr, cur_tok
+
+  ; SCEN1: cur_tok = "5"
+  ; - - - - - - - - -
+  +assign_u8v_eq_imm cur_line_len, $00
+  jsr print_inline_text_to_str
+!pet $05, "dummy", $00  ; length-encoded in first byte
+
+  jsr mark_cur_tok_label
+  
+  bra +
+@expected:
+!pet $09, "@", $7e, "dummy", "@", $7e, $00
++:
+
+  +STR_MATCH_TO_SPTR @expected
+  bcc +
+  +FAIL_REASON "SCEN2: s_ptr has not expected value"
+  rts
++:
+
+  clc
+  rts
+
+
 ; -------
 ; HELPERS
 ; -------

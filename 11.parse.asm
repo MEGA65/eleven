@@ -2564,10 +2564,18 @@ check_mark_expected_label:
 ;   ' check if we should mark this expected label
 ;   ' - - - - - - - - - - - - - - - - - - - - - -
 ;   if expecting_label and dont_mark_label = 0 then begin
+    +CMP_U8V_TO_IMM expecting_label, $00
+    beq +
+    +CMP_U8V_TO_IMM dont_mark_label, $01
+    beq +
 ;     gosub mark_cur_tok$_label
+      jsr mark_cur_tok_label
 ;     expecting_label = 0
+      +assign_u8v_eq_imm expecting_label, $00
 ;     return  ' replace label
+      rts
 ;   bend
++:
     rts
 
 u16result:
@@ -2666,13 +2674,54 @@ decimal_number_check:
 ;   ' check if command triggers shitty syntax mode
 ;   ' todo: compare ubik's logic here versus my own 4079 lc$="dopen" logic
 ;   return
-; 
-; 
-; '-------------
-; .mark_cur_tok$_label
-; '-------------
+
+
+;-----------------
+mark_cur_tok_label:  ; mark_cur_tok$_label
+;-----------------
+;  input: cur_tok
+;  output: cur_tok = mk$ + cur_tok$ + mk$
+
 ;   cur_tok$ = mk$ + cur_tok$ + mk$
+    ldy cur_tok   ; current length
+    bne +
+    rts   ; if length is non-zero, bail out
++:
+    dey
+    tya
+    tax
+    inx
+    inx
+
+@loop_next_char:
+    lda cur_tok+1,y
+    sta cur_tok+1,x
+    dex
+    dey
+    bpl @loop_next_char
+
+    ; add to start: mk$ = "@{x7E}"  ' @ and pi
+    lda #'@'
+    sta cur_tok+1
+    lda #$7e  ; pi
+    sta cur_tok+2
+
+    ; add to end: mk$ = "@{x7E}"  ' @ and pi
+    inc cur_tok
+    inc cur_tok
+    ldy cur_tok
+
+    lda #'@'
+    sta cur_tok+1,y
+    lda #$7e
+    sta cur_tok+2,y
+    lda #$00
+    sta cur_tok+3,y
+
+    inc cur_tok
+    inc cur_tok
 ;   return
+    rts
 ; 
 ; 
 ; '-------------------------------
