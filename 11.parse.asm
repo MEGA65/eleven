@@ -2240,7 +2240,11 @@ dbl_quote_check:
         ; if this a starting quote?
 ;       if quote_flag = 1 then begin
         beq @skip_to_else
+          lda cur_char
+          pha
           jsr add_subbed_curtok_to_astr
+          pla
+          sta cur_char
 
           jsr add_curchar_to_astr
           sec  ; trigger for's continue
@@ -2538,7 +2542,7 @@ check_hex_and_binary_value:
 check_expect_label_next:
 ;----------------------
 ;  input: cur_tok
-;  output expecting_label
+;  output: expecting_label
 
 ;   ' are we expecting a label next?
 ;   ' - - - - - - - - - - - - - - -
