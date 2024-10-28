@@ -779,7 +779,41 @@ test__decimal_number_check:
 ;------------------------------
 test__check_mark_expected_label:
 ;------------------------------
-  sec
+  ; SCEN1: expecting label, but don't mark label (cur_tok should stay the same)
+  ; - - - - - - -
+  +assign_u8v_eq_imm expecting_label, $01
+  +assign_u8v_eq_imm dont_mark_label, $01
+
+  +assign_u16v_eq_addr s_ptr, cur_tok
+  +assign_u8v_eq_imm cur_line_len, $00
+  jsr print_inline_text_to_str
+@expected1:
+!pet $05, "dummy", $00  ; length-encoded in first byte
+
+  jsr check_mark_expected_label
+
+  +STR_MATCH_TO_SPTR @expected1
+  bcc +
+  +FAIL_REASON "SCEN1: s_ptr has not expected value"
+  rts
+@expected2:
+!pet $09, "@", $7e, "dummy", "@", $7e, $00
++:
+
+  ; SCEN2: expecting label, and we can mark label (cur_tok should add mk$ markers)
+  ; - - - - - - -
+  +assign_u8v_eq_imm expecting_label, $01
+  +assign_u8v_eq_imm dont_mark_label, $00
+
+  jsr check_mark_expected_label
+
+  +STR_MATCH_TO_SPTR @expected2
+  bcc +
+  +FAIL_REASON "SCEN2: s_ptr has not expected value"
+  rts
++:
+
+  clc
   rts
 
 
@@ -803,7 +837,7 @@ test__mark_cur_tok_label:
 
   +STR_MATCH_TO_SPTR @expected
   bcc +
-  +FAIL_REASON "SCEN2: s_ptr has not expected value"
+  +FAIL_REASON "s_ptr has not expected value"
   rts
 +:
 
