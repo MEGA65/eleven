@@ -39,7 +39,7 @@
     sta parser_error
     sta cur_line_len
     +assign_u16v_eq_addr s_ptr, parser_error
-  jsr print_inline_text_to_str
+    jsr append_inline_text_to_str
 !pet $0d,150,$09,.txt,$0d,$05,$00
 
   lda #$01
@@ -365,7 +365,7 @@ test__replace_vars_and_labels:
   // NOTE: This test relies on the prior "test__add_to_label_table:" adding the
   // label ".testlabel1" into the label table already
 
-  +set_string f_str, "a$(testlabel1)"
+  +SET_STRING f_str, "a$(testlabel1)"
   ; this will set s_ptr to point to it too
 
   jsr replace_vars_and_labels
@@ -400,12 +400,12 @@ test__add_curtok_to_astr:
 ;-----------------------
   +assign_u16v_eq_addr s_ptr, a_str
   +assign_u8v_eq_imm cur_line_len, $00
-  jsr print_inline_text_to_str
+  jsr append_inline_text_to_str
 !pet $06, "hello ", $00  ; length-encoded in first byte
 
   +assign_u16v_eq_addr s_ptr, cur_tok
   +assign_u8v_eq_imm cur_line_len, $00
-  jsr print_inline_text_to_str
+  jsr append_inline_text_to_str
 !pet $05, "world", $00  ; length-encoded in first byte
 
   jsr add_curtok_to_astr
@@ -437,7 +437,7 @@ test__add_curchar_to_astr:
 ;------------------------
   +assign_u16v_eq_addr s_ptr, a_str
   +assign_u8v_eq_imm cur_line_len, $00
-  jsr print_inline_text_to_str
+  jsr append_inline_text_to_str
 !pet $04, "hell", $00  ; length-encoded in first byte
 
   lda #'O'
@@ -460,7 +460,7 @@ test__add_curchar_to_curtok:
 ;------------------------
   +assign_u16v_eq_addr s_ptr, cur_tok
   +assign_u8v_eq_imm cur_line_len, $00
-  jsr print_inline_text_to_str
+  jsr append_inline_text_to_str
 !pet $04, "hell", $00  ; length-encoded in first byte
 
   lda #'O'
@@ -483,8 +483,8 @@ test__dbl_quote_check:
 ;--------------------
   ; SCEN1: char is not a quote, so do nothing to a_str
   +assign_u8v_eq_imm cur_char, 'z'
-  +set_lstring a_str, $02, "xy"
-  +set_lstring cur_tok, $05, "token"
+  +SET_LSTRING a_str, $02, "xy"
+  +SET_LSTRING cur_tok, $05, "token"
   +assign_u8v_eq_imm quote_flag, $00
 
   jsr dbl_quote_check
@@ -583,7 +583,7 @@ test__add_subbed_curtok_to_astr:
 ;--------------------
 test__parse_arguments:
 ;--------------------
-  +set_string f_str, "  a=1  ,b=2  ,c = 3"
+  +SET_STRING f_str, "  a=1  ,b=2  ,c = 3"
   ; this will set s_ptr to point to it too
 
   jsr parse_arguments
@@ -627,7 +627,7 @@ test__add_trimmed_args:
 
   +assign_u16v_eq_addr s_ptr, tempheap
   +assign_u8v_eq_imm cur_line_len, $00
-  jsr print_inline_text_to_str
+  jsr append_inline_text_to_str
 !pet "  a=1  ", $00
 
   bra +
@@ -655,7 +655,7 @@ test__declare_assignment_check:
 ;-----------------------------
   +assign_u8v_eq_imm equals_idx, $02
 
-  +set_string f_str, "a = 1"
+  +SET_STRING f_str, "a = 1"
   ; this will set s_ptr to point to it too
 
   +assign_u16v_eq_addr var_name, f_str
@@ -691,7 +691,7 @@ test__declare_assignment_check:
 ;----------------------------
 test__declare_dimension_check:
 ;----------------------------
-  +set_string f_str, "fish$(10)"
+  +SET_STRING f_str, "fish$(10)"
   +assign_u16v_eq_addr var_name, f_str
 
   +assign_u8v_eq_imm bkt_open_idx, $05
@@ -732,7 +732,7 @@ test__decimal_number_check:
   ; SCEN1: cur_tok = "5"
   ; - - - - - - - - -
   +assign_u8v_eq_imm cur_line_len, $00
-  jsr print_inline_text_to_str
+  jsr append_inline_text_to_str
 @expected1:
 !pet $01, "5", $00  ; length-encoded in first byte
 
@@ -753,7 +753,7 @@ test__decimal_number_check:
   ; SCEN2: cur_tok = "0"
   ; - - - - - - - - -
   +assign_u8v_eq_imm cur_line_len, $00
-  jsr print_inline_text_to_str
+  jsr append_inline_text_to_str
 !pet $01, "0", $00  ; length-encoded in first byte
 
   jsr decimal_number_check
@@ -786,7 +786,7 @@ test__check_mark_expected_label:
 
   +assign_u16v_eq_addr s_ptr, cur_tok
   +assign_u8v_eq_imm cur_line_len, $00
-  jsr print_inline_text_to_str
+  jsr append_inline_text_to_str
 @expected1:
 !pet $05, "dummy", $00  ; length-encoded in first byte
 
@@ -825,7 +825,7 @@ test__mark_cur_tok_label:
   ; SCEN1: cur_tok = "dummy", expecting markers added on both ends
   ; - - - - - - - - -
   +assign_u8v_eq_imm cur_line_len, $00
-  jsr print_inline_text_to_str
+  jsr append_inline_text_to_str
 !pet $05, "dummy", $00  ; length-encoded in first byte
 
   jsr mark_cur_tok_label
@@ -851,10 +851,7 @@ test__check_expect_label_next:
   ; SCEN1: cur_tok = "gosub", so expect_label_next flag should be set
   ; - - - - - - - - -
   +assign_u8v_eq_imm expecting_label, $00
-  +assign_u16v_eq_addr s_ptr, cur_tok
-  +assign_u8v_eq_imm cur_line_len, $00
-  jsr print_inline_text_to_str
-!pet $05, "gosub", $00  ; length-encoded in first byte
+  +SET_LSTRING cur_tok, $05, "gosub"
 
   jsr check_expect_label_next
 
@@ -868,7 +865,7 @@ test__check_expect_label_next:
   ; - - - - - - - - -
   +assign_u8v_eq_imm expecting_label, $00
   +assign_u8v_eq_imm cur_line_len, $00
-  jsr print_inline_text_to_str
+  jsr append_inline_text_to_str
 !pet $04, "blah", $00  ; length-encoded in first byte
 
   jsr check_expect_label_next
@@ -877,6 +874,48 @@ test__check_expect_label_next:
   beq +
   +FAIL_REASON "SCEN2: expecting_label == 0"
   rts
++:
+
+  clc
+  rts
+
+
+;-------------------------------
+test__check_hex_and_binary_value:
+;-------------------------------
+  ; SCEN1: Valid hex
+  ; - - - - - - - -
+  +SET_STRING parser_error, ""
+  +SET_LSTRING cur_tok, $05, "$ABCD"
+
+  jsr check_hex_and_binary_value
+
+  ; confirm parser_error is still "" (input was valid hex)
+  lda parser_error 
+  beq + ; null-terminator?
+  +FAIL_REASON "SCEN1: parser error found"
++:
+
+  ; SCEN2: Valid hex (in lowercase)
+  ; - - - - - - - -
+  +SET_LSTRING cur_tok, $06, "$abcd"
+
+  jsr check_hex_and_binary_value
+
+  lda parser_error 
+  beq + ; null-terminator?
+  +FAIL_REASON "SCEN2: parser error found"
++:
+
+  ; SCEN3: Invalid hex
+  ; - - - - - - - -
+  +SET_LSTRING cur_tok, $05, "$EFGH"
+
+  jsr check_hex_and_binary_value
+
+  lda parser_error 
+  bne + ; null-terminator?
+  +FAIL_REASON "SCEN3: expected parser error"
 +:
 
   clc

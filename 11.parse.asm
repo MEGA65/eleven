@@ -30,12 +30,16 @@ basic_end:
 ;         - bit4: verbose flag
 ;         - bit5-7: reserved
 ; 4.FF08  error number to be displayed (>128 are preprocessor errors)
+;   - 131 = illegal hex value
+;   - 132 = illegal binary value
+;     (but editor doesn't make use of this number as yet)
 ; 4.FF09  (2 bytes) line number for autojump
 ;
 ; 4.FF10  current file name
 ; 4.FF20  output file name
 ;
-; 4.FF30- reserved
+; 4.FF30- parser error message string
+
 ; 4.FF7F
 ;
 ; Attic RAM cache usage
@@ -65,10 +69,63 @@ basic_end:
 ; $803,00yy  BYTE[LEN]  Chars for Line 2
 ; ...
 
+!convtab pet  ; assure string/chars have lower(65-90) and upper (97-122)
 
 ; ------
 ; MACROS
 ; ------
+!macro APPEND_INLINE_TO_S_PTR .txt {
+  jsr append_inline_text_to_str
+!pet .txt, $00
+}
+
+!macro CMP_U8V_IN_IMM_RANGE .var, .val1, .val2 {
+  lda .var
+  cmp #.val2
+  bcc +   ; valid (less than max)
+  beq +   ; valid (equal to max)
+  bra ++  ; invalid
++:
+  cmp #.val1
+  bcc ++   ; invalid
+
+  clc
+  bra +++   ; move on
+
+++:  ; invalid
+  sec
++++:
+}
+
+!macro APPEND_UINT_TO_S_PTR .uint {
+    lda #$01
+    sta to_str_flag
+    ldx .uint
+    ldy .uint+1
+    jsr print_uint
+    lda #$00
+    sta to_str_flag
+    ldy cur_line_len  ; append null-terminator
+    sta (s_ptr),y
+}
+
+!macro APPEND_STR_TO_S_PTR .var {
+    lda #<.var
+    sta ret_ptr_lo
+    lda #>.var
+    sta ret_ptr_hi
+    jsr append_text_to_str
+}
+
+!macro POKEB4 .addr, .val {
+    lda #<.addr
+    sta FOURPTR
+    lda #>.addr
+    sta FOURPTR+1
+    ldz #$00
+    lda #.val
+    sta [FOURPTR],z
+}
 
 !macro check_09_range {
     cmp #'0'
@@ -112,17 +169,17 @@ basic_end:
   cmp #.val
 }
 
-!macro set_lstring .var, .len, .val {
+!macro SET_LSTRING .var, .len, .val {
   +assign_u16v_eq_addr s_ptr, .var
   +assign_u8v_eq_imm cur_line_len, $00
-  jsr print_inline_text_to_str
+  jsr append_inline_text_to_str
 !pet .len, .val, $00  ; length-encoded in first byte
 }
 
-!macro set_string .var, .val {
+!macro SET_STRING .var, .val {
   +assign_u16v_eq_addr s_ptr, .var
   +assign_u8v_eq_imm cur_line_len, $00
-  jsr print_inline_text_to_str
+  jsr append_inline_text_to_str
 !pet .val, $00
 }
 
@@ -517,9 +574,9 @@ print_inline_text:
   pha
   rts
 
-;-----------------------
-print_inline_text_to_str:
-;-----------------------
+;------------------------
+append_inline_text_to_str:
+;------------------------
   pla
   clc
   adc #$01
@@ -528,7 +585,7 @@ print_inline_text_to_str:
   adc #$00
   sta ret_ptr_hi
 
-  jsr print_text_to_str
+  jsr append_text_to_str
 
   lda ret_ptr_hi
   pha
@@ -553,9 +610,9 @@ print_text:
 @found_null:
   rts
 
-;---------
-print_text_to_str:
-;---------
+;-----------------
+append_text_to_str:
+;-----------------
   ldx #$00
   lda (ret_ptr_lo,x)
   beq @found_null
@@ -565,9 +622,9 @@ print_text_to_str:
   inc cur_line_len
 
   inc ret_ptr_lo
-  bne print_text_to_str
+  bne append_text_to_str
   inc ret_ptr_hi
-  bne print_text_to_str
+  bne append_text_to_str
 
 @found_null:
   ldy cur_line_len  ; add null terminator
@@ -1127,7 +1184,7 @@ declare_s_ptr_var:  ; declare_s$_var
     sta parser_error
     sta cur_line_len
     +assign_u16v_eq_addr s_ptr, parser_error
-    jsr print_inline_text_to_str
+    jsr append_inline_text_to_str
 
 !pet "?declare parameter missing in line ", $00
 
@@ -2394,12 +2451,20 @@ check_token_for_subbing:
 
     jsr check_dumb_commands
 
-; .unresolved_cur_tok$
+unresolved_cur_tok:
 ;   parser_error$ = "?unresolved identifier: '" + cur_tok$ + "' in line " + str$(cur_src_lineno)
+  +SET_STRING parser_error, "?unresolved identifier: '"
+  +APPEND_STR_TO_S_PTR cur_tok
+  +APPEND_INLINE_TO_S_PTR "' in line "
+  +APPEND_UINT_TO_S_PTR cur_src_lineno
+
 ;   sleep 1
+!ifdef RUN_TESTS {
+    rts   ; bail back to test system
+} else {
 ;   goto return_to_editor_with_error
-;   return
-    rts
+    jmp return_to_editor_with_error
+}
 
 
 ;------------------
@@ -2522,10 +2587,21 @@ check_hex_and_binary_value:
 ;   ' check hex value
 ;   ' - - - - - - - -
 ;   if left$(cur_tok$, 1) = "$" then begin
+    +CMP_U8V_TO_IMM cur_tok+1, '$'
+    bne +
+      +assign_u16v_eq_addr tmp_ptr, cur_tok
 ;     hx$ = mid$(cur_tok$, 2)
+      ldx cur_tok
+      dex
+      stx cur_line_len
+      inc tmp_ptr ; skip length-byte
+      inc tmp_ptr ; skip first char
 ;     gosub check_hex
+      jsr check_hex
 ;     return
+      rts
 ;    bend
++:
 ; 
 ; 
 ;   ' check binary value
@@ -2785,24 +2861,52 @@ mark_cur_tok_label:  ; mark_cur_tok$_label
 ;   return
 ; 
 ; 
-; '---------
-; .check_hex
-; '---------
+;--------
+check_hex:
+;--------
 ;   trap illegal_hex_handler
 ;   vl = dec(hx$)
 ;   trap
+    ldy #$00
+@loop_next_char:
+    cpy cur_line_len
+    beq @bail_out
+
+    lda (tmp_ptr),y
+    sta cur_char
+
+    +CMP_U8V_IN_IMM_RANGE cur_char, '0', '9'
+    bcc @valid
+    +CMP_U8V_IN_IMM_RANGE cur_char, 'a', 'f'
+    bcc @valid
+    +CMP_U8V_IN_IMM_RANGE cur_char, 'A', 'F'
+    bcc @valid
+ 
+ @invalid:
+    jmp illegal_hex_handler
+
+@valid:
+    iny
+    bra @loop_next_char
+
+@bail_out:
 ;   return
-; 
-; 
-; '-------------------
-; .illegal_hex_handler
-; '-------------------
+    rts
+
+
+;------------------
+illegal_hex_handler:
+;------------------
 ;   trap
 ;   bank 4
 ;   poke $ff08, 131  ' set illegal hex
+
+    +POKEB4 $ff08, 131
+
 ;   goto unresolved_cur_tok$  ' jump into error handler
-; 
-; 
+    jmp unresolved_cur_tok
+
+
 ; '----------------
 ; .generate_varname
 ; '----------------
