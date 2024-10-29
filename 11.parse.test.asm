@@ -355,6 +355,8 @@ test__add_to_label_table:
 ;----------------------------
 test__add_varname_to_vartable:
 ;----------------------------
+  ; SCEN1: add a string var
+  ; -----------------------
   +ASSIGN_STRING_PTR_TO_IMM var_name, "fishy$"
   +ASSIGN_U8V_EQ_IMM ty, TYP_STR
 
@@ -372,10 +374,32 @@ test__add_varname_to_vartable:
 
   +CMP_S_PTR_TO_IMM "fishy$"
   bcc +
-  +FAIL_REASON "var not found in var table"
+  +FAIL_REASON "SCEN1: string var not found in var table"
   rts
 +:
 
+  ; SCEN2: add an int var
+  ; ----------------------
+  +ASSIGN_STRING_PTR_TO_IMM var_name, "dishy%"
+  +ASSIGN_U8V_EQ_IMM ty, TYP_INT
+
+  jsr add_varname_to_vartable
+
+  +SET_IS_PTR_TO_VARTABLE_AT_TY_IDX
+  +UPDATE_IS_STR_TO_LATEST_ELEMENT_COUNT_IDX
+  
+  ldy #$00
+  lda (is_ptr),y
+  sta s_ptr
+  iny
+  lda (is_ptr),y
+  sta s_ptr+1
+
+  +CMP_S_PTR_TO_IMM "dishy%"
+  bcc +
+  +FAIL_REASON "SCEN2: int var not found in var table"
+  rts
++:
   clc
   rts
 
