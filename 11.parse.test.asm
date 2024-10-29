@@ -440,7 +440,7 @@ test__add_curchar_to_astr:
   jsr append_inline_text_to_str
 !pet $04, "hell", $00  ; length-encoded in first byte
 
-  lda #'O'
+  lda #'o'
   sta cur_char
 
   jsr add_curchar_to_astr
@@ -463,7 +463,7 @@ test__add_curchar_to_curtok:
   jsr append_inline_text_to_str
 !pet $04, "hell", $00  ; length-encoded in first byte
 
-  lda #'O'
+  lda #'o'
   sta cur_char
 
   jsr add_curchar_to_curtok
