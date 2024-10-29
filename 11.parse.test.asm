@@ -950,6 +950,35 @@ test__check_hex_and_binary_value:
   rts
 
 
+;--------------------------------
+test__check_ignore_existing_vocab:
+;--------------------------------
+  ; SCEN1: not in vocab
+  ; - - - - - - - -
+  +SET_LSTRING cur_tok, $08, "fishy"
+
+  jsr check_ignore_existing_vocab
+
+  bcc +
+  +FAIL_REASON "SCEN1: wasn't expecting token in vocab"
+  rts
++:
+
+  ; SCEN2: in vocab
+  ; - - - - - - - -
+  +SET_LSTRING cur_tok, $08, "tron"
+
+  jsr check_ignore_existing_vocab
+
+  bcs +
+  +FAIL_REASON "SCEN2: was expecting token in vocab"
+  rts
++:
+
+  clc
+  rts
+
+
 ; -------
 ; HELPERS
 ; -------

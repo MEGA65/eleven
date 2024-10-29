@@ -117,6 +117,16 @@ basic_end:
     jsr append_text_to_str
 }
 
+!macro COPY_STR .var1, .var2 {
+    +assign_u16v_eq_addr s_ptr, .var1
+    +ASSIGN_U8V_EQ_IMM cur_line_len, $00
+    lda #<.var2
+    sta ret_ptr_lo
+    lda #>.var2
+    sta ret_ptr_hi
+    jsr append_text_to_str
+}
+
 !macro POKEB4 .addr, .val {
     lda #<.addr
     sta FOURPTR
@@ -178,6 +188,13 @@ basic_end:
 
 !macro SET_STRING .var, .val {
   +assign_u16v_eq_addr s_ptr, .var
+  +ASSIGN_U8V_EQ_IMM cur_line_len, $00
+  jsr append_inline_text_to_str
+!pet .val, $00
+}
+
+!macro SET_STRING_PTR .var, .val {
+  +assign_u16v_eq_u16v s_ptr, .var
   +ASSIGN_U8V_EQ_IMM cur_line_len, $00
   jsr append_inline_text_to_str
 !pet .val, $00
@@ -246,10 +263,22 @@ basic_end:
 }
 
 
-!macro cmp_preproc_str .str {
-;   if instr(cur_src_line$, "ifdef") = 2 then begin
+!macro CMP_S_PTR_TO_STR .str {
     ldx #<.str
     ldy #>.str
+    lda s_ptr
+    ldz s_ptr+1
+    jsr instr
+}
+
+!macro CMP_S_PTR_TO_IMM .str {
+  bra +
+@imm_str:
+!pet .str, $00
++:
+;   if instr(cur_src_line$, "ifdef") = 2 then begin
+    ldx #<@imm_str
+    ldy #>@imm_str
     lda s_ptr
     ldz s_ptr+1
     jsr instr
@@ -315,7 +344,9 @@ HEAPPTR = $23 ; $23-$24  (pointer to free location of heap)
 TMPHEAPPTR = $25 ;  $25-$26
 TESTPTR = $27 ; $27-$28
 
+;---------
 initialise:
+;---------
   sei
 
   lda #$00
@@ -348,6 +379,8 @@ initialise:
 ; #declare var_table$(4,200)             ' variable table per type
   ; ptr to memory for array (4*200*2 = 1600 bytes in size, $640)
   +alloc var_table, 4*200*2
+
+  jsr init_tokens
 
   tsx
   stx bailout_stack_pos
@@ -413,6 +446,11 @@ cur_char:
 
 ; #declare mk$, dbl_quote_char, sngl_quote_char
 ; #declare tokens$(10), dumb_cmds$, i
+dumb_cmds:
+!fill 256, $00
+tokens:
+TKN_STR_CNT = 7
+!fill TKN_STR_CNT*256, $00   ; allocated strings
 ; #declare bin_conv(16)  ' bit shifter's fast binary conversion
 ; 
 ; #declare map_dest_to_src_lineno%(1000) ' dest file line nr --> src file line nr
@@ -518,7 +556,9 @@ expecting_label:
 !byte $00
 a_str:
 !fill 256, $00  ; length-encoded string of max 255 bytes
-; #declare t, lc$, found_struct_idx, br, b, bc$, vl
+; #declare t, found_struct_idx, br, b, bc$, vl
+lc:
+!fill 16, $00
 ; #declare n1, n2, ba, a, ad, tf$, found_idx, k, sf$, sf
 ; #declare src_line_ptr, src_linebuff_ptr
 cur_line_len:
@@ -529,6 +569,8 @@ cut_tail_idx:
 ; #declare cur_line_len_minus_one, cur_linebuff_addr, chr
 ; #declare co$, ridx, sk$, bl, sz, sr, sm, zz$
 ; #declare cont_next_line_flag, tok_name$, clean_varname$
+tok_name:
+!fill 32, $00
 ; #declare shitty_syntax_flag, zz
 shitty_syntax_flag:
 !byte $00
@@ -857,7 +899,28 @@ print_str:
 @bail_out:
   rts
 
+
+;----------
+init_tokens:
+;----------
+  +SET_STRING tokens + 0 * 256, " print input if then else do loop while until gosub goto open close dopen dclose for next getkey hex$ dim peek poke wait dec chr$ asc sgn sqr str$ graphic clr screen def begin bend len mid$ right$ left$ instr for next step trap border and foreground "
+
+  +SET_STRING tokens + 1 * 256, " background set abs sin cos tan log fre cursor pixel window rwindow line box circle ellipse palette restore data err$ er el cursor on off val scratch return rnd stop bank ti do or st if el er on to pen get end int not ds run using dot "
+
+  +SET_STRING tokens + 2 * 256, " append atn auto backup bload boot bsave bump bverify catalog change char cmd collision color concat cont copy wpoke wpeek setbit clrbit "
+
+  +SET_STRING tokens + 3 * 256, " dclear deffn delete fn dir disk dload dma dmode dpat dsave dverify edma envelope erase exit exp fast filter find go64 header help highlight "
+
+  +SET_STRING tokens + 4 * 256, " joy list load locate lpen mod monitor mouse movspr new paint play pointer polygon pos pot pudef "
+
+  +SET_STRING tokens + 5 * 256, " rcolor rdot read record rem rename resume rgr rmouse rplay rreg rspcolor rsppos rsprite save scnclr sleep slow sound spc sprcolor "
+
+  +SET_STRING tokens + 6 * 256, " sprite sprsav sys tab tempo troff tron type usr verify vol xor key vsync rcursor t@& c@& rgraphic fread pointer "
+
+  +SET_STRING dumb_cmds, " bload bsave dload to save dir collect dopen dclose backup fread get "
+  rts
  
+
 ;----
 main:
 ;----
@@ -883,16 +946,7 @@ main:
 ;   blank_line$ = t$ + t$ + t$
 ;   t$ = ""
 ; 
-; tokens$(0)=" print input if then else do loop while until gosub goto open close dopen dclose for next getkey hex$ dim peek poke wait dec chr$ asc sgn sqr str$"
-;   tokens$(0) = tokens$(0) + " graphic clr screen def begin bend len mid$ right$ left$ instr for next step trap border and foreground "
-;   tokens$(1) = " background set abs sin cos tan log fre cursor pixel window rwindow line box circle ellipse palette restore data err$ er el cursor on off"
-;   tokens$(1) = tokens$(1) + " val scratch return rnd stop bank ti do or st if el er on to pen get end int not ds run using dot "
-;   tokens$(2) = " append atn auto backup bload boot bsave bump bverify catalog change char cmd collision color concat cont copy wpoke wpeek setbit clrbit "
-;   tokens$(3) = " dclear deffn delete fn dir disk dload dma dmode dpat dsave dverify edma envelope erase exit exp fast filter find go64 header help highlight "
-;   tokens$(4) = " joy list load locate lpen mod monitor mouse movspr new paint play pointer polygon pos pot pudef "
-;   tokens$(5) = " rcolor rdot read record rem rename resume rgr rmouse rplay rreg rspcolor rsppos rsprite save scnclr sleep slow sound spc sprcolor "
-;   tokens$(6) = " sprite sprsav sys tab tempo troff tron type usr verify vol xor key vsync rcursor t@& c@& rgraphic fread pointer "
-;   dumb_cmds$ = " bload bsave dload to save dir collect dopen dclose backup fread get "
+
 ; 
 ;   gosub get_filename
   jsr get_filename
@@ -2429,10 +2483,7 @@ check_token_for_subbing:
 ;   if cur_tok$ = "goto" then next_line_flag = 1
     jsr check_expect_label_next
     jsr check_hex_and_binary_value
-    bcc +
-    rts
-+:
-;   tok_name$ = " " + cur_tok$ + " "
+
     jsr check_ignore_existing_vocab
     bcc +
     rts
@@ -2465,6 +2516,15 @@ unresolved_cur_tok:
 ;   goto return_to_editor_with_error
     jmp return_to_editor_with_error
 }
+
+
+;---------------
+prepare_tok_name:
+;---------------
+  +SET_STRING tok_name, " "
+  +APPEND_STR_TO_S_PTR cur_tok+1
+  +APPEND_INLINE_TO_S_PTR " "
+  rts
 
 
 ;------------------
@@ -2563,16 +2623,42 @@ check_ignore_existing_vocab:
 ;  output:
 ;    - C=1 if token exists in vocab
 ;    - C=0 if token doesn't exist in vocab
+;    - lc$ = cur_tok if found in vocab
 
 ;   ' ignore existing vocabulary of functions/commands
 ;   ' - - - - - - - - - - - - - - - - - - - - - - - - 
+;   tok_name$ = " " + cur_tok$ + " "
+    jsr prepare_tok_name
+
+    lda #$00
+    sta ty
 ;   for t = 0 to 6
+@loop_next_ty:
+    +CMP_U8V_TO_IMM ty, TKN_STR_CNT
+    beq @bail_out
+
 ;     if instr(tokens$(t), tok_name$) <> 0 then begin
+      +assign_u16v_eq_addr s_ptr, tokens
+      lda ty
+      clc
+      adc s_ptr+1
+      sta s_ptr+1   ; increment s_ptr to tokens$(ty)
+
+      +CMP_S_PTR_TO_STR tok_name
+      bcs +
 ;       lc$ = cur_tok$
+        +COPY_STR lc, cur_tok
 ;       gosub check_if_command_triggers_shitty_syntax
 ;       return
+        sec
+        rts
 ;     bend
++:
 ;   next
+    inc ty
+    bra @loop_next_ty
+
+@bail_out:
     clc
     rts
 
@@ -2622,7 +2708,6 @@ check_hex_and_binary_value:
       rts
 ;   bend
 +:
-    clc
     rts
 
 ;----------------------
@@ -3480,7 +3565,7 @@ s_define:
 parse_preprocessor_directive
 ;---------------------------
 ;   if instr(cur_src_line$, "ifdef") = 2 then begin
-    +cmp_preproc_str s_ifdef
+    +CMP_S_PTR_TO_STR s_ifdef
     bcs +
     cmp #$01
     bne +
@@ -3503,7 +3588,7 @@ parse_preprocessor_directive
 +:
 ; 
 ;   if instr(cur_src_line$, "endif") = 2 then begin
-    +cmp_preproc_str s_endif
+    +CMP_S_PTR_TO_STR s_endif
     bcs +
     cmp #$01
     bne +
@@ -3521,7 +3606,7 @@ parse_preprocessor_directive
 
 ; 
 ;   if instr(cur_src_line$, "define") = 2 then begin
-    +cmp_preproc_str s_define
+    +CMP_S_PTR_TO_STR s_define
     bcs +
     cmp #$01
     bne +
