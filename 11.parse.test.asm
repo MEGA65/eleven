@@ -399,12 +399,12 @@ test__check_token_for_subbing:
 test__add_curtok_to_astr:
 ;-----------------------
   +assign_u16v_eq_addr s_ptr, a_str
-  +assign_u8v_eq_imm cur_line_len, $00
+  +ASSIGN_U8V_EQ_IMM cur_line_len, $00
   jsr append_inline_text_to_str
 !pet $06, "hello ", $00  ; length-encoded in first byte
 
   +assign_u16v_eq_addr s_ptr, cur_tok
-  +assign_u8v_eq_imm cur_line_len, $00
+  +ASSIGN_U8V_EQ_IMM cur_line_len, $00
   jsr append_inline_text_to_str
 !pet $05, "world", $00  ; length-encoded in first byte
 
@@ -436,7 +436,7 @@ test__add_curtok_to_astr:
 test__add_curchar_to_astr:
 ;------------------------
   +assign_u16v_eq_addr s_ptr, a_str
-  +assign_u8v_eq_imm cur_line_len, $00
+  +ASSIGN_U8V_EQ_IMM cur_line_len, $00
   jsr append_inline_text_to_str
 !pet $04, "hell", $00  ; length-encoded in first byte
 
@@ -459,7 +459,7 @@ test__add_curchar_to_astr:
 test__add_curchar_to_curtok:
 ;------------------------
   +assign_u16v_eq_addr s_ptr, cur_tok
-  +assign_u8v_eq_imm cur_line_len, $00
+  +ASSIGN_U8V_EQ_IMM cur_line_len, $00
   jsr append_inline_text_to_str
 !pet $04, "hell", $00  ; length-encoded in first byte
 
@@ -482,10 +482,10 @@ test__add_curchar_to_curtok:
 test__dbl_quote_check:
 ;--------------------
   ; SCEN1: char is not a quote, so do nothing to a_str
-  +assign_u8v_eq_imm cur_char, 'z'
+  +ASSIGN_U8V_EQ_IMM cur_char, 'z'
   +SET_LSTRING a_str, $02, "xy"
   +SET_LSTRING cur_tok, $05, "token"
-  +assign_u8v_eq_imm quote_flag, $00
+  +ASSIGN_U8V_EQ_IMM quote_flag, $00
 
   jsr dbl_quote_check
 
@@ -503,7 +503,7 @@ test__dbl_quote_check:
 
   ; - - - - - -
   ; SCEN2: char is a starting quote, so a_str += cur_tok + ", cur_tok="", C=0
-  +assign_u8v_eq_imm cur_char, '"'
+  +ASSIGN_U8V_EQ_IMM cur_char, '"'
 
   jsr dbl_quote_check
 
@@ -530,7 +530,7 @@ test__dbl_quote_check:
   ; - - - - - -
   ; SCEN3: char is not quote, but we are in quote mode
   ;        ...so a_str += cur_char, C=1
-  +assign_u8v_eq_imm cur_char, 'S'
+  +ASSIGN_U8V_EQ_IMM cur_char, 'S'
 
   jsr dbl_quote_check
 
@@ -551,7 +551,7 @@ test__dbl_quote_check:
   ; - - - - - -
   ; SCEN4: char is ending quote
   ;        ...so a_str += cur_char, C=1
-  +assign_u8v_eq_imm cur_char, '"'
+  +ASSIGN_U8V_EQ_IMM cur_char, '"'
 
   jsr dbl_quote_check
 
@@ -622,11 +622,11 @@ test__parse_arguments:
 test__add_trimmed_args:
 ;---------------------
   +assign_u16v_eq_addr args, tempheap
-  +assign_u8v_eq_imm arg_idx, $00
-  +assign_u8v_eq_imm arg_cnt, $00
+  +ASSIGN_U8V_EQ_IMM arg_idx, $00
+  +ASSIGN_U8V_EQ_IMM arg_cnt, $00
 
   +assign_u16v_eq_addr s_ptr, tempheap
-  +assign_u8v_eq_imm cur_line_len, $00
+  +ASSIGN_U8V_EQ_IMM cur_line_len, $00
   jsr append_inline_text_to_str
 !pet "  a=1  ", $00
 
@@ -653,7 +653,7 @@ test__add_trimmed_args:
 ;-----------------------------
 test__declare_assignment_check:
 ;-----------------------------
-  +assign_u8v_eq_imm equals_idx, $02
+  +ASSIGN_U8V_EQ_IMM equals_idx, $02
 
   +SET_STRING f_str, "a = 1"
   ; this will set s_ptr to point to it too
@@ -694,8 +694,8 @@ test__declare_dimension_check:
   +SET_STRING f_str, "fish$(10)"
   +assign_u16v_eq_addr var_name, f_str
 
-  +assign_u8v_eq_imm bkt_open_idx, $05
-  +assign_u8v_eq_imm bkt_close_idx, $08
+  +ASSIGN_U8V_EQ_IMM bkt_open_idx, $05
+  +ASSIGN_U8V_EQ_IMM bkt_close_idx, $08
 
   jsr declare_dimension_check
 
@@ -731,7 +731,7 @@ test__decimal_number_check:
 
   ; SCEN1: cur_tok = "5"
   ; - - - - - - - - -
-  +assign_u8v_eq_imm cur_line_len, $00
+  +ASSIGN_U8V_EQ_IMM cur_line_len, $00
   jsr append_inline_text_to_str
 @expected1:
 !pet $01, "5", $00  ; length-encoded in first byte
@@ -752,7 +752,7 @@ test__decimal_number_check:
 
   ; SCEN2: cur_tok = "0"
   ; - - - - - - - - -
-  +assign_u8v_eq_imm cur_line_len, $00
+  +ASSIGN_U8V_EQ_IMM cur_line_len, $00
   jsr append_inline_text_to_str
 !pet $01, "0", $00  ; length-encoded in first byte
 
@@ -781,11 +781,11 @@ test__check_mark_expected_label:
 ;------------------------------
   ; SCEN1: expecting label, but don't mark label (cur_tok should stay the same)
   ; - - - - - - -
-  +assign_u8v_eq_imm expecting_label, $01
-  +assign_u8v_eq_imm dont_mark_label, $01
+  +ASSIGN_U8V_EQ_IMM expecting_label, $01
+  +ASSIGN_U8V_EQ_IMM dont_mark_label, $01
 
   +assign_u16v_eq_addr s_ptr, cur_tok
-  +assign_u8v_eq_imm cur_line_len, $00
+  +ASSIGN_U8V_EQ_IMM cur_line_len, $00
   jsr append_inline_text_to_str
 @expected1:
 !pet $05, "dummy", $00  ; length-encoded in first byte
@@ -802,8 +802,8 @@ test__check_mark_expected_label:
 
   ; SCEN2: expecting label, and we can mark label (cur_tok should add mk$ markers)
   ; - - - - - - -
-  +assign_u8v_eq_imm expecting_label, $01
-  +assign_u8v_eq_imm dont_mark_label, $00
+  +ASSIGN_U8V_EQ_IMM expecting_label, $01
+  +ASSIGN_U8V_EQ_IMM dont_mark_label, $00
 
   jsr check_mark_expected_label
 
@@ -824,7 +824,7 @@ test__mark_cur_tok_label:
 
   ; SCEN1: cur_tok = "dummy", expecting markers added on both ends
   ; - - - - - - - - -
-  +assign_u8v_eq_imm cur_line_len, $00
+  +ASSIGN_U8V_EQ_IMM cur_line_len, $00
   jsr append_inline_text_to_str
 !pet $05, "dummy", $00  ; length-encoded in first byte
 
@@ -850,7 +850,7 @@ test__check_expect_label_next:
 ;----------------------------
   ; SCEN1: cur_tok = "gosub", so expect_label_next flag should be set
   ; - - - - - - - - -
-  +assign_u8v_eq_imm expecting_label, $00
+  +ASSIGN_U8V_EQ_IMM expecting_label, $00
   +SET_LSTRING cur_tok, $05, "gosub"
 
   jsr check_expect_label_next
@@ -863,8 +863,8 @@ test__check_expect_label_next:
 
   ; SCEN2: cur_tok = "blah", so expect_label_next flag should = 0
   ; - - - - - - - - -
-  +assign_u8v_eq_imm expecting_label, $00
-  +assign_u8v_eq_imm cur_line_len, $00
+  +ASSIGN_U8V_EQ_IMM expecting_label, $00
+  +ASSIGN_U8V_EQ_IMM cur_line_len, $00
   jsr append_inline_text_to_str
 !pet $04, "blah", $00  ; length-encoded in first byte
 
@@ -885,7 +885,7 @@ test__check_hex_and_binary_value:
 ;-------------------------------
   ; SCEN1: Valid hex
   ; - - - - - - - -
-  +SET_STRING parser_error, ""
+  +ASSIGN_U8V_EQ_IMM parser_error, $00
   +SET_LSTRING cur_tok, $05, "$ABCD"
 
   jsr check_hex_and_binary_value
@@ -894,17 +894,19 @@ test__check_hex_and_binary_value:
   lda parser_error 
   beq + ; null-terminator?
   +FAIL_REASON "SCEN1: parser error found"
+  rts
 +:
 
   ; SCEN2: Valid hex (in lowercase)
   ; - - - - - - - -
-  +SET_LSTRING cur_tok, $06, "$abcd"
+  +SET_LSTRING cur_tok, $05, "$abcd"
 
   jsr check_hex_and_binary_value
 
   lda parser_error 
   beq + ; null-terminator?
   +FAIL_REASON "SCEN2: parser error found"
+  rts
 +:
 
   ; SCEN3: Invalid hex
@@ -916,6 +918,32 @@ test__check_hex_and_binary_value:
   lda parser_error 
   bne + ; null-terminator?
   +FAIL_REASON "SCEN3: expected parser error"
+  rts
++:
+
+  ; SCEN4: valid binary
+  ; - - - - - - - -
+  +ASSIGN_U8V_EQ_IMM parser_error, $00
+  +SET_LSTRING cur_tok, $05, "%0101"
+
+  jsr check_hex_and_binary_value
+
+  lda parser_error 
+  beq + ; null-terminator?
+  +FAIL_REASON "SCEN4: parser error found"
+  rts
++:
+
+  ; SCEN5: invalid binary
+  ; - - - - - - - -
+  +SET_LSTRING cur_tok, $08, "%0101234"
+
+  jsr check_hex_and_binary_value
+
+  lda parser_error 
+  bne + ; null-terminator?
+  +FAIL_REASON "SCEN5: expected parser error"
+  rts
 +:
 
   clc

@@ -171,14 +171,14 @@ basic_end:
 
 !macro SET_LSTRING .var, .len, .val {
   +assign_u16v_eq_addr s_ptr, .var
-  +assign_u8v_eq_imm cur_line_len, $00
+  +ASSIGN_U8V_EQ_IMM cur_line_len, $00
   jsr append_inline_text_to_str
 !pet .len, .val, $00  ; length-encoded in first byte
 }
 
 !macro SET_STRING .var, .val {
   +assign_u16v_eq_addr s_ptr, .var
-  +assign_u8v_eq_imm cur_line_len, $00
+  +ASSIGN_U8V_EQ_IMM cur_line_len, $00
   jsr append_inline_text_to_str
 !pet .val, $00
 }
@@ -190,7 +190,7 @@ basic_end:
   sta .dest+1
 }
 
-!macro assign_u8v_eq_imm .dest, .val {
+!macro ASSIGN_U8V_EQ_IMM .dest, .val {
   lda #.val
   sta .dest
 }
@@ -1410,7 +1410,7 @@ add_varname_to_vartable:
 declare_type_check:
 ;-----------------
 ;   ty = TYP_REAL  ' var type
-    +assign_u8v_eq_imm ty, TYP_REAL
+    +ASSIGN_U8V_EQ_IMM ty, TYP_REAL
 
 ;   t$ = right$(var_name$, 1)  ' type (if any) in t$
     +assign_u16v_eq_u16v s_ptr, var_name
@@ -1435,9 +1435,9 @@ declare_type_check:
     jsr instr_chr
     bcs @skip_check_real
 ;     t$ = ""
-      +assign_u8v_eq_imm cur_char, $00
+      +ASSIGN_U8V_EQ_IMM cur_char, $00
 ;     ty = TYP_REAL
-      +assign_u8v_eq_imm ty, TYP_REAL
+      +ASSIGN_U8V_EQ_IMM ty, TYP_REAL
 ;   bend
 @skip_check_real:
 
@@ -1446,7 +1446,7 @@ declare_type_check:
     lda define_flag
     beq +:
 ;     ty = TYP_DEF
-      +assign_u8v_eq_imm ty, TYP_DEF
+      +ASSIGN_U8V_EQ_IMM ty, TYP_DEF
 ;   bend
 +:
 ; 
@@ -1455,7 +1455,7 @@ declare_type_check:
     cmp #'%'
     bne +
 ;     ty = TYP_INT
-      +assign_u8v_eq_imm ty, TYP_INT
+      +ASSIGN_U8V_EQ_IMM ty, TYP_INT
 ;   bend
 +:
 ; 
@@ -1463,7 +1463,7 @@ declare_type_check:
     cmp #'$'
     bne +
 ;     ty = TYP_STR
-      +assign_u8v_eq_imm ty, TYP_STR
+      +ASSIGN_U8V_EQ_IMM ty, TYP_STR
 ;   bend
 +:
 ; 
@@ -1471,7 +1471,7 @@ declare_type_check:
     cmp #'&'
     bne +
 ;     ty = TYP_BYTE
-      +assign_u8v_eq_imm ty, TYP_BYTE
+      +ASSIGN_U8V_EQ_IMM ty, TYP_BYTE
 ;   bend
 +:
     rts
@@ -1531,12 +1531,12 @@ declare_dimension_check:
       jsr replace_vars_and_labels
 
 ;     dont_mark_label = 0
-      +assign_u8v_eq_imm dont_mark_label, $00
+      +ASSIGN_U8V_EQ_IMM dont_mark_label, $00
 ;     dimension$ = s$
 ; 
 ;     var_name$ = clean_varname$  ' check for define tokens
 ;     delete_line_flag = 0
-      +assign_u8v_eq_imm delete_line_flag, $00
+      +ASSIGN_U8V_EQ_IMM delete_line_flag, $00
 ;   bend
 @skip_found_brackets:
     rts
@@ -1998,7 +1998,7 @@ parse_arguments:
     ; set args$(0) to point at latest TMPHEAPPTR
     +assign_u16v_eq_u16v args, TMPHEAPPTR
     +assign_u16v_eq_u16v tmp_ptr, args
-    +assign_u8v_eq_imm cur_arg_len, $00
+    +ASSIGN_U8V_EQ_IMM cur_arg_len, $00
 
     ldy #$00
     sty chr_idx
@@ -2084,7 +2084,7 @@ parse_arguments:
         sta args,y
         sta tmp_ptr+1
 
-        +assign_u8v_eq_imm cur_arg_len, $00
+        +ASSIGN_U8V_EQ_IMM cur_arg_len, $00
 ;     bend
 @skip_after_else:
 
@@ -2182,7 +2182,7 @@ replace_vars_and_labels:
       lda quote_flag
       bne +
 ;       shitty_syntax_flag = 0
-        +assign_u8v_eq_imm shitty_syntax_flag, $00
+        +ASSIGN_U8V_EQ_IMM shitty_syntax_flag, $00
 ;     bend
 +:
 
@@ -2225,7 +2225,7 @@ replace_vars_and_labels:
         lda cur_char
         cmp #' '
         bne +
-          +assign_u8v_eq_imm cur_char, $00
+          +ASSIGN_U8V_EQ_IMM cur_char, $00
 +:
 ;       a$ = a$ + cur_ch$
         jsr add_curchar_to_astr
@@ -2259,7 +2259,7 @@ add_subbed_curtok_to_astr:
 ; a$ = a$ + cur_tok$
   jsr add_curtok_to_astr
 ; cur_tok$ = ""
-  +assign_u8v_eq_imm cur_tok, $00
+  +ASSIGN_U8V_EQ_IMM cur_tok, $00
   rts
 
 ;--------------
@@ -2607,10 +2607,21 @@ check_hex_and_binary_value:
 ;   ' check binary value
 ;   ' - - - - - - - - -
 ;   if left$(cur_tok$, 1) = "%" then begin
+    +CMP_U8V_TO_IMM cur_tok+1, '%'
+    bne +
 ;     bi$ = mid$(cur_tok$, 2)
+      +assign_u16v_eq_addr tmp_ptr, cur_tok
+      ldx cur_tok
+      dex
+      stx cur_line_len
+      inc tmp_ptr ; skip length-byte
+      inc tmp_ptr ; skip first char
 ;     gosub check_binary
+      jsr check_binary
 ;     return
+      rts
 ;   bend
++:
     clc
     rts
 
@@ -2641,7 +2652,7 @@ check_expect_label_next:
     bra ++
 +:
 ;     expecting_label = 1
-      +assign_u8v_eq_imm expecting_label, $01
+      +ASSIGN_U8V_EQ_IMM expecting_label, $01
 ;   bend
 ++:
     rts
@@ -2670,7 +2681,7 @@ check_mark_expected_label:
 ;     gosub mark_cur_tok$_label
       jsr mark_cur_tok_label
 ;     expecting_label = 0
-      +assign_u8v_eq_imm expecting_label, $00
+      +ASSIGN_U8V_EQ_IMM expecting_label, $00
 ;     return  ' replace label
       rts
 ;   bend
@@ -2748,7 +2759,7 @@ decimal_number_check:
     ora u16result+1
     beq +
 ;     expecting_label = 0
-      +assign_u8v_eq_imm expecting_label, $00
+      +ASSIGN_U8V_EQ_IMM expecting_label, $00
 ;     return  ' never change numbers
       rts
 ;   bend
@@ -2760,7 +2771,7 @@ decimal_number_check:
     +CMP_U8V_TO_IMM cur_tok+1, '0'
     bne @skip
 ;     cur_tok$="."
-    +assign_u8v_eq_imm cur_tok+1, '.'
+    +ASSIGN_U8V_EQ_IMM cur_tok+1, '.'
 ;     return  ' stupid ms basic optimization
 ;   bend
 @skip;
@@ -2843,22 +2854,41 @@ mark_cur_tok_label:  ; mark_cur_tok$_label
 ;   return
 ; 
 ; 
-; '------------
-; .check_binary
-; '------------
+;-----------
+check_binary:
+;-----------
 ;   br = 0  ' result
 ; 
+    ldy #$00
 ;   for b = 0 to len(bi$) - 1
+@loop_next_char:
+    cpy cur_line_len
+    beq @bail_out
+
 ;     bc$ = mid$(bi$, len(bi$) - b, 1)
+      lda (tmp_ptr),y
+
 ;     if bc$ <> "1" and bc$ <> "0" then begin
+      cmp #'1'
+      beq @skip
+      cmp #'0'
+      beq @skip
 ;       bank 4
 ;       poke $ff08, 132
+        +POKEB4 $ff08, 132
 ;       goto unresolved_cur_tok$
+        jmp unresolved_cur_tok
 ;     bend
+@skip:
+
 ;     if bc$="1" then br=br+bin_conv(b)
 ;   next b
-; 
+    iny
+    bra @loop_next_char
+
+@bail_out:
 ;   return
+    rts
 ; 
 ; 
 ;--------
