@@ -74,6 +74,44 @@ basic_end:
 ; ------
 ; MACROS
 ; ------
+!macro UPDATE_IS_STR_TO_LATEST_ELEMENT_COUNT_IDX {
+    lda element_cnt,x
+    clc
+    rol
+    bcc +
+    ; increment high-byte of pointer
+    ldy #$01
+    lda (is_ptr),y
+    clc
+    adc #$01
+    sta (is_ptr),y
++:
+    clc
+    ldy #$00
+    lda element_cnt,x
+    adc (is_ptr),y
+    sta (is_ptr),y
+    iny
+    lda #$00
+    adc (is_ptr),y
+    sta (is_ptr),y
+}
+    
+!macro SET_IS_PTR_TO_VARTABLE_AT_TY_IDX {
+    +assign_u16v_eq_addr is_ptr, var_table
+    ldx #$00
+@loop_next_type:
+    cpx ty
+    beq @bail_type
+    clc
+
+    +add_to_pointer_u16 is_ptr, 200*2
+    
+    inx
+    bra @loop_next_type
+@bail_type:
+}
+   
 !macro APPEND_INLINE_TO_S_PTR .txt {
   jsr append_inline_text_to_str
 !pet .txt, $00
@@ -198,6 +236,14 @@ basic_end:
   +ASSIGN_U8V_EQ_IMM cur_line_len, $00
   jsr append_inline_text_to_str
 !pet .val, $00
+}
+
+!macro ASSIGN_STRING_PTR_TO_IMM .var, .val {
+  bra +
+-:
+!pet .val, $00
++:
+  +assign_u16v_eq_addr .var, -
 }
 
 !macro assign_u16v_eq_imm .dest, .val {
@@ -1431,27 +1477,22 @@ get_bkt_and_equals_indices:
 ;----------------------
 add_varname_to_vartable:
 ;----------------------
-    ; var_table(,) = ptr to memory for array (4*200*2 = 1600 bytes in size, $640)
-    +assign_u16v_eq_u16v is_ptr, var_table
-    ldx #$00
-@loop_next_type:
-    cpx ty
-    beq @bail_type
-    clc
+; input: 
+;  ty = the var type (string, int, byte, real, def)
+;  var_name = "fishy$"
+; output:
+;  var_table(ty, element_count(ty) = var_name
+;  
 
-    +add_to_pointer_u16 is_ptr, 200*2
-    
-    inx
-    bra @loop_next_type
-@bail_type:
-   
-    lda element_cnt,x
-    tay
-    
+    ; var_table(,) = ptr to memory for array (4*200*2 = 1600 bytes in size, $640)
+    +SET_IS_PTR_TO_VARTABLE_AT_TY_IDX
+    +UPDATE_IS_STR_TO_LATEST_ELEMENT_COUNT_IDX
+
     ; warning: i suspect that varname comes from temporary args
     ; (which will eventually be removed from the heap)
     ; it might be safer to copy the var_name contents to a new string
     ; (but then I need to reconsider my 'temp' use of the heap)
+    ldy #$00
     lda var_name
     sta (is_ptr),y
     iny
@@ -3611,8 +3652,7 @@ parse_preprocessor_directive
     cmp #$01
     bne +
 ;     define_flag = 1
-      lda #$01
-      sta define_flag
+      +ASSIGN_U8V_EQ_IMM define_flag, $01
 
 ;     gosub declare_s$_var
       jsr declare_s_ptr_var
@@ -3626,9 +3666,16 @@ parse_preprocessor_directive
   rts
 ; 
 ;   if instr(cur_src_line$, "declare") = 2 then begin
+    +CMP_S_PTR_TO_IMM "declare"
+    bcs +
+    cmp #$01
+    bne +
 ;     define_flag = 0
+      +ASSIGN_U8V_EQ_IMM define_flag, $00
 ;     gosub declare_s$_var 
+      jsr declare_s_ptr_var
 ;   bend
++:
 ; 
 ;   if instr(cur_src_line$,"output")=2 then begin
 ;     gosub set_output_file

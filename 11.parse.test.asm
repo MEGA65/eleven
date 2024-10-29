@@ -352,6 +352,34 @@ test__add_to_label_table:
   rts
 
 
+;----------------------------
+test__add_varname_to_vartable:
+;----------------------------
+  +ASSIGN_STRING_PTR_TO_IMM var_name, "fishy$"
+  +ASSIGN_U8V_EQ_IMM ty, TYP_STR
+
+  jsr add_varname_to_vartable
+
+  +SET_IS_PTR_TO_VARTABLE_AT_TY_IDX
+  +UPDATE_IS_STR_TO_LATEST_ELEMENT_COUNT_IDX
+  
+  ldy #$00
+  lda (is_ptr),y
+  sta s_ptr
+  iny
+  lda (is_ptr),y
+  sta s_ptr+1
+
+  +CMP_S_PTR_TO_IMM "fishy$"
+  bcc +
+  +FAIL_REASON "var not found in var table"
+  rts
++:
+
+  clc
+  rts
+
+
 ;-----------------------
 test__parse_declared_var:
 ;-----------------------
@@ -978,6 +1006,12 @@ test__check_ignore_existing_vocab:
   clc
   rts
 
+
+;-------------------------------------
+test__check_swap_vars_with_short_names:
+;-------------------------------------
+  sec
+  rts
 
 ; -------
 ; HELPERS
