@@ -74,6 +74,55 @@ basic_end:
 ; ------
 ; MACROS
 ; ------
+!macro INCREMENT_ELCNT_OF_TY {
+  ldx ty
+  inc element_cnt,x
+}
+
+!macro CMP_GENVNAME_TO .c1, .c2 {
+  lda gen_varname
+  cmp #.c1
+  bne +
+  lda gen_varname+1
+  cmp #.c2
+  bne +
+  clc  ; found
+  bra ++
++:
+  sec ; not found
+++:
+}
+
+!macro SET_MULTINA_TO_U8V .var {
+  ldz #$00
+  ldy #$00
+  ldx #$00
+  lda .var
+  stq MULTINA
+}
+
+!macro SET_MULTINB_TO_U8 .val {
+  ldz #$00
+  ldy #$00
+  ldx #$00
+  lda #.val
+  stq MULTINB
+}
+
+!macro WAIT_DIV_FINISH {
+@wait_for_divide_to_finish:
+    bit MULDIVBUSY  ; bit6 (mulbusy) = overflow flag
+                    ; bit7 (divbusy) = negative flag
+    bmi @wait_for_divide_to_finish
+}
+
+!macro WAIT_MUL_FINISH {
+@wait_for_mult_to_finish:
+    bit MULDIVBUSY  ; bit6 (mulbusy) = overflow flag
+                    ; bit7 (divbusy) = negative flag
+    bvs @wait_for_mult_to_finish
+}
+
 !macro UPDATE_IS_STR_TO_LATEST_ELEMENT_COUNT_IDX {
     lda element_cnt,x
     clc
@@ -283,6 +332,15 @@ basic_end:
   sta .dest+1
 }
 
+!macro ASSIGN_U16V_EQ_DEREF_U16V .dest, .src {
+  ldy #$00
+  lda (.src),y
+  sta .dest
+  iny
+  lda (.src),y
+  sta .dest+1
+}
+
 !macro assign_u16v_eq_deref_ptr_u16 .dest, .src {
   +assign_u16v_eq_u16v tmp_ptr, .src
   ldy #$00
@@ -466,6 +524,7 @@ GETLFS = $ff44
 
 MULDIVBUSY = $d70f
 DIVOUT  = $d768
+DIVOUT2 = $d76c
 MULTINA = $d770
 MULTINB = $d774
 MULTOUT = $d778
@@ -585,6 +644,8 @@ equals_idx:
 !byte $00
 
 ; #declare tr$, hx$, bi$, ty, id, gen_varname$, of$
+gen_varname:
+!fill 4, $00
 ty:
 !byte $00
 dont_mark_label:
@@ -592,7 +653,8 @@ dont_mark_label:
 ; #declare args_list$, args_list_len, args_idx, cur_ch$
 ignore_delim_flag:
 !byte $00
-; #declare did_replace_flag
+did_replace_flag:
+!byte $00
 quote_flag:
 !byte $00
 ; #declare expecting_label, default_delim$, rv_idx
@@ -606,6 +668,10 @@ a_str:
 lc:
 !fill 16, $00
 ; #declare n1, n2, ba, a, ad, tf$, found_idx, k, sf$, sf
+n1:
+!byte $00
+n2:
+!byte $00
 ; #declare src_line_ptr, src_linebuff_ptr
 cur_line_len:
 !byte $00
@@ -884,10 +950,7 @@ print_uint:
     lda column_val
     stq MULTINB
 
-@wait_for_divide_to_finish:
-    bit MULDIVBUSY  ; bit6 (mulbusy) = overflow flag
-                    ; bit7 (divbusy) = negative flag
-    bmi @wait_for_divide_to_finish
+    +WAIT_DIV_FINISH
 
     ; print this digit
     lda DIVOUT+4
@@ -909,10 +972,7 @@ print_uint:
     lda DIVOUT+4
     stq MULTINA
 
-@wait_for_mult_to_finish:
-    bit MULDIVBUSY  ; bit6 (mulbusy) = overflow flag
-                    ; bit7 (divbusy) = negative flag
-    bvs @wait_for_mult_to_finish
+    +WAIT_MUL_FINISH
 
     sec
     lda temp16
@@ -1280,26 +1340,8 @@ declare_s_ptr_var:  ; declare_s$_var
     cmp #$ff
     bne +
 ;     parser_error$ = "?declare parameter missing in line " + str$(cur_src_lineno)
-    lda #$00
-    sta parser_error
-    sta cur_line_len
-    +assign_u16v_eq_addr s_ptr, parser_error
-    jsr append_inline_text_to_str
-
-!pet "?declare parameter missing in line ", $00
-
-    lda #$01
-    sta to_str_flag
-    ldx cur_src_lineno
-    ldy cur_src_lineno+1
-    jsr print_uint
-    lda #$00
-    sta to_str_flag
-
-    ldy cur_line_len
-    lda #$00
-    sta (s_ptr),y
-    inc cur_line_len
+    +SET_STRING parser_error, "?declare parameter missing in line "
+    +APPEND_UINT_TO_S_PTR cur_src_lineno
 
 ;     goto return_to_editor_with_error
     jmp return_to_editor_with_error
@@ -1308,7 +1350,6 @@ declare_s_ptr_var:  ; declare_s$_var
 ; 
     +assign_u16v_eq_u16v is_ptr, args
 
-check:
     lda #$00
     sta arg_idx
 ;   for i = 0 to arg_cnt
@@ -1334,14 +1375,21 @@ check:
     cmp arg_cnt
     bne @loop_next_arg
 
-;todo: finish this off
-; 
 ;   if next_line$ <> "" then begin
+    lda next_line
+    beq @skip_to_else
 ;     delete_line_flag = 0
+      +ASSIGN_U8V_EQ_IMM delete_line_flag, $00
 ;     cur_src_line$ = "^^" + next_line$
+      +SET_STRING cur_src_line, "^^"
+      +APPEND_STR_TO_S_PTR next_line
+      bra @bail_out
 ;   bend : else begin
+@skip_to_else:
 ;     delete_line_flag = 1
+      +ASSIGN_U8V_EQ_IMM delete_line_flag, $01
 ;   bend
+@bail_out:
 ;   return
     rts
 
@@ -1387,8 +1435,7 @@ parse_declared_var:
     jsr verbose_print_varname_and_el_cnt
 
 ;   element_cnt(ty) = element_cnt(ty) + 1
-    ldx ty
-    inc element_cnt,x
+    +INCREMENT_ELCNT_OF_TY
 ;   return
     rts
 
@@ -2349,12 +2396,31 @@ replace_vars_and_labels:
 ;------------------------
 add_subbed_curtok_to_astr:
 ;------------------------
+; input: cur_tok
+; output:
+;   - astr += subbed cur_tok
+;   - cur_tok = ""
+
+  lda cur_char
+  pha
+  lda cur_line_len
+  pha
+  phw s_ptr
+  phw is_ptr
+
 ; gosub check_token_for_subbing
   jsr check_token_for_subbing
 ; a$ = a$ + cur_tok$
   jsr add_curtok_to_astr
 ; cur_tok$ = ""
   +ASSIGN_U8V_EQ_IMM cur_tok, $00
+
+  +plw is_ptr
+  +plw s_ptr
+  pla
+  sta cur_line_len
+  pla
+  sta cur_char
   rts
 
 ;--------------
@@ -2392,11 +2458,7 @@ dbl_quote_check:
         ; if this a starting quote?
 ;       if quote_flag = 1 then begin
         beq @skip_to_else
-          lda cur_char
-          pha
           jsr add_subbed_curtok_to_astr
-          pla
-          sta cur_char
 
           jsr add_curchar_to_astr
           sec  ; trigger for's continue
@@ -2505,7 +2567,10 @@ add_curtok_to_astr:
 ;----------------------
 check_token_for_subbing:
 ;----------------------
-; inputs: cur_tok$
+; input: cur_tok
+; output:
+;  - potentially modified cur_tok
+
 ;   if cur_tok$ = "" or cur_tok$ = "{x5F}" then return
     lda cur_tok  ; length of str is 0?
     bne +
@@ -2521,7 +2586,16 @@ check_token_for_subbing:
 
     jsr decimal_number_check
     jsr check_mark_expected_label
+
 ;   if cur_tok$ = "goto" then next_line_flag = 1
+    phw s_ptr
+    +assign_u16v_eq_addr s_ptr, cur_tok+1
+    +CMP_S_PTR_TO_IMM "goto"
+    bcs +
+      +ASSIGN_U8V_EQ_IMM next_line_flag, $01
++:
+    +plw s_ptr
+
     jsr check_expect_label_next
     jsr check_hex_and_binary_value
 
@@ -2531,6 +2605,10 @@ check_token_for_subbing:
 +:
     jsr check_swap_vars_with_short_names
 ;   if did_replace_flag = 1 then return
+    +CMP_U8V_TO_IMM did_replace_flag, $01
+    bne +
+    rts
++:
     jsr check_defines_table
     jsr check_struct_names
     bcc +
@@ -2626,6 +2704,10 @@ check_defines_table:
 ;   next id
     rts
 
+elcnt:
+!byte $00
+elidx:
+!byte 00
 
 ;-------------------------------
 check_swap_vars_with_short_names:
@@ -2639,23 +2721,78 @@ check_swap_vars_with_short_names:
 ;   ' check to swap out variables with short names
 ;   ' - - - - - - - - - - - - - - - - - - - - - -
 ;   did_replace_flag = 0  ' did replace flag
-; 
+
 ;   t$ = right$(cur_tok$, 1)
-; 
+    ldx cur_tok
+    lda cur_tok,x
+    sta cur_char
+
 ;   ty = TYP_REAL
+    +ASSIGN_U8V_EQ_IMM ty, TYP_REAL
+    
+    lda cur_char
 ;   if t$ = "%" then ty = TYP_INT
+    cmp #'%'
+    bne +
+      +ASSIGN_U8V_EQ_IMM ty, TYP_INT
+      bra @skip
++:
 ;   if t$ = "$" then ty = TYP_STR
+    cmp #'$'
+    bne +
+      +ASSIGN_U8V_EQ_IMM ty, TYP_STR
+      bra @skip
++:
 ;   if t$ = "&" then ty = TYP_BYTE
-; 
+    cmp #'&'
+    bne @skip
+      +ASSIGN_U8V_EQ_IMM ty, TYP_BYTE
+@skip:
+
+  +SET_IS_PTR_TO_VARTABLE_AT_TY_IDX
+
+    ldx ty
+    lda element_cnt, x
+    sta elcnt
+    lda #$00
+    sta elidx
 ;   for id = 0 to element_cnt(ty)
+@loop_next_element:
+    ldy elidx
+    cpy elcnt
+    beq @bail_out
 ;     if cur_tok$ = var_table$(ty, id) then begin
+      +ASSIGN_U16V_EQ_DEREF_U16V s_ptr, is_ptr
+      +CMP_S_PTR_TO_STR cur_tok+1
+        bcs +
 ;       gosub generate_varname
+        jsr generate_varname
 ;       cur_tok$ = gen_varname$ + type_ident$(ty)
-;       id = element_cnt(ty)
+        +COPY_STR cur_tok+1, gen_varname
+        lda cur_line_len
+        sta cur_tok   ; store current length
+        ldx ty
+        lda type_ident,x
+        beq + ; skip for real (has no identifier)
+        ldx cur_line_len
+        sta cur_tok+1,x
+        inc cur_line_len
+        lda #$00
+        sta cur_tok+2,x
++:
 ;       did_replace_flag = 1
+        +ASSIGN_U8V_EQ_IMM did_replace_flag, $01
+;       id = element_cnt(ty)
+        bra @bail_out
 ;     bend
++:
 ;   next id
+    inc elidx
+    bra @loop_next_element
+
+@bail_out:
     rts
+
 
 ;--------------------------
 check_ignore_existing_vocab:
@@ -3063,34 +3200,120 @@ illegal_hex_handler:
     jmp unresolved_cur_tok
 
 
-; '----------------
-; .generate_varname
-; '----------------
+;---------------
+generate_varname:
+;---------------
+; input: elidx (e.g. = 1)
+; output:
+;  - gen_varname  (e.g., = 'B' for 1, or 'AA' for 26)
+
 ;   ' generate varname from index
 ; 
 ;   if id < 26 then begin
+    lda elidx
+    cmp #26
+    bcs +
 ;     gen_varname$ = chr$(65 + id)
+      lda #65   ; letter 'A'
+      clc
+      adc elidx
+      sta gen_varname
+      lda #$00
+      sta gen_varname+1
 ;     return
+      rts
 ;   bend
-; 
-;   n2 = mod(id, 26)
++:
+
+    +SET_MULTINA_TO_U8V elidx
+    +SET_MULTINB_TO_U8 26
+    +WAIT_DIV_FINISH
+
 ;   n1 = int(id / 26) - 1
+    ldx DIVOUT+4
+    dex
+    stx n1
+;   n2 = mod(id, 26)
+    lda DIVOUT+4
+    sta MULTINA ; find the modulo value
+    +WAIT_MUL_FINISH
+
+    sec
+    lda elidx
+    sbc MULTOUT
+    sta n2
+
 ;   gen_varname$ = chr$(65 + n1) + chr$(65 + n2)
-; 
+      lda #65   ; letter 'A'
+      clc
+      adc n1
+      sta gen_varname
+      lda #65
+      clc
+      adc n2
+      sta gen_varname+1
+      lda #$00
+      sta gen_varname+2
+
 ;   ' avoid any basic terms as var names
 ;   if gen_varname$="do" then gen_varname$="d1"
+    +CMP_GENVNAME_TO 'd', 'o'
+    bcs +
+      +ASSIGN_U8V_EQ_IMM gen_varname+1, '1'
+      rts
++:
 ;   if gen_varname$="go" then gen_varname$="g1"
+    +CMP_GENVNAME_TO 'g', 'o'
+    bcs +
+      +ASSIGN_U8V_EQ_IMM gen_varname+1, '1'
+      rts
++:
 ;   if gen_varname$="to" then gen_varname$="t1"
+    +CMP_GENVNAME_TO 't', 'o'
+    bcs +
+      +ASSIGN_U8V_EQ_IMM gen_varname+1, '1'
+      rts
++:
 ;   if gen_varname$="ds" then gen_varname$="d2"
+    +CMP_GENVNAME_TO 'd', 's'
+    bcs +
+      +ASSIGN_U8V_EQ_IMM gen_varname+1, '2'
+      rts
++:
 ;   if gen_varname$="dt" then gen_varname$="d3"
+    +CMP_GENVNAME_TO 'd', 't'
+    bcs +
+      +ASSIGN_U8V_EQ_IMM gen_varname+1, '3'
+      rts
++:
 ;   if gen_varname$="el" then gen_varname$="e1"
+    +CMP_GENVNAME_TO 'e', 'l'
+    bcs +
+      +ASSIGN_U8V_EQ_IMM gen_varname+1, '1'
+      rts
++:
 ;   if gen_varname$="er" then gen_varname$="e2"
+    +CMP_GENVNAME_TO 'e', 'r'
+    bcs +
+      +ASSIGN_U8V_EQ_IMM gen_varname+1, '2'
+      rts
++:
 ;   if gen_varname$="fn" then gen_varname$="f1"
+    +CMP_GENVNAME_TO 'f', 'n'
+    bcs +
+      +ASSIGN_U8V_EQ_IMM gen_varname+1, '1'
+      rts
++:
 ;   if gen_varname$="if" then gen_varname$="i1"
+    +CMP_GENVNAME_TO 'i', 'f'
+    bcs +
+      +ASSIGN_U8V_EQ_IMM gen_varname+1, '1'
+      rts
++:
 ;   return
-;   stop
-; 
-; 
+    rts
+
+
 ;-----------
 get_filename:
 ;-----------

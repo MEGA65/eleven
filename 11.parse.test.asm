@@ -1,6 +1,13 @@
 ; ------
 ; MACROS
 ; ------
+!macro FORCE_ADD_VAR_TO_VARTABLE .name, .type {
+  +ASSIGN_STRING_PTR_TO_IMM var_name, .name
+  +ASSIGN_U8V_EQ_IMM ty, .type
+  jsr add_varname_to_vartable
+  +INCREMENT_ELCNT_OF_TY
+}
+
 !macro STR_MATCH .str1, .str2 {
   +assign_u16v_eq_addr tmp_ptr, .str1
   +assign_u16v_eq_addr s_ptr, .str2
@@ -404,6 +411,36 @@ test__add_varname_to_vartable:
   rts
 
 
+;---------------------
+test__generate_varname:
+;---------------------
+  ; SCEN1: 1 = 'b'
+  ; --------------
+  +ASSIGN_U8V_EQ_IMM elidx, $01
+
+  jsr generate_varname
+
+  +CMP_GENVNAME_TO 'b', $00
+  bcc +
+  +FAIL_REASON "SCEN1: elidx=1 expected var='b'"
+  rts
++:
+
+  ; SCEN2: 26 = 'aa'
+  ; --------------
+  +ASSIGN_U8V_EQ_IMM elidx, 26
+
+  jsr generate_varname
+
+  +CMP_GENVNAME_TO 'a', 'a'
+  bcc +
+  +FAIL_REASON "SCEN2: elidx=26 expected var='aa'"
+  rts
++:
+
+  clc
+  rts
+
 ;-----------------------
 test__parse_declared_var:
 ;-----------------------
@@ -441,8 +478,18 @@ test__replace_vars_and_labels:
 ;----------------------------
 test__check_token_for_subbing:
 ;----------------------------
-  ; TODO: Handle this routine next.............
-  sec
+  +FORCE_ADD_VAR_TO_VARTABLE "moo$", TYP_STR
+  +SET_LSTRING cur_tok, $04, "moo$"
+
+  jsr check_token_for_subbing
+
+  +CMP_S_PTR_TO_IMM "a$"
+  bcc +
+  +FAIL_REASON "SCEN2: expected cur_tok='a$'"
+  rts
++:
+
+  clc
   rts
 
 
@@ -455,10 +502,7 @@ test__add_curtok_to_astr:
   jsr append_inline_text_to_str
 !pet $06, "hello ", $00  ; length-encoded in first byte
 
-  +assign_u16v_eq_addr s_ptr, cur_tok
-  +ASSIGN_U8V_EQ_IMM cur_line_len, $00
-  jsr append_inline_text_to_str
-!pet $05, "world", $00  ; length-encoded in first byte
+  +SET_LSTRING cur_tok, $05, "world"
 
   jsr add_curtok_to_astr
 
@@ -510,10 +554,7 @@ test__add_curchar_to_astr:
 ;------------------------
 test__add_curchar_to_curtok:
 ;------------------------
-  +assign_u16v_eq_addr s_ptr, cur_tok
-  +ASSIGN_U8V_EQ_IMM cur_line_len, $00
-  jsr append_inline_text_to_str
-!pet $04, "hell", $00  ; length-encoded in first byte
+  +SET_LSTRING cur_tok, $04, "hell"
 
   lda #'o'
   sta cur_char
@@ -1034,7 +1075,39 @@ test__check_ignore_existing_vocab:
 ;-------------------------------------
 test__check_swap_vars_with_short_names:
 ;-------------------------------------
-  sec
+; NOTE: This test is presently relying on the prior
+; test__add_varname_to_vartable: routine to add some
+; vars in first.
+;
+; This isn't ideal, as I need to increment element counts in here (very dodgy)
+; I can do things more cleanly later
+
+  ; dodgy increment of element_count for integer
+  ldx #TYP_INT
+  inc element_cnt,x
+
+  ; SCEN1:  Check 'ty' returns correctly
+  ; -----
+  +ASSIGN_U8V_EQ_IMM ty, $ff  ; dummy value (to assure it changes)
+  +SET_LSTRING cur_tok, $06, "dishy%"
+
+  jsr check_swap_vars_with_short_names
+
+  +CMP_U8V_TO_IMM ty, TYP_INT
+  beq +
+  +FAIL_REASON "SCEN1: expected ty=TYP_INT"
+  rts
++:
+
+  ; SCEN2: Check 'cur_tok' replaced
+  ; -----
+  +CMP_S_PTR_TO_IMM "a%"
+  bcc +
+  +FAIL_REASON "SCEN2: expected cur_tok='a%'"
+  rts
++:
+
+  clc
   rts
 
 ; -------
