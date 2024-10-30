@@ -588,7 +588,11 @@ test__dbl_quote_check:
   rts
 
 +:
-  +STR_MATCH a_str, a_str
+  bra +
+@expected:
+!pet $02, "xy", $00
++:
+  +STR_MATCH a_str, @expected
   bcc +:
   +FAIL_REASON "SCEN1: a_str should not have changed"
   rts
@@ -623,7 +627,7 @@ test__dbl_quote_check:
   ; - - - - - -
   ; SCEN3: char is not quote, but we are in quote mode
   ;        ...so a_str += cur_char, C=1
-  +ASSIGN_U8V_EQ_IMM cur_char, 'S'
+  +ASSIGN_U8V_EQ_IMM cur_char, 's'
 
   jsr dbl_quote_check
 
