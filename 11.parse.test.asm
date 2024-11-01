@@ -15,7 +15,7 @@
 }
 
 !macro STR_MATCH_PTR_TO_STR .ptr, .str {
-  +assign_u16v_eq_u16v tmp_ptr, .ptr
+  +ASSIGN_U16V_EQ_U16V tmp_ptr, .ptr
   +ASSIGN_U16V_EQ_ADDR s_ptr, .str
   jsr cmp_tmp_ptr_to_s_str
 }
@@ -499,7 +499,7 @@ test__replace_vars_and_labels:
 !pet "a$(5)",$00
 +:
 
-  +assign_u16v_eq_u16v s_ptr, var_name
+  +ASSIGN_U16V_EQ_U16V s_ptr, var_name
   +STR_MATCH_TO_SPTR @expected
   bcc +
   +FAIL_REASON "s_ptr != 'a$(5)'"
@@ -839,14 +839,14 @@ test__declare_assignment_check:
 !pet "1", $00
 +:
 
-  +assign_u16v_eq_u16v s_ptr, var_name
+  +ASSIGN_U16V_EQ_U16V s_ptr, var_name
   +STR_MATCH_TO_SPTR @expected1
   bcc +
   +FAIL_REASON "var_name != 'a'"
   rts
 +:
 
-  +assign_u16v_eq_u16v s_ptr, value
+  +ASSIGN_U16V_EQ_U16V s_ptr, value
   +STR_MATCH_TO_SPTR @expected2
   bcc +
   +FAIL_REASON "value != '1'"
@@ -875,14 +875,14 @@ test__declare_dimension_check:
 !pet "10",$00
 +:
 
-  +assign_u16v_eq_u16v s_ptr, var_name
+  +ASSIGN_U16V_EQ_U16V s_ptr, var_name
   +STR_MATCH_TO_SPTR @expected1
   bcc +
   +FAIL_REASON "var_name != 'fish$'"
   rts
 +:
 
-  +assign_u16v_eq_u16v s_ptr, dimension
+  +ASSIGN_U16V_EQ_U16V s_ptr, dimension
   +STR_MATCH_TO_SPTR @expected2
   bcc +
   +FAIL_REASON "dimension != '10'"
@@ -1190,7 +1190,29 @@ test__check_swap_vars_with_short_names:
 ;------------------------------
 test__add_define_value_to_table:
 ;------------------------------
-  sec
+  +ASSIGN_U8V_EQ_IMM define_flag, $01
+  +ASSIGN_U8V_EQ_IMM ty, TYP_DEF
+  +SET_STRING f_str, "1"
+  +ASSIGN_U16V_EQ_ADDR value, f_str
+
+  jsr add_define_value_to_table
+
+  +SET_TMP_PTR_TO_DEFVALS_AT_ELCNT_IDX
+
+  ldy #$00
+  lda (tmp_ptr),y
+  sta s_ptr
+  iny
+  lda (tmp_ptr),y
+  sta s_ptr+1
+
+  +CMP_S_PTR_TO_IMM "1"
+  bcc +
+  +FAIL_REASON "string var not found in def-values table"
+  rts
++:
+
+  clc
   rts
 
 

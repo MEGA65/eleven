@@ -74,6 +74,20 @@ basic_end:
 ; ------
 ; MACROS
 ; ------
+!macro SET_TMP_PTR_TO_DEFVALS_AT_ELCNT_IDX {
+      +ASSIGN_U16V_EQ_ADDR tmp_ptr, define_val
+      ldx ty
+      lda element_cnt,x
+      clc
+      rol
+      adc tmp_ptr
+      sta tmp_ptr
+    bcc +
+    ; increment high-byte of pointer
+    inc tmp_ptr+1
++:
+}
+
 !macro CMP_LSTR_LEN_TO_IMM .var, .len {
   lda .var
   cmp #.len
@@ -223,6 +237,26 @@ basic_end:
     jsr append_text_to_str
 }
 
+!macro COPY_STR_FROM_PSTR .var1, .var2 {
+    +ASSIGN_U16V_EQ_ADDR s_ptr, .var1
+    +ASSIGN_U8V_EQ_IMM cur_line_len, $00
+    lda .var2
+    sta ret_ptr_lo
+    lda .var2+1
+    sta ret_ptr_hi
+    jsr append_text_to_str
+}
+
+!macro COPY_PSTR_FROM_PSTR .var1, .var2 {
+    +ASSIGN_U16V_EQ_U16V s_ptr, .var1
+    +ASSIGN_U8V_EQ_IMM cur_line_len, $00
+    lda .var2
+    sta ret_ptr_lo
+    lda .var2+1
+    sta ret_ptr_hi
+    jsr append_text_to_str
+}
+
 !macro POKEB4 .addr, .val {
     lda #<.addr
     sta FOURPTR
@@ -290,7 +324,7 @@ basic_end:
 }
 
 !macro SET_STRING_PTR .var, .val {
-  +assign_u16v_eq_u16v s_ptr, .var
+  +ASSIGN_U16V_EQ_U16V s_ptr, .var
   +ASSIGN_U8V_EQ_IMM cur_line_len, $00
   jsr append_inline_text_to_str
 !pet .val, $00
@@ -334,7 +368,7 @@ basic_end:
   sta .dest+1
 }
 
-!macro assign_u16v_eq_u16v .dest, .src {
+!macro ASSIGN_U16V_EQ_U16V .dest, .src {
   lda .src
   sta .dest
   lda .src+1
@@ -351,7 +385,7 @@ basic_end:
 }
 
 !macro assign_u16v_eq_deref_ptr_u16 .dest, .src {
-  +assign_u16v_eq_u16v tmp_ptr, .src
+  +ASSIGN_U16V_EQ_U16V tmp_ptr, .src
   ldy #$00
   lda (tmp_ptr),y
   sta .dest
@@ -1377,7 +1411,7 @@ declare_s_ptr_var:  ; declare_s$_var
 ;   bend
 +:
 ; 
-    +assign_u16v_eq_u16v is_ptr, args
+    +ASSIGN_U16V_EQ_U16V is_ptr, args
 
     lda #$00
     sta arg_idx
@@ -1495,36 +1529,37 @@ verbose_print_varname_and_el_cnt:
 ;------------------------
 add_define_value_to_table:
 ;------------------------
+; inputs:
+;   - define_flag (only happens if it is set)
+;   - ty = TYP_DEF
+;   - value
+; output:
+;   - define_val[element_cnt(TYP_DEF)] = value
+
 ;   if define_flag = 1 then begin
     lda define_flag
     beq @skip_add_define_val
 ;     define_val$(element_cnt(ty)) = value$
-      +ASSIGN_U16V_EQ_ADDR tmp_ptr, define_val
-      ldx ty
-      lda element_cnt,x
-      clc
-      rol
-      adc tmp_ptr
-      sta tmp_ptr
-    bcc +
-    ; increment high-byte of pointer
-    inc tmp_ptr+1
-+:
+      +SET_TMP_PTR_TO_DEFVALS_AT_ELCNT_IDX
+
   ; figure out length of value
-  +ASSIGN_U16V_EQ_ADDR s_ptr, value
+  +ASSIGN_U16V_EQ_U16V s_ptr, value
   jsr get_s_ptr_length
 
   ; todo: allocate a string from the heap
     ldz #$00
-    lda cur_line_len
+    ldx cur_line_len
+    inx ; add one extra for null terminator
+    txa
     +DYN_ALLOC_BYTES_SIZE_ZA temp16
     ldy #$00
     lda temp16
     sta (tmp_ptr),y
     iny
     lda temp16+1
-    sta (tmp_ptr),y
+    sta (tmp_ptr),y ; put new string ptr into defines_val table
 
+    +COPY_PSTR_FROM_PSTR temp16, value
 ;   bend
 @skip_add_define_val:
     rts
@@ -1631,7 +1666,7 @@ declare_type_check:
     +ASSIGN_U8V_EQ_IMM ty, TYP_REAL
 
 ;   t$ = right$(var_name$, 1)  ' type (if any) in t$
-    +assign_u16v_eq_u16v s_ptr, var_name
+    +ASSIGN_U16V_EQ_U16V s_ptr, var_name
     ldy cur_line_len
     dey
     lda (s_ptr),y
@@ -1728,7 +1763,7 @@ declare_dimension_check:
 +:
 
       ; put a null-term on the close bracket
-      +assign_u16v_eq_u16v s_ptr, var_name
+      +ASSIGN_U16V_EQ_U16V s_ptr, var_name
       lda #$00
       ldy bkt_close_idx
       sta (s_ptr),y
@@ -1739,7 +1774,7 @@ declare_dimension_check:
 
 ; 
 ;     s$ = dimension$
-      +assign_u16v_eq_u16v s_ptr, dimension
+      +ASSIGN_U16V_EQ_U16V s_ptr, dimension
 
 ;     dont_mark_label = 1
       lda #$01
@@ -1796,7 +1831,7 @@ declare_assignment_check:
       +ASSIGN_U16V_EQ_ADDR tr_ptr, whitespace
 
 ;     s$ = var_name$
-      +assign_u16v_eq_u16v s_ptr, var_name
+      +ASSIGN_U16V_EQ_U16V s_ptr, var_name
 
 ;     gosub strip_tr$_from_end
       jsr strip_tr_from_end
@@ -1804,7 +1839,7 @@ declare_assignment_check:
 ;     var_name$ = s$
 ; 
 ;     s$ = value$
-      +assign_u16v_eq_u16v s_ptr, value
+      +ASSIGN_U16V_EQ_U16V s_ptr, value
       jsr get_s_ptr_length
 
 ;     gosub strip_tr$_from_beginning
@@ -1812,7 +1847,7 @@ declare_assignment_check:
 ;     gosub strip_tr$_from_end
       jsr strip_tr_from_end
 ;     value$ = s$
-      +assign_u16v_eq_u16v value, s_ptr
+      +ASSIGN_U16V_EQ_U16V value, s_ptr
 ; 
 ; NOTE: Skip hex/binary checking for now, as latest rom permits such values
 ;     if left$(value$, 1) = "$" then begin
@@ -2214,8 +2249,8 @@ parse_arguments:
     bne @loop_clr_ptrs
 
     ; set args$(0) to point at latest TMPHEAPPTR
-    +assign_u16v_eq_u16v args, TMPHEAPPTR
-    +assign_u16v_eq_u16v tmp_ptr, args
+    +ASSIGN_U16V_EQ_U16V args, TMPHEAPPTR
+    +ASSIGN_U16V_EQ_U16V tmp_ptr, args
     +ASSIGN_U8V_EQ_IMM cur_arg_len, $00
 
     ldy #$00
@@ -2291,8 +2326,8 @@ parse_arguments:
         rol
         tay
 
-        ; +assign_u16v_eq_u16v args, TMPHEAPPTR
-        ; +assign_u16v_eq_u16v tmp_ptr, args
+        ; +ASSIGN_U16V_EQ_U16V args, TMPHEAPPTR
+        ; +ASSIGN_U16V_EQ_U16V tmp_ptr, args
         inw TMPHEAPPTR
         lda TMPHEAPPTR
         sta args,y
