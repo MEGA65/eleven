@@ -444,7 +444,42 @@ test__generate_varname:
 ;-----------------------
 test__parse_declared_var:
 ;-----------------------
-  sec
+  +ASSIGN_U8V_EQ_IMM define_flag, $01
+  +SET_STRING f_str, "FISHY = 1"
+  +ASSIGN_U16V_EQ_ADDR var_name, f_str
+
+  jsr parse_declared_var
+
+  ; SCEN1: check define var added
+  ; - - - - - -
+  ; +ASSIGN_U8V_EQ_IMM define_flag, $00
+  +SET_IS_PTR_TO_VARTABLE_AT_TY_IDX
+  ; dodgy decrement of element_count for define
+  ldx #TYP_DEF
+  dec element_cnt,x
+  +UPDATE_IS_STR_TO_LATEST_ELEMENT_COUNT_IDX
+  
+  ldy #$00
+  lda (is_ptr),y
+  sta s_ptr
+  iny
+  lda (is_ptr),y
+  sta s_ptr+1
+
+  +CMP_S_PTR_TO_IMM "FISHY"
+  bcc +
+  +FAIL_REASON "SCEN1: define var not found in var table"
+  rts
++:
+
+  ; SCEN2: check define value added
+  ; - - - - - -
+
+  +CMP_S_PTR_TO_IMM "1"
+  bcc +
+  +FAIL_REASON "SCEN2: define value not found in value table"
+  rts
++:
   rts
 
 
@@ -1150,6 +1185,14 @@ test__check_swap_vars_with_short_names:
 
   clc
   rts
+
+
+;------------------------------
+test__add_define_value_to_table:
+;------------------------------
+  sec
+  rts
+
 
 ; -------
 ; HELPERS

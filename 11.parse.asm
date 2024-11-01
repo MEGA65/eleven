@@ -130,6 +130,10 @@ basic_end:
 
 !macro UPDATE_IS_STR_TO_LATEST_ELEMENT_COUNT_IDX {
     lda element_cnt,x
+    +UPDATE_IS_STR_TO_DESIRED_ELEMENT_IDX_OF_A
+}
+
+!macro UPDATE_IS_STR_TO_DESIRED_ELEMENT_IDX_OF_A {
     clc
     rol
     bcc +
@@ -356,7 +360,7 @@ basic_end:
   sta .dest+1
 }
 
-!macro alloc .inptr, size {
+!macro ALLOC .inptr, size {
   lda HEAPPTR
   sta .inptr
   lda HEAPPTR+1
@@ -369,6 +373,18 @@ basic_end:
   lda HEAPPTR+1
   adc #>size
   sta HEAPPTR+1
+}
+
+!macro DYN_ALLOC_BYTES .var, .size {
+  lda #<.size
+  ldz #>.size
+  +DYN_ALLOC_BYTES_SIZE_ZA .var
+}
+
+!macro DYN_ALLOC_BYTES_SIZE_ZA .var {
+  jsr alloc_bytes
+  stx .var
+  sty .var+1
 }
 
 
@@ -471,13 +487,13 @@ initialise:
   sta HEAPPTR+1
 
   ; allocate label_name$(200)
-  +alloc label_name, 200*2
+  +ALLOC label_name, 200*2
 
   lda #$00
   sta label_cnt
 
   ; allocate label_lineno(200)
-  +alloc label_lineno, 200*2
+  +ALLOC label_lineno, 200*2
 
   lda #$00
   sta element_cnt
@@ -487,7 +503,7 @@ initialise:
 
 ; #declare var_table$(4,200)             ' variable table per type
   ; ptr to memory for array (4*200*2 = 1600 bytes in size, $640)
-  +alloc var_table, 4*200*2
+  +ALLOC var_table, 4*200*2
 
   jsr init_tokens
 
@@ -573,7 +589,8 @@ element_cnt:
 var_table = $1600   ; ptr to memory for array (4*200*2 = 1600 bytes in size, $640)
 
 ; #declare define_val$(200)              ' define values table
-define_val = $1c40  ; ptr to memory for array (200*2 = 400 bytes in size, $190)
+define_val:
+!fill 200*2, $00  ; memory for array of string pointers
 
 ; #declare args$(32)                     ' argument list
 args:
@@ -1413,7 +1430,7 @@ arg_idx:
 ;-----------------
 parse_declared_var:
 ;-----------------
-; input: var_name$ (e.g. '#define fishy = 1')
+; input: var_name$ (e.g. 'fishy = 1')
 ; output:
 ;   - var is added to var_table()
 ;   - any var declaration text is added to next_line$
@@ -1482,9 +1499,56 @@ add_define_value_to_table:
     lda define_flag
     beq @skip_add_define_val
 ;     define_val$(element_cnt(ty)) = value$
+      +ASSIGN_U16V_EQ_ADDR tmp_ptr, define_val
+      ldx ty
+      lda element_cnt,x
+      clc
+      rol
+      adc tmp_ptr
+      sta tmp_ptr
+    bcc +
+    ; increment high-byte of pointer
+    inc tmp_ptr+1
++:
+  ; figure out length of value
+  +ASSIGN_U16V_EQ_ADDR s_ptr, value
+  jsr get_s_ptr_length
+
+  ; todo: allocate a string from the heap
+    ldz #$00
+    lda cur_line_len
+    +DYN_ALLOC_BYTES_SIZE_ZA temp16
+    ldy #$00
+    lda temp16
+    sta (tmp_ptr),y
+    iny
+    lda temp16+1
+    sta (tmp_ptr),y
+
 ;   bend
 @skip_add_define_val:
     rts
+
+;----------
+alloc_bytes:
+;----------
+; input: ZA = 16-bit size to allocate
+; output: YX = pointer to allocated bytes
+  ldx HEAPPTR
+  stx temp16
+  ldy HEAPPTR+1
+  sty temp16+1
+  
+  clc
+  adc HEAPPTR
+  sta HEAPPTR
+  tza
+  adc HEAPPTR+1
+  sta HEAPPTR+1
+
+  ldx temp16
+  ldy temp16+1
+  rts
 
 
 ;----------------------------------
@@ -3839,7 +3903,7 @@ s_define:
 
 ; 
 ;---------------------------
-parse_preprocessor_directive
+parse_preprocessor_directive:
 ;---------------------------
 ;   if instr(cur_src_line$, "ifdef") = 2 then begin
     +CMP_S_PTR_TO_STR s_ifdef
