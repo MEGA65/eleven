@@ -74,6 +74,11 @@ basic_end:
 ; ------
 ; MACROS
 ; ------
+!macro CMP_LSTR_LEN_TO_IMM .var, .len {
+  lda .var
+  cmp #.len
+}
+
 !macro INCREMENT_ELCNT_OF_TY {
   ldx ty
   inc element_cnt,x
@@ -147,7 +152,7 @@ basic_end:
 }
     
 !macro SET_IS_PTR_TO_VARTABLE_AT_TY_IDX {
-    +assign_u16v_eq_addr is_ptr, var_table
+    +ASSIGN_U16V_EQ_ADDR is_ptr, var_table
     ldx #$00
 @loop_next_type:
     cpx ty
@@ -205,7 +210,7 @@ basic_end:
 }
 
 !macro COPY_STR .var1, .var2 {
-    +assign_u16v_eq_addr s_ptr, .var1
+    +ASSIGN_U16V_EQ_ADDR s_ptr, .var1
     +ASSIGN_U8V_EQ_IMM cur_line_len, $00
     lda #<.var2
     sta ret_ptr_lo
@@ -267,14 +272,14 @@ basic_end:
 }
 
 !macro SET_LSTRING .var, .len, .val {
-  +assign_u16v_eq_addr s_ptr, .var
+  +ASSIGN_U16V_EQ_ADDR s_ptr, .var
   +ASSIGN_U8V_EQ_IMM cur_line_len, $00
   jsr append_inline_text_to_str
 !pet .len, .val, $00  ; length-encoded in first byte
 }
 
 !macro SET_STRING .var, .val {
-  +assign_u16v_eq_addr s_ptr, .var
+  +ASSIGN_U16V_EQ_ADDR s_ptr, .var
   +ASSIGN_U8V_EQ_IMM cur_line_len, $00
   jsr append_inline_text_to_str
 !pet .val, $00
@@ -292,7 +297,7 @@ basic_end:
 -:
 !pet .val, $00
 +:
-  +assign_u16v_eq_addr .var, -
+  +ASSIGN_U16V_EQ_ADDR .var, -
 }
 
 !macro assign_u16v_eq_imm .dest, .val {
@@ -318,7 +323,7 @@ basic_end:
   sta .dest+3
 }
 
-!macro assign_u16v_eq_addr .dest, .addr {
+!macro ASSIGN_U16V_EQ_ADDR .dest, .addr {
   lda #<.addr
   sta .dest
   lda #>.addr
@@ -731,21 +736,28 @@ print_inline_text:
 ;------------------------
 append_inline_text_to_str:
 ;------------------------
-  pla
+  tsx
+  inx
+  lda $0100,x
   clc
   adc #$01
   sta ret_ptr_lo
-  pla
+  inx
+  lda $0100,x
   adc #$00
   sta ret_ptr_hi
 
   jsr append_text_to_str
 
-  lda ret_ptr_hi
-  pha
+  tsx
+  inx
   lda ret_ptr_lo
-  pha
-  rts
+  sta $0100,x
+  inx
+  lda ret_ptr_hi
+  sta $0100,x
+
+   rts
 
 
 ;---------
@@ -1448,7 +1460,7 @@ verbose_print_varname_and_el_cnt:
     beq +
 
 ;     print var_name$; "{x92}: "; element_cnt(ty)
-      +assign_u16v_eq_addr s_ptr, var_name
+      +ASSIGN_U16V_EQ_ADDR s_ptr, var_name
       jsr print_text
 
       jsr print_inline_text
@@ -1717,7 +1729,7 @@ declare_assignment_check:
       sty cur_line_len
 ; 
 ;     tr$ = whitespace$
-      +assign_u16v_eq_addr tr_ptr, whitespace
+      +ASSIGN_U16V_EQ_ADDR tr_ptr, whitespace
 
 ;     s$ = var_name$
       +assign_u16v_eq_u16v s_ptr, var_name
@@ -2124,7 +2136,7 @@ parse_arguments:
 ;   bend
 ++:
 ; 
-    +assign_u16v_eq_addr TMPHEAPPTR, tempheap
+    +ASSIGN_U16V_EQ_ADDR TMPHEAPPTR, tempheap
 
     ldy #$00
     lda #$0
@@ -2265,7 +2277,7 @@ replace_vars_and_labels:
 ;   '    in:   s$ = source string
 ;   '    out:  s$ = dest string with replaced items
 ;   
-    +assign_u16v_eq_addr sr_ptr, f_str
+    +ASSIGN_U16V_EQ_ADDR sr_ptr, f_str
 
 ;   if left$(s$, 2) = "^^" then begin
     ldy #$00
@@ -2302,7 +2314,7 @@ replace_vars_and_labels:
 
 ;   default_delim$ = "?<>=+-#*/^,.:;() "
 ;   delim$ = default_delim$
-    +assign_u16v_eq_addr is_ptr, default_delim
+    +ASSIGN_U16V_EQ_ADDR is_ptr, default_delim
 
     jsr get_s_ptr_length
 ; 
@@ -2335,7 +2347,7 @@ replace_vars_and_labels:
       cmp #'('
       bne +
 ;       delim$ = default_delim$
-        +assign_u16v_eq_addr is_ptr, default_delim
+        +ASSIGN_U16V_EQ_ADDR is_ptr, default_delim
 ;     bend
 +:
 
@@ -2346,7 +2358,7 @@ replace_vars_and_labels:
       cmp #'('
       bne +
 ;       delim$ = default_delim$ + "dpub"
-        +assign_u16v_eq_addr is_ptr, default_plus_dpub_delim
+        +ASSIGN_U16V_EQ_ADDR is_ptr, default_plus_dpub_delim
 ;     bend
 +:
 
@@ -2388,7 +2400,7 @@ replace_vars_and_labels:
 
     jsr add_subbed_curtok_to_astr
 
-    +assign_u16v_eq_addr s_ptr, a_str+1
+    +ASSIGN_U16V_EQ_ADDR s_ptr, a_str+1
 ;   return
     rts
 
@@ -2589,7 +2601,7 @@ check_token_for_subbing:
 
 ;   if cur_tok$ = "goto" then next_line_flag = 1
     phw s_ptr
-    +assign_u16v_eq_addr s_ptr, cur_tok+1
+    +ASSIGN_U16V_EQ_ADDR s_ptr, cur_tok+1
     +CMP_S_PTR_TO_IMM "goto"
     bcs +
       +ASSIGN_U8V_EQ_IMM next_line_flag, $01
@@ -2777,6 +2789,7 @@ check_swap_vars_with_short_names:
         ldx cur_line_len
         sta cur_tok+1,x
         inc cur_line_len
+        inc cur_tok  ; store current length
         lda #$00
         sta cur_tok+2,x
 +:
@@ -2816,7 +2829,7 @@ check_ignore_existing_vocab:
     beq @bail_out
 
 ;     if instr(tokens$(t), tok_name$) <> 0 then begin
-      +assign_u16v_eq_addr s_ptr, tokens
+      +ASSIGN_U16V_EQ_ADDR s_ptr, tokens
       lda ty
       clc
       adc s_ptr+1
@@ -2853,7 +2866,7 @@ check_hex_and_binary_value:
 ;   if left$(cur_tok$, 1) = "$" then begin
     +CMP_U8V_TO_IMM cur_tok+1, '$'
     bne +
-      +assign_u16v_eq_addr tmp_ptr, cur_tok
+      +ASSIGN_U16V_EQ_ADDR tmp_ptr, cur_tok
 ;     hx$ = mid$(cur_tok$, 2)
       ldx cur_tok
       dex
@@ -2874,7 +2887,7 @@ check_hex_and_binary_value:
     +CMP_U8V_TO_IMM cur_tok+1, '%'
     bne +
 ;     bi$ = mid$(cur_tok$, 2)
-      +assign_u16v_eq_addr tmp_ptr, cur_tok
+      +ASSIGN_U16V_EQ_ADDR tmp_ptr, cur_tok
       ldx cur_tok
       dex
       stx cur_line_len

@@ -9,14 +9,14 @@
 }
 
 !macro STR_MATCH .str1, .str2 {
-  +assign_u16v_eq_addr tmp_ptr, .str1
-  +assign_u16v_eq_addr s_ptr, .str2
+  +ASSIGN_U16V_EQ_ADDR tmp_ptr, .str1
+  +ASSIGN_U16V_EQ_ADDR s_ptr, .str2
   jsr cmp_tmp_ptr_to_s_str
 }
 
 !macro STR_MATCH_PTR_TO_STR .ptr, .str {
   +assign_u16v_eq_u16v tmp_ptr, .ptr
-  +assign_u16v_eq_addr s_ptr, .str
+  +ASSIGN_U16V_EQ_ADDR s_ptr, .str
   jsr cmp_tmp_ptr_to_s_str
 }
 
@@ -37,7 +37,7 @@
 }
 
 !macro STR_MATCH_TO_SPTR .str1 {
-  +assign_u16v_eq_addr tmp_ptr, .str1
+  +ASSIGN_U16V_EQ_ADDR tmp_ptr, .str1
   jsr cmp_tmp_ptr_to_s_str
 }
 
@@ -45,7 +45,7 @@
     lda #$00
     sta parser_error
     sta cur_line_len
-    +assign_u16v_eq_addr s_ptr, parser_error
+    +ASSIGN_U16V_EQ_ADDR s_ptr, parser_error
     jsr append_inline_text_to_str
 !pet $0d,150,$09,.txt,$0d,$05,$00
 
@@ -71,7 +71,7 @@ run_tests:
   sta failed_cnt
   sta total_cnt
 
-  +assign_u16v_eq_addr TESTPTR, test_array
+  +ASSIGN_U16V_EQ_ADDR TESTPTR, test_array
 
   ; lower-case
   lda #$0e
@@ -147,7 +147,7 @@ run_tests:
   lda fail_reason_flag
   beq @skip_fail_reason
 
-    +assign_u16v_eq_addr ret_ptr_lo, parser_error
+    +ASSIGN_U16V_EQ_ADDR ret_ptr_lo, parser_error
 
     jsr print_text
 
@@ -497,18 +497,13 @@ test__check_token_for_subbing:
 ;-----------------------
 test__add_curtok_to_astr:
 ;-----------------------
-  +assign_u16v_eq_addr s_ptr, a_str
-  +ASSIGN_U8V_EQ_IMM cur_line_len, $00
-  jsr append_inline_text_to_str
-!pet $06, "hello ", $00  ; length-encoded in first byte
-
+  +SET_LSTRING a_str, $06, "hello "
   +SET_LSTRING cur_tok, $05, "world"
 
   jsr add_curtok_to_astr
 
   ; SCEN1: check new astr length
-  lda a_str
-  cmp #11
+  +CMP_LSTR_LEN_TO_IMM a_str, 11
   beq +
   +FAIL_REASON "SCEN1: a_str has wrong length"
   rts
@@ -531,13 +526,8 @@ test__add_curtok_to_astr:
 ;------------------------
 test__add_curchar_to_astr:
 ;------------------------
-  +assign_u16v_eq_addr s_ptr, a_str
-  +ASSIGN_U8V_EQ_IMM cur_line_len, $00
-  jsr append_inline_text_to_str
-!pet $04, "hell", $00  ; length-encoded in first byte
-
-  lda #'o'
-  sta cur_char
+  +SET_LSTRING a_str, $04, "hell"
+  +ASSIGN_U8V_EQ_IMM cur_char, 'o'
 
   jsr add_curchar_to_astr
 
@@ -673,7 +663,54 @@ test__dbl_quote_check:
 ;------------------------------
 test__add_subbed_curtok_to_astr:
 ;------------------------------
-  sec
+  +SET_LSTRING a_str, $06, "hello "
+  +SET_LSTRING cur_tok, $07, "moocow$"
+
+  jsr add_subbed_curtok_to_astr
+
+  ; SCEN1: no sub, check new astr length
+  ; - - - - - - -
+  +CMP_LSTR_LEN_TO_IMM a_str, 13
+  beq +
+  +FAIL_REASON "SCEN1: a_str has wrong length"
+  rts
++:
+
+  ; SCEN2: no sub, check astr contents
+  ; - - - - - - -
+  +ASSIGN_U16V_EQ_ADDR s_ptr, a_str
+  inw s_ptr ; slip length byte
+  +CMP_S_PTR_TO_IMM "hello moocow$"
+  bcc +
+  +FAIL_REASON "SCEN2: a_str has wrong contents"
+  rts
++:
+
+  ; SCEN3:
+  +SET_LSTRING a_str, $06, "hello "
+  +FORCE_ADD_VAR_TO_VARTABLE "moocow$", TYP_STR
+  +SET_LSTRING cur_tok, $07, "moocow$"
+
+  jsr add_subbed_curtok_to_astr
+  
+  ; SCEN3: subbed, check new astr length
+  ; - - - - - - -
+  +CMP_LSTR_LEN_TO_IMM a_str, $08
+  beq +
+  +FAIL_REASON "SCEN3: a_str has wrong length"
+  rts
++:
+
+  ; SCEN4: subbed, check astr contents
+  ; - - - - - - -
+  +ASSIGN_U16V_EQ_ADDR s_ptr, a_str
+  inw s_ptr ; slip length byte
+  +CMP_S_PTR_TO_IMM "hello a$"
+  bcc +
+  +FAIL_REASON "SCEN4: a_str has wrong contents"
+  rts
++:
+  clc
   rts
 
 
@@ -718,11 +755,11 @@ test__parse_arguments:
 ;---------------------
 test__add_trimmed_args:
 ;---------------------
-  +assign_u16v_eq_addr args, tempheap
+  +ASSIGN_U16V_EQ_ADDR args, tempheap
   +ASSIGN_U8V_EQ_IMM arg_idx, $00
   +ASSIGN_U8V_EQ_IMM arg_cnt, $00
 
-  +assign_u16v_eq_addr s_ptr, tempheap
+  +ASSIGN_U16V_EQ_ADDR s_ptr, tempheap
   +ASSIGN_U8V_EQ_IMM cur_line_len, $00
   jsr append_inline_text_to_str
 !pet "  a=1  ", $00
@@ -755,7 +792,7 @@ test__declare_assignment_check:
   +SET_STRING f_str, "a = 1"
   ; this will set s_ptr to point to it too
 
-  +assign_u16v_eq_addr var_name, f_str
+  +ASSIGN_U16V_EQ_ADDR var_name, f_str
 
   jsr declare_assignment_check
   
@@ -789,7 +826,7 @@ test__declare_assignment_check:
 test__declare_dimension_check:
 ;----------------------------
   +SET_STRING f_str, "fish$(10)"
-  +assign_u16v_eq_addr var_name, f_str
+  +ASSIGN_U16V_EQ_ADDR var_name, f_str
 
   +ASSIGN_U8V_EQ_IMM bkt_open_idx, $05
   +ASSIGN_U8V_EQ_IMM bkt_close_idx, $08
@@ -824,7 +861,7 @@ test__declare_dimension_check:
 ;-------------------------
 test__decimal_number_check:
 ;-------------------------
-  +assign_u16v_eq_addr s_ptr, cur_tok
+  +ASSIGN_U16V_EQ_ADDR s_ptr, cur_tok
 
   ; SCEN1: cur_tok = "5"
   ; - - - - - - - - -
@@ -881,7 +918,7 @@ test__check_mark_expected_label:
   +ASSIGN_U8V_EQ_IMM expecting_label, $01
   +ASSIGN_U8V_EQ_IMM dont_mark_label, $01
 
-  +assign_u16v_eq_addr s_ptr, cur_tok
+  +ASSIGN_U16V_EQ_ADDR s_ptr, cur_tok
   +ASSIGN_U8V_EQ_IMM cur_line_len, $00
   jsr append_inline_text_to_str
 @expected1:
@@ -917,7 +954,7 @@ test__check_mark_expected_label:
 ;-----------------------
 test__mark_cur_tok_label:
 ;-----------------------
-  +assign_u16v_eq_addr s_ptr, cur_tok
+  +ASSIGN_U16V_EQ_ADDR s_ptr, cur_tok
 
   ; SCEN1: cur_tok = "dummy", expecting markers added on both ends
   ; - - - - - - - - -
