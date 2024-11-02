@@ -472,6 +472,9 @@ test__parse_declared_var:
 
   ; SCEN2: check define value added
   ; - - - - - -
+  lda #$00  ; I'm expecting it to be the 1st define element
+  +SET_TMP_PTR_TO_DEFVALS_AT_DESIRE_ELIDX_OF_A
+  +ASSIGN_U16V_EQ_DEREF_U16V s_ptr, tmp_ptr
 
   +CMP_S_PTR_TO_IMM "1"
   bcc +
@@ -1196,13 +1199,7 @@ test__add_define_value_to_table:
   jsr add_define_value_to_table
 
   +SET_TMP_PTR_TO_DEFVALS_AT_ELCNT_IDX
-
-  ldy #$00
-  lda (tmp_ptr),y
-  sta s_ptr
-  iny
-  lda (tmp_ptr),y
-  sta s_ptr+1
+  +ASSIGN_U16V_EQ_DEREF_U16V s_ptr, tmp_ptr
 
   +CMP_S_PTR_TO_IMM "1"
   bcc +
