@@ -36,11 +36,6 @@
 ++:
 }
 
-!macro STR_MATCH_TO_SPTR .str1 {
-  +ASSIGN_U16V_EQ_ADDR tmp_ptr, .str1
-  jsr cmp_tmp_ptr_to_s_str
-}
-
 !macro FAIL_REASON .txt {
     lda #$00
     sta parser_error
@@ -1228,6 +1223,13 @@ test__check_defines_table:
 +:
 
   clc
+  rts
+
+
+;----------------------
+test__declare_s_ptr_var:
+;----------------------
+  sec
   rts
 
 

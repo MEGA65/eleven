@@ -74,6 +74,42 @@ basic_end:
 ; ------
 ; MACROS
 ; ------
+!macro STR_MATCH_TO_SPTR .str1 {
+  +ASSIGN_U16V_EQ_ADDR tmp_ptr, .str1
+  jsr cmp_tmp_ptr_to_s_str
+}
+
+!macro UPDATE_S_PTR_TO_SKIP_DECL_OR_DEF {
+    +add_to_pointer_u8 s_ptr, 9
+    +CMP_U8V_TO_IMM define_flag, $00
+
+    sec
+    lda cur_line_len
+    sbc #09
+    sta cur_line_len
+
+    ; the (- define_flag) part
+    lda define_flag
+    beq +
+    dew s_ptr
+    clc
+    inc cur_line_len
++:
+}
+
+!macro SET_VARNAME_EQ_ARGS_I {
+      lda arg_idx
+      clc
+      rol
+      tay
+      
+      lda args,y
+      sta var_name
+      iny
+      lda args,y
+      sta var_name+1
+}
+
 !macro HEAP_COPY_PSTR_EQ_PSTR .dest, .src {
   ; figure out length of value
   +ASSIGN_U16V_EQ_U16V s_ptr, .src
@@ -1412,21 +1448,16 @@ pass_1:
 declare_s_ptr_var:  ; declare_s$_var
 ;----------------
 ;   ' declare var(s) in s$
+;  input:
+;    - s$ (e.g. "#define FISHY=1" or "#declare a=1")
+;         (if the former, define_flag=1. Latter is =0)
+;  output:
+;    - var_table gets populated
+;    - define_vals get populated (if define_flag == 1)
+
 ;   s$ = mid$(cur_src_line$, 10 - define_flag)
-    +add_to_pointer_u8 s_ptr, 9
-    sec
-    lda cur_line_len
-    sbc #09
-    sta cur_line_len
+    +UPDATE_S_PTR_TO_SKIP_DECL_OR_DEF
 
-    ; the (- define_flag) part
-    lda define_flag
-    beq +
-    dew s_ptr
-    clc
-    inc cur_line_len
-
-+:
 ;   ignore_brackets = 1
     lda #$01
     sta ignore_brackets
@@ -1461,17 +1492,7 @@ declare_s_ptr_var:  ; declare_s$_var
 ;   for i = 0 to arg_cnt
 @loop_next_arg:
 ;     var_name$ = args$(i)
-      lda arg_idx
-      clc
-      rol
-      tay
-      
-      lda args,y
-      sta var_name
-      iny
-      lda args,y
-      sta var_name+1
-
+      +SET_VARNAME_EQ_ARGS_I
 ;     gosub parse_declared_var
       jsr parse_declared_var
 
@@ -1554,8 +1575,8 @@ verbose_print_varname_and_el_cnt:
     beq +
 
 ;     print var_name$; "{x92}: "; element_cnt(ty)
-      +ASSIGN_U16V_EQ_ADDR s_ptr, var_name
-      jsr print_text
+      +ASSIGN_U16V_EQ_U16V s_ptr, var_name
+      jsr print_str
 
       jsr print_inline_text
 !pet $92, ": ", $00
@@ -1565,6 +1586,9 @@ verbose_print_varname_and_el_cnt:
       tax
       ldy #$00
       jsr print_uint
+
+      lda #$0d
+      jsr CHROUT
 ;   bend
 +:
     rts
