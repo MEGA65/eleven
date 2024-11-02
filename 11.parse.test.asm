@@ -370,7 +370,7 @@ test__add_varname_to_vartable:
   jsr add_varname_to_vartable
 
   +SET_IS_PTR_TO_VARTABLE_AT_TY_IDX
-  +UPDATE_IS_STR_TO_LATEST_ELEMENT_COUNT_IDX
+  +UPDATE_IS_PTR_TO_LATEST_ELEMENT_COUNT_IDX
   
   ldy #$00
   lda (is_ptr),y
@@ -393,7 +393,7 @@ test__add_varname_to_vartable:
   jsr add_varname_to_vartable
 
   +SET_IS_PTR_TO_VARTABLE_AT_TY_IDX
-  +UPDATE_IS_STR_TO_LATEST_ELEMENT_COUNT_IDX
+  +UPDATE_IS_PTR_TO_LATEST_ELEMENT_COUNT_IDX
   
   ldy #$00
   lda (is_ptr),y
@@ -456,8 +456,11 @@ test__parse_declared_var:
   +SET_IS_PTR_TO_VARTABLE_AT_TY_IDX
   ; dodgy decrement of element_count for define
   ldx #TYP_DEF
-  dec element_cnt,x
-  +UPDATE_IS_STR_TO_LATEST_ELEMENT_COUNT_IDX
+  lda element_cnt,x
+  tax
+  dex
+  txa
+  +UPDATE_IS_PTR_TO_DESIRED_ELEMENT_IDX_OF_A
   
   ldy #$00
   lda (is_ptr),y
@@ -486,23 +489,23 @@ test__parse_declared_var:
 ;----------------------------
 test__replace_vars_and_labels:
 ;----------------------------
-  // NOTE: This test relies on the prior "test__add_to_label_table:" adding the
-  // label ".testlabel1" into the label table already
+  // NOTE: This test relies on the prior "test__parse_declared_var:" adding the
+  // define "FISHY=1" into the define-val table already
 
-  +SET_STRING f_str, "a$(testlabel1)"
+  +SET_STRING f_str, "a$(FISHY)"
   ; this will set s_ptr to point to it too
 
   jsr replace_vars_and_labels
 
   bra +
 @expected:
-!pet "a$(5)",$00
+!pet "a$(1)",$00
 +:
 
   +ASSIGN_U16V_EQ_U16V s_ptr, var_name
   +STR_MATCH_TO_SPTR @expected
   bcc +
-  +FAIL_REASON "s_ptr != 'a$(5)'"
+  +FAIL_REASON "s_ptr != 'a$(1)'"
   rts
 +:
   
@@ -1209,6 +1212,26 @@ test__add_define_value_to_table:
   +CMP_S_PTR_TO_IMM "1"
   bcc +
   +FAIL_REASON "string var not found in def-values table"
+  rts
++:
+
+  clc
+  rts
+
+
+;------------------------
+test__check_defines_table:
+;------------------------
+  ; NOTE: This test presently expects a prior test to
+  ; define "FISHY = 1"
+
+  +SET_LSTRING cur_tok, $05, "FISHY"
+
+  jsr check_defines_table
+
+  +CMP_S_PTR_TO_IMM "1"
+  bcc +
+  +FAIL_REASON "token 'FISHY' wasn't replaced with '1'"
   rts
 +:
 

@@ -74,14 +74,47 @@ basic_end:
 ; ------
 ; MACROS
 ; ------
+!macro HEAP_COPY_PSTR_EQ_PSTR .dest, .src {
+  ; figure out length of value
+  +ASSIGN_U16V_EQ_U16V s_ptr, .src
+  jsr get_s_ptr_length
+
+  ; todo: allocate a string from the heap
+    ldz #$00
+    ldx cur_line_len
+    inx ; add one extra for null terminator
+    txa
+    +DYN_ALLOC_BYTES_SIZE_ZA temp16
+    ldy #$00
+    lda temp16
+    sta (<.dest),y
+    iny
+    lda temp16+1
+    sta (<.dest),y ; put new string ptr into defines_val table
+
+    +COPY_PSTR_FROM_PSTR temp16, .src
+}
+
+
 !macro SET_TMP_PTR_TO_DEFVALS_AT_ELCNT_IDX {
-      +ASSIGN_U16V_EQ_ADDR tmp_ptr, define_val
-      ldx ty
-      lda element_cnt,x
-      clc
-      rol
-      adc tmp_ptr
-      sta tmp_ptr
+  +ASSIGN_U16V_EQ_ADDR tmp_ptr, define_val
+  ldx ty
+  lda element_cnt,x
+  +UPDATE_TMP_PTR_TO_DEFVALS_AT_DESIRE_ELIDX_OF_A
+}
+
+!macro SET_TMP_PTR_TO_DEFVALS_AT_DESIRE_ELIDX_OF_A {
+  pha
+  +ASSIGN_U16V_EQ_ADDR tmp_ptr, define_val
+  pla
+  +UPDATE_TMP_PTR_TO_DEFVALS_AT_DESIRE_ELIDX_OF_A
+}
+
+!macro UPDATE_TMP_PTR_TO_DEFVALS_AT_DESIRE_ELIDX_OF_A {
+    clc
+    rol
+    adc tmp_ptr
+    sta tmp_ptr
     bcc +
     ; increment high-byte of pointer
     inc tmp_ptr+1
@@ -142,12 +175,12 @@ basic_end:
     bvs @wait_for_mult_to_finish
 }
 
-!macro UPDATE_IS_STR_TO_LATEST_ELEMENT_COUNT_IDX {
+!macro UPDATE_IS_PTR_TO_LATEST_ELEMENT_COUNT_IDX {
     lda element_cnt,x
-    +UPDATE_IS_STR_TO_DESIRED_ELEMENT_IDX_OF_A
+    +UPDATE_IS_PTR_TO_DESIRED_ELEMENT_IDX_OF_A
 }
 
-!macro UPDATE_IS_STR_TO_DESIRED_ELEMENT_IDX_OF_A {
+!macro UPDATE_IS_PTR_TO_DESIRED_ELEMENT_IDX_OF_A {
     clc
     rol
     bcc +
@@ -1541,25 +1574,7 @@ add_define_value_to_table:
     beq @skip_add_define_val
 ;     define_val$(element_cnt(ty)) = value$
       +SET_TMP_PTR_TO_DEFVALS_AT_ELCNT_IDX
-
-  ; figure out length of value
-  +ASSIGN_U16V_EQ_U16V s_ptr, value
-  jsr get_s_ptr_length
-
-  ; todo: allocate a string from the heap
-    ldz #$00
-    ldx cur_line_len
-    inx ; add one extra for null terminator
-    txa
-    +DYN_ALLOC_BYTES_SIZE_ZA temp16
-    ldy #$00
-    lda temp16
-    sta (tmp_ptr),y
-    iny
-    lda temp16+1
-    sta (tmp_ptr),y ; put new string ptr into defines_val table
-
-    +COPY_PSTR_FROM_PSTR temp16, value
+      +HEAP_COPY_PSTR_EQ_PSTR tmp_ptr, value
 ;   bend
 @skip_add_define_val:
     rts
@@ -1644,18 +1659,13 @@ add_varname_to_vartable:
 
     ; var_table(,) = ptr to memory for array (4*200*2 = 1600 bytes in size, $640)
     +SET_IS_PTR_TO_VARTABLE_AT_TY_IDX
-    +UPDATE_IS_STR_TO_LATEST_ELEMENT_COUNT_IDX
+    +UPDATE_IS_PTR_TO_LATEST_ELEMENT_COUNT_IDX
 
     ; warning: i suspect that varname comes from temporary args
     ; (which will eventually be removed from the heap)
     ; it might be safer to copy the var_name contents to a new string
     ; (but then I need to reconsider my 'temp' use of the heap)
-    ldy #$00
-    lda var_name
-    sta (is_ptr),y
-    iny
-    lda var_name+1
-    sta (is_ptr),y
+    +HEAP_COPY_PSTR_EQ_PSTR is_ptr, var_name
     rts
 
 
@@ -2626,15 +2636,15 @@ add_curchar_to_astr:
 ;--------------------
 add_curchar_to_curtok:
 ;--------------------
-  ldx cur_tok   ; string length
-  inx
-
   lda cur_char
   cmp #$00    ; if cur_char=$00, then ignore it (consider it "don't add a char")
   bne +
   rts
-
 +:
+
+  inc cur_tok   ; string length
+  ldx cur_tok
+
   sta cur_tok,x
   stx cur_tok   ; store new length
 
@@ -2807,12 +2817,45 @@ check_defines_table:
 ;
 ;   ' check defines table too
 ;   ' - - - - - - - - - - - -
+    
+    ldx #TYP_DEF
+    stx ty
+    +SET_IS_PTR_TO_VARTABLE_AT_TY_IDX
+    lda element_cnt,x
+    sta elcnt
+    lda #$00
+    sta elidx
 ;   for id = 0 to element_cnt(TYP_DEF)
+@loop_next_element:
+    ldy elidx
+    cpy elcnt
+    beq @bail_out
 ;     if cur_tok$ = var_table$(TYP_DEF, id) then begin
+      +ASSIGN_U16V_EQ_DEREF_U16V s_ptr, is_ptr
+      +CMP_S_PTR_TO_STR cur_tok+1
+      bcs +
 ;       cur_tok$ = define_val$(id)
+        lda elidx
+        +SET_TMP_PTR_TO_DEFVALS_AT_DESIRE_ELIDX_OF_A
+        ldy #$00
+        lda (tmp_ptr),y
+        sta is_ptr
+        iny
+        lda (tmp_ptr),y
+        sta is_ptr+1
+        +COPY_STR_FROM_PSTR cur_tok+1, is_ptr
+        lda cur_line_len
+        sta cur_tok  ; store current length
 ;       return
+        rts
 ;     bend
++:
 ;   next id
+    inc elidx
+    bra @loop_next_element
+
+@bail_out:
+    clc
     rts
 
 elcnt:
