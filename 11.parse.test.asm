@@ -462,12 +462,7 @@ test__parse_declared_var:
   txa
   +UPDATE_IS_PTR_TO_DESIRED_ELEMENT_IDX_OF_A
   
-  ldy #$00
-  lda (is_ptr),y
-  sta s_ptr
-  iny
-  lda (is_ptr),y
-  sta s_ptr+1
+  +ASSIGN_U16V_EQ_DEREF_U16V s_ptr, is_ptr
 
   +CMP_S_PTR_TO_IMM "FISHY"
   bcc +
@@ -502,7 +497,7 @@ test__replace_vars_and_labels:
 !pet "a$(1)",$00
 +:
 
-  +ASSIGN_U16V_EQ_U16V s_ptr, f_str ; f_str is really s$
+  +ASSIGN_U16V_EQ_ADDR s_ptr, f_str ; f_str is really s$
   +STR_MATCH_TO_SPTR @expected
   bcc +
   +FAIL_REASON "s_ptr != 'a$(1)'"

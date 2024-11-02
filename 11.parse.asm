@@ -2861,12 +2861,7 @@ check_defines_table:
 ;       cur_tok$ = define_val$(id)
         lda elidx
         +SET_TMP_PTR_TO_DEFVALS_AT_DESIRE_ELIDX_OF_A
-        ldy #$00
-        lda (tmp_ptr),y
-        sta is_ptr
-        iny
-        lda (tmp_ptr),y
-        sta is_ptr+1
+        +ASSIGN_U16V_EQ_DEREF_U16V is_ptr, tmp_ptr
         +COPY_STR_FROM_PSTR cur_tok+1, is_ptr
         lda cur_line_len
         sta cur_tok  ; store current length
