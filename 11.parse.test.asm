@@ -502,7 +502,7 @@ test__replace_vars_and_labels:
 !pet "a$(1)",$00
 +:
 
-  +ASSIGN_U16V_EQ_U16V s_ptr, var_name
+  +ASSIGN_U16V_EQ_U16V s_ptr, f_str ; f_str is really s$
   +STR_MATCH_TO_SPTR @expected
   bcc +
   +FAIL_REASON "s_ptr != 'a$(1)'"

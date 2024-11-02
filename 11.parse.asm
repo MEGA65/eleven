@@ -290,6 +290,16 @@ basic_end:
     jsr append_text_to_str
 }
 
+!macro COPY_PSTR_FROM_STR .var1, .var2 {
+    +ASSIGN_U16V_EQ_U16V s_ptr, .var1
+    +ASSIGN_U8V_EQ_IMM cur_line_len, $00
+    lda #<.var2
+    sta ret_ptr_lo
+    lda #>.var2+1
+    sta ret_ptr_hi
+    jsr append_text_to_str
+}
+
 !macro POKEB4 .addr, .val {
     lda #<.addr
     sta FOURPTR
@@ -2378,14 +2388,21 @@ default_delim:
 default_plus_dpub_delim:
 !pet "?<>=+-#*/^,.:;() dpub",$00
 
+orig_sptr:
+!word $000
 
 ;----------------------
 replace_vars_and_labels:
 ;----------------------
 ;   ' -- replace vars & labels in source string --
-;   '    in:   s$ = source string
+;   '    in:   s$ = source string (which is really f_str)
 ;   '    out:  s$ = dest string with replaced items
 ;   
+    lda s_ptr
+    sta orig_sptr
+    lda s_ptr+1
+    sta orig_sptr+1
+
     +ASSIGN_U16V_EQ_ADDR sr_ptr, f_str
 
 ;   if left$(s$, 2) = "^^" then begin
@@ -2483,6 +2500,8 @@ replace_vars_and_labels:
       jsr instr_chr_quick
       bcs @skip_to_delim_check_else
 
+;       a$ = a$ + cur_tok$
+;       cur_tok$ = ""
         jsr add_subbed_curtok_to_astr
 ;       if cur_ch$ = " " then cur_ch$ = ""
         lda cur_char
@@ -2507,9 +2526,10 @@ replace_vars_and_labels:
     
 @bail_for_loop:
 
+    ; s$ = a$ + cur_tok$
     jsr add_subbed_curtok_to_astr
 
-    +ASSIGN_U16V_EQ_ADDR s_ptr, a_str+1
+    +COPY_PSTR_FROM_STR orig_sptr, a_str+1
 ;   return
     rts
 
@@ -2731,6 +2751,10 @@ check_token_for_subbing:
     rts
 +:
     jsr check_defines_table
+    bcc +
+    rts
+
++:
     jsr check_struct_names
     bcc +
     rts
@@ -2847,6 +2871,7 @@ check_defines_table:
         lda cur_line_len
         sta cur_tok  ; store current length
 ;       return
+        sec
         rts
 ;     bend
 +:
