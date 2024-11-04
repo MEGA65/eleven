@@ -298,11 +298,27 @@ basic_end:
     sta (s_ptr),y
 }
 
+!macro APPEND_IMM_CHR_TO_S_PTR .val {
+  lda #.val
+  jsr append_char_to_str
+}
+
+!macro APPEND_TYPE_CHAR_TO_S_PTR {
+  ldx ty
+  lda type_ident,x
+  jsr append_char_to_str  ; type char (e.g. '$')
+}
+
 !macro APPEND_STR_TO_S_PTR .var {
     lda #<.var
     sta ret_ptr_lo
     lda #>.var
     sta ret_ptr_hi
+    jsr append_text_to_str
+}
+
+!macro APPEND_PSTR_TO_S_PTR .ptr {
+    +ASSIGN_U16V_EQ_U16V ret_ptr_lo, .ptr
     jsr append_text_to_str
 }
 
@@ -692,6 +708,7 @@ MULTOUT = $d778
 ;   clr
 ; 
 ; #declare dbl_quote$, parser_file$, t$, blank_line$, type_ident$
+!byte $00
 type_ident:
 !pet $00  ; type_ident$(TYP_REAL)=""
 !pet '%'  ; type_ident$(TYP_INT)="%"
@@ -929,6 +946,21 @@ print_text:
   bne print_text
 
 @found_null:
+  rts
+
+
+;-------------------
+append_char_to_str:
+;-------------------
+;  input: regA = char to add
+  ldy cur_line_len
+  sta (s_ptr),y
+  inc cur_line_len
+
+  ldy cur_line_len ; null term
+  lda #$00
+  sta (s_ptr),y
+
   rts
 
 ;-----------------
@@ -1674,20 +1706,38 @@ generate_dest_line_for_assigned_var:
 ;-------------------------------------
 generate_dest_line_for_dimensioned_var:
 ;-------------------------------------
+;  input:
+;    - dimension  (e.g., "10" of "fish$(10)")
+;    - ty         (type of var)
+;    - define_flag (should be zero for any impact)
+;  output:
+;    - next_line  (e.g. "dim ab$(10)")
+
 ;   if dimension$ <> "" then begin
     lda dimension
     ora dimension+1
-    beq +
+    beq @bail_out
 ;     id = element_cnt(ty)
       +ASSIGN_U8V_EQ_ELCNT_IDX_OF_TY elidx
 ;     gosub generate_varname  ' fetch varname in gen_varname$
       jsr generate_varname
 
 ;     if define_flag = 0 then begin
+      +CMP_U8V_TO_IMM define_flag, $00
+      bne +
 ;       next_line$ = next_line$ + "dim " + gen_varname$ + t$ + "(" + dimension$ + "):"
+        +ASSIGN_U16V_EQ_ADDR s_ptr, next_line
+        jsr get_s_ptr_length
+        +APPEND_INLINE_TO_S_PTR "dim "
+        +APPEND_STR_TO_S_PTR gen_varname
+        +APPEND_TYPE_CHAR_TO_S_PTR
+        +APPEND_IMM_CHR_TO_S_PTR '('
+        +APPEND_PSTR_TO_S_PTR dimension
+        +APPEND_IMM_CHR_TO_S_PTR ')'
 ;     bend
-;   bend
 +:
+;   bend
+@bail_out:
     rts
 
 ;-------------------------

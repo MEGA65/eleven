@@ -2,10 +2,14 @@
 ; MACROS
 ; ------
 !macro FORCE_ADD_VAR_TO_VARTABLE .name, .type {
+  +FORCE_ADD_VAR_TO_VARTABLE_NO_INC .name, .type
+  +INCREMENT_ELCNT_OF_TY
+}
+
+!macro FORCE_ADD_VAR_TO_VARTABLE_NO_INC .name, .type {
   +ASSIGN_STRING_PTR_TO_IMM var_name, .name
   +ASSIGN_U8V_EQ_IMM ty, .type
   jsr add_varname_to_vartable
-  +INCREMENT_ELCNT_OF_TY
 }
 
 !macro STR_MATCH .str1, .str2 {
@@ -359,8 +363,7 @@ test__add_varname_to_vartable:
 ;----------------------------
   ; SCEN1: add a string var
   ; -----------------------
-  +ASSIGN_STRING_PTR_TO_IMM var_name, "fishy$"
-  +ASSIGN_U8V_EQ_IMM ty, TYP_STR
+  +FORCE_ADD_VAR_TO_VARTABLE_NO_INC "fishy$", TYP_STR
 
   jsr add_varname_to_vartable
 
@@ -1251,7 +1254,39 @@ test__declare_s_ptr_var:
 ;-------------------------------------------
 test__generate_dest_line_for_dimensioned_var:
 ;-------------------------------------------
-  sec
+  ;+SET_STRING f_str, "fish%(10)"
+  ;+ASSIGN_U16V_EQ_ADDR var_name, f_str
+
+  +FORCE_ADD_VAR_TO_VARTABLE_NO_INC "moo%", TYP_INT
+  +ASSIGN_STRING_PTR_TO_IMM dimension, "10"
+  +ASSIGN_U8V_EQ_IMM ty, TYP_INT
+  +ASSIGN_U8V_EQ_IMM define_flag, $01
+
+  ; SCEN1: do nothing if define_flag is on
+  ; - - - - - - -
+  +ASSIGN_U8V_EQ_IMM next_line, $00  ; null-term
+
+  jsr generate_dest_line_for_dimensioned_var
+
+  +CMP_U8V_TO_IMM next_line, $00
+  beq +
+    +FAIL_REASON "next_line wasn't empty"
+    rts
++:
+
+  ; SCEN2: prepare next_line if define_flag is off
+  ; - - - - - - -
+  +ASSIGN_U8V_EQ_IMM define_flag, $00
+
+  jsr generate_dest_line_for_dimensioned_var
+
+  +CMP_STR_TO_IMM next_line, "dim b%(10)"
+  bcc +
+    +FAIL_REASON "next_line not as expected"
+    rts
++:
+
+  clc
   rts
 
 
