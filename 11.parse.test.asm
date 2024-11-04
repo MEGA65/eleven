@@ -1307,6 +1307,30 @@ test__generate_dest_line_for_assigned_var:
   rts
 
 
+;---------------------------------
+test__parse_preprocessor_directive:
+;---------------------------------
+  sec
+  rts
+
+
+;--------------------
+test__set_output_file:
+;--------------------
+  +SET_STRING cur_src_line, "#output \"myfile\""
+
+  jsr set_output_file
+
+  +CMP_STR_TO_IMM outfile, "myfile"
+  bcc +
+    +FAIL_REASON "outfile not as expected"
+    rts
++:
+
+  clc
+  rts
+
+
 ; -------
 ; HELPERS
 ; -------

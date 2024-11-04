@@ -74,6 +74,19 @@ basic_end:
 ; ------
 ; MACROS
 ; ------
+!macro SUB_U8V_WITH_IMM .var, .val {
+  sec
+  lda .var
+  sbc #.val
+  sta .var
+}
+
+!macro SET_PARSER_ERROR_ON_LINE .text {
+;     parser_error$ = "?declare parameter missing in line " + str$(cur_src_lineno)
+    +SET_STRING parser_error, "?declare parameter missing in line "
+    +APPEND_UINT_TO_S_PTR cur_src_lineno
+}
+
 !macro SET_IS_PTR_TO_LAST_VARTABLE_ELEMENT_OF_TYPE .type {
   +SET_IS_PTR_TO_VARTABLE_AT_TY_IDX
   +ASSIGN_A_EQ_ELCNT_OF_TYPE_MINUS_1 .type
@@ -100,7 +113,7 @@ basic_end:
 }
 
 !macro UPDATE_S_PTR_TO_SKIP_DECL_OR_DEF {
-    +add_to_pointer_u8 s_ptr, 9
+    +ADD_TO_POINTER_U8 s_ptr, 9
     +CMP_U8V_TO_IMM define_flag, $00
 
     sec
@@ -268,6 +281,21 @@ basic_end:
 !pet .txt, $00
 }
 
+!macro PRINT_INLINE .txt {
+  jsr print_inline_text
+!pet .txt, $00
+}
+
+!macro PRINT_CHR .val {
+  lda #.val
+  jsr CHROUT
+}
+
+!macro PRINT_PSTR .ptr {
+  +ASSIGN_U16V_EQ_U16V ret_ptr_lo, .ptr
+  jsr print_text
+}
+
 !macro CMP_U8V_IN_IMM_RANGE .var, .val1, .val2 {
   lda .var
   cmp #.val2
@@ -330,6 +358,18 @@ basic_end:
     lda #>.var2
     sta ret_ptr_hi
     jsr append_text_to_str
+}
+
+!macro COPY_TO_STR_FROM_S_PTR .var {
+    ldy #$00
+-:
+    lda (s_ptr),y
+    sta .var,y
+    cmp #$00  ; null term?
+    beq +
+    iny
+    bra -
++:
 }
 
 !macro COPY_STR_FROM_PSTR .var1, .var2 {
@@ -550,6 +590,19 @@ basic_end:
   +CMP_S_PTR_TO_IMM .val
 }
 
+!macro INSTR_S_PTR_TO_IMM .str {
+  bra +
+@imm_str:
+!pet .str, $00
++:
+;   if instr(cur_src_line$, "ifdef") = 2 then begin
+    ldx #<@imm_str
+    ldy #>@imm_str
+    lda s_ptr
+    ldz s_ptr+1
+    jsr instr
+}
+
 !macro CMP_S_PTR_TO_IMM .str {
   bra +
 @imm_str:
@@ -563,7 +616,7 @@ basic_end:
     jsr streq
 }
 
-!macro add_to_pointer_u8 .ptr, .val {
+!macro ADD_TO_POINTER_U8 .ptr, .val {
   clc
   lda .ptr
   adc #.val
@@ -708,6 +761,8 @@ MULTOUT = $d778
 ;   clr
 ; 
 ; #declare dbl_quote$, parser_file$, t$, blank_line$, type_ident$
+dbl_quote:
+!pet '"', $00
 !byte $00
 type_ident:
 !pet $00  ; type_ident$(TYP_REAL)=""
@@ -821,6 +876,8 @@ equals_idx:
 !byte $00
 
 ; #declare tr$, hx$, bi$, ty, id, gen_varname$, of$
+outfile:  ; old of$
+!fill 32, $00
 gen_varname:
 !fill 4, $00
 ty:
@@ -1536,9 +1593,7 @@ declare_s_ptr_var:  ; declare_s$_var
 ;   if arg_cnt < 0 then begin
     +CMP_U8V_TO_IMM arg_cnt, $ff
     bne +
-;     parser_error$ = "?declare parameter missing in line " + str$(cur_src_lineno)
-    +SET_STRING parser_error, "?declare parameter missing in line "
-    +APPEND_UINT_TO_S_PTR cur_src_lineno
+    +SET_PARSER_ERROR_ON_LINE "?declare parameter missing in line "
 
 ;     goto return_to_editor_with_error
     jmp return_to_editor_with_error
@@ -2020,29 +2075,64 @@ vartype_delim:
 !pet "%&$", $00
 
 ; 
-; '---------------
-; .set_output_file
-; '---------------
+;--------------
+set_output_file:
+;--------------
+; input:
+;   - cur_src_line  (e.g, '#output "myprog")
+; output:
+;   - outfile = "myprog"
+;   
 ;   s$ = mid$(cur_src_line$, 8)
+    +ADD_TO_POINTER_U8 s_ptr, 8
+    +SUB_U8V_WITH_IMM cur_line_len, $08
+
 ;   gosub parse_arguments
+    jsr parse_arguments
 ; 
 ;   if arg_cnt <> 0 then begin
+    +CMP_U8V_TO_IMM arg_cnt, $ff
+    bne +
 ;     print "?invalid parameters in line ";cur_src_lineno
 ;     end
+    +SET_PARSER_ERROR_ON_LINE "?invalid parameters in line "
+
+;     goto return_to_editor_with_error
+    jmp return_to_editor_with_error
 ;   bend
++:
 ; 
 ;   s$ = args$(0)
+    lda #$00
+    sta arg_idx
+    +SET_VARNAME_EQ_ARGS_I
 ;   tr$ = dbl_quote$
+    +ASSIGN_U16V_EQ_ADDR tr_ptr, dbl_quote
+
 ;   gosub strip_tr$_from_beginning
+    jsr strip_tr_from_beginning
 ;   gosub strip_tr$_from_end  ' quotes left & right
+    jsr strip_tr_from_end
 ; 
 ;   if verbose then begin
+    +CMP_U8V_TO_IMM verbose, $01
+    bne @skip_verbose
 ;     print "setting output file to {x12}" + s$ + "{x92}"
+    +PRINT_INLINE "setting output file to "
+    +PRINT_CHR $12
+    +PRINT_PSTR s_ptr
+    +PRINT_CHR $92
+    +PRINT_CHR $0D
 ;   bend
+@skip_verbose:
 ; 
 ;   of$ = s$
+    +COPY_TO_STR_FROM_S_PTR outfile
+
 ;   delete_line_flag = 1  ' disable passthrough
+    +ASSIGN_U8V_EQ_IMM delete_line_flag, $00
 ;   return
+    rts
 ; 
 ; 
 ;-----------------
@@ -4157,17 +4247,14 @@ s_define:
 parse_preprocessor_directive:
 ;---------------------------
 ;   if instr(cur_src_line$, "ifdef") = 2 then begin
-    +CMP_S_PTR_TO_STR s_ifdef
+    +INSTR_S_PTR_TO_IMM "endif"
     bcs +
     cmp #$01
     bne +
 
 ;     s$ = mid$(cur_src_line$, 8)
-      +add_to_pointer_u8 s_ptr, $07
-      sec
-      lda cur_line_len
-      sbc #$07
-      sta cur_line_len
+      +ADD_TO_POINTER_U8 s_ptr, $07
+      +SUB_U8V_WITH_IMM cur_line_len, $07
 
 ;     gosub is_s$_defined
       jsr is_s_ptr_defined
@@ -4180,7 +4267,7 @@ parse_preprocessor_directive:
 +:
 ; 
 ;   if instr(cur_src_line$, "endif") = 2 then begin
-    +CMP_S_PTR_TO_STR s_endif
+    +INSTR_S_PTR_TO_IMM "endif"
     bcs +
     cmp #$01
     bne +
@@ -4198,7 +4285,7 @@ parse_preprocessor_directive:
 
 ; 
 ;   if instr(cur_src_line$, "define") = 2 then begin
-    +CMP_S_PTR_TO_STR s_define
+    +INSTR_S_PTR_TO_IMM "define"
     bcs +
     cmp #$01
     bne +
@@ -4217,7 +4304,7 @@ parse_preprocessor_directive:
   rts
 ; 
 ;   if instr(cur_src_line$, "declare") = 2 then begin
-    +CMP_S_PTR_TO_IMM "declare"
+    +INSTR_S_PTR_TO_IMM "declare"
     bcs +
     cmp #$01
     bne +
@@ -4229,8 +4316,14 @@ parse_preprocessor_directive:
 +:
 ; 
 ;   if instr(cur_src_line$,"output")=2 then begin
+    +INSTR_S_PTR_TO_IMM "output"
+    bcs +
+    cmp #$01
+    bne +
 ;     gosub set_output_file
+      jsr set_output_file
 ;   bend
++:
 ; 
 ;   if instr(cur_src_line$,"struct")=2 then begin
 ;     gosub read_in_struct_details
