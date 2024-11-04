@@ -1241,7 +1241,7 @@ test__declare_s_ptr_var:
 
   ; SCEN2: check real value is in next line
   ; - - - - - -
-  +CMP_STR_TO_IMM next_line, "a=123"
+  +CMP_STR_TO_IMM next_line, "a=123:"
   bcc +
   +FAIL_REASON "SCEN2: next_line string not correct"
   rts
@@ -1254,18 +1254,14 @@ test__declare_s_ptr_var:
 ;-------------------------------------------
 test__generate_dest_line_for_dimensioned_var:
 ;-------------------------------------------
-  ;+SET_STRING f_str, "fish%(10)"
-  ;+ASSIGN_U16V_EQ_ADDR var_name, f_str
-
   +FORCE_ADD_VAR_TO_VARTABLE_NO_INC "moo%", TYP_INT
   +ASSIGN_STRING_PTR_TO_IMM dimension, "10"
   +ASSIGN_U8V_EQ_IMM ty, TYP_INT
   +ASSIGN_U8V_EQ_IMM define_flag, $01
+  +ASSIGN_U8V_EQ_IMM next_line, $00  ; null-term
 
   ; SCEN1: do nothing if define_flag is on
   ; - - - - - - -
-  +ASSIGN_U8V_EQ_IMM next_line, $00  ; null-term
-
   jsr generate_dest_line_for_dimensioned_var
 
   +CMP_U8V_TO_IMM next_line, $00
@@ -1281,6 +1277,27 @@ test__generate_dest_line_for_dimensioned_var:
   jsr generate_dest_line_for_dimensioned_var
 
   +CMP_STR_TO_IMM next_line, "dim b%(10)"
+  bcc +
+    +FAIL_REASON "next_line not as expected"
+    rts
++:
+
+  clc
+  rts
+
+
+;----------------------------------------
+test__generate_dest_line_for_assigned_var:
+;----------------------------------------
+  +FORCE_ADD_VAR_TO_VARTABLE_NO_INC "mybyte&", TYP_BYTE
+  +ASSIGN_STRING_PTR_TO_IMM value, "10"
+  +ASSIGN_U8V_EQ_IMM ty, TYP_BYTE
+  +ASSIGN_U8V_EQ_IMM define_flag, $01
+  +ASSIGN_U8V_EQ_IMM next_line, $00  ; null-term
+
+  jsr generate_dest_line_for_assigned_var
+
+  +CMP_STR_TO_IMM next_line, "a&=10:"
   bcc +
     +FAIL_REASON "next_line not as expected"
     rts

@@ -560,7 +560,7 @@ basic_end:
     ldy #>@imm_str
     lda s_ptr
     ldz s_ptr+1
-    jsr instr
+    jsr streq
 }
 
 !macro add_to_pointer_u8 .ptr, .val {
@@ -952,6 +952,11 @@ print_text:
 ;-------------------
 append_char_to_str:
 ;-------------------
+  cmp #$00
+  bne +
+  rts     ; don't add null-term
+
++:
 ;  input: regA = char to add
   ldy cur_line_len
   sta (s_ptr),y
@@ -1693,13 +1698,35 @@ alloc_bytes:
 ;----------------------------------
 generate_dest_line_for_assigned_var:
 ;----------------------------------
+; input:
+;    - value  (e.g. "10")
+;    - ty     (type of var)
+;    - define_flag (should be zero for any impact)
+; output:
+;    - next_line (e.g. "a=10:")
+
 ;   if value$ <> "" then begin
+    lda value
+    ora value+1
+    beq @bail_out
 ;     id = element_cnt(ty)
+      +ASSIGN_U8V_EQ_ELCNT_IDX_OF_TY elidx
 ;     gosub generate_varname 
+      jsr generate_varname
 ;     if define_flag=0 then begin
+      +CMP_U8V_TO_IMM define_flag, $00
 ;       next_line$ = next_line$ + gen_varname$ + t$ + "=" + value$ + ":"
+        +ASSIGN_U16V_EQ_ADDR s_ptr, next_line
+        jsr get_s_ptr_length
+        +APPEND_STR_TO_S_PTR gen_varname
+        +APPEND_TYPE_CHAR_TO_S_PTR
+        +APPEND_IMM_CHR_TO_S_PTR '='
+        +APPEND_PSTR_TO_S_PTR value
+        +APPEND_IMM_CHR_TO_S_PTR ':'
 ;     bend
++:
 ;   bend
+@bail_out:
     rts
 ; 
 
@@ -4000,6 +4027,23 @@ instr_chr_quick:
 
 cur_scan_idx:
 !byte $00
+
+;----
+streq:
+;----
+; C=0 if equal, C=1 if unequal
+  jsr instr
+  bcc +  ; bail out if not instr
+  rts
++:
+  lda (haystack_ptr),y
+  beq @bail_out_succeed   ; assure haystack has null-term
+  sec
+  rts
+
+@bail_out_succeed:
+  clc
+  rts
 
 ;----
 instr:
