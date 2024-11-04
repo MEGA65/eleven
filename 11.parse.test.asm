@@ -448,15 +448,7 @@ test__parse_declared_var:
   ; SCEN1: check define var added
   ; - - - - - -
   ; +ASSIGN_U8V_EQ_IMM define_flag, $00
-  +SET_IS_PTR_TO_VARTABLE_AT_TY_IDX
-  ; dodgy decrement of element_count for define
-  ldx #TYP_DEF
-  lda element_cnt,x
-  tax
-  dex
-  txa
-  +UPDATE_IS_PTR_TO_DESIRED_ELEMENT_IDX_OF_A
-  
+  +SET_IS_PTR_TO_LAST_VARTABLE_ELEMENT_OF_TYPE TYP_DEF
   +ASSIGN_U16V_EQ_DEREF_U16V s_ptr, is_ptr
 
   +CMP_S_PTR_TO_IMM "FISHY"
@@ -469,13 +461,13 @@ test__parse_declared_var:
   ; - - - - - -
   lda #$00  ; I'm expecting it to be the 1st define element
   +SET_TMP_PTR_TO_DEFVALS_AT_DESIRE_ELIDX_OF_A
-  +ASSIGN_U16V_EQ_DEREF_U16V s_ptr, tmp_ptr
 
-  +CMP_S_PTR_TO_IMM "1"
+  +CMP_PPSTR_TO_IMM tmp_ptr, "1"
   bcc +
   +FAIL_REASON "SCEN2: define value not found in value table"
   rts
 +:
+  clc
   rts
 
 
@@ -736,7 +728,7 @@ test__add_subbed_curtok_to_astr:
   ; - - - - - - -
   +ASSIGN_U16V_EQ_ADDR s_ptr, a_str
   inw s_ptr ; slip length byte
-  +CMP_S_PTR_TO_IMM "hello a$"
+  +CMP_S_PTR_TO_IMM "hello b$"
   bcc +
   +FAIL_REASON "SCEN4: a_str has wrong contents"
   rts
@@ -1229,6 +1221,36 @@ test__check_defines_table:
 ;----------------------
 test__declare_s_ptr_var:
 ;----------------------
+  ; SCEN1: check real var added
+  ; - - - - - -
+  +ASSIGN_U8V_EQ_IMM define_flag, $00
+  +SET_STRING cur_src_line, "#declare TEST=123"
+
+  jsr declare_s_ptr_var
+
+  +SET_IS_PTR_TO_LAST_VARTABLE_ELEMENT_OF_TYPE TYP_REAL
+
+  +CMP_PPSTR_TO_IMM is_ptr, "TEST"
+  bcc +
+  +FAIL_REASON "SCEN1: real var not found in var table"
+  rts
++:
+
+  ; SCEN2: check real value is in next line
+  ; - - - - - -
+  +CMP_STR_TO_IMM next_line, "a=123"
+  bcc +
+  +FAIL_REASON "SCEN2: next_line string not correct"
+  rts
++:
+
+  clc
+  rts
+
+
+;-------------------------------------------
+test__generate_dest_line_for_dimensioned_var:
+;-------------------------------------------
   sec
   rts
 

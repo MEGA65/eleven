@@ -74,6 +74,26 @@ basic_end:
 ; ------
 ; MACROS
 ; ------
+!macro SET_IS_PTR_TO_LAST_VARTABLE_ELEMENT_OF_TYPE .type {
+  +SET_IS_PTR_TO_VARTABLE_AT_TY_IDX
+  +ASSIGN_A_EQ_ELCNT_OF_TYPE_MINUS_1 .type
+  +UPDATE_IS_PTR_TO_DESIRED_ELEMENT_IDX_OF_A
+}
+
+!macro ASSIGN_A_EQ_ELCNT_OF_TYPE_MINUS_1 .type {
+  ldx #.type
+  lda element_cnt,x
+  tax
+  dex
+  txa
+}
+
+!macro ASSIGN_U8V_EQ_ELCNT_IDX_OF_TY .var {
+  ldx ty
+  lda element_cnt,x
+  sta .var
+}
+
 !macro STR_MATCH_TO_SPTR .str1 {
   +ASSIGN_U16V_EQ_ADDR tmp_ptr, .str1
   jsr cmp_tmp_ptr_to_s_str
@@ -221,21 +241,11 @@ basic_end:
     rol
     bcc +
     ; increment high-byte of pointer
-    ldy #$01
-    lda (is_ptr),y
-    clc
-    adc #$01
-    sta (is_ptr),y
+    inc is_ptr+1
 +:
     clc
-    ldy #$00
-    lda element_cnt,x
-    adc (is_ptr),y
-    sta (is_ptr),y
-    iny
-    lda #$00
-    adc (is_ptr),y
-    sta (is_ptr),y
+    adc is_ptr
+    sta is_ptr
 }
     
 !macro SET_IS_PTR_TO_VARTABLE_AT_TY_IDX {
@@ -507,6 +517,21 @@ basic_end:
     lda s_ptr
     ldz s_ptr+1
     jsr instr
+}
+
+!macro CMP_STR_TO_IMM .var, .val {
+  +ASSIGN_U16V_EQ_ADDR s_ptr, .var
+  +CMP_S_PTR_TO_IMM .val
+}
+
+!macro CMP_PSTR_TO_IMM .ptr, .val {
+  +ASSIGN_U16V_EQ_U16V s_ptr, .ptr
+  +CMP_S_PTR_TO_IMM .val
+}
+
+!macro CMP_PPSTR_TO_IMM .pptr, .val {
+  +ASSIGN_U16V_EQ_DEREF_U16V s_ptr, .pptr
+  +CMP_S_PTR_TO_IMM .val
 }
 
 !macro CMP_S_PTR_TO_IMM .str {
@@ -1454,27 +1479,25 @@ declare_s_ptr_var:  ; declare_s$_var
 ;  output:
 ;    - var_table gets populated
 ;    - define_vals get populated (if define_flag == 1)
+;    - next_line (if variable is assigned or dimensioned)
 
 ;   s$ = mid$(cur_src_line$, 10 - define_flag)
     +UPDATE_S_PTR_TO_SKIP_DECL_OR_DEF
 
 ;   ignore_brackets = 1
-    lda #$01
-    sta ignore_brackets
+    +ASSIGN_U8V_EQ_IMM ignore_brackets, $01
 
 ;   gosub parse_arguments
     jsr parse_arguments
 
 ;   ignore_brackets = 0  ' split parameters
-    lda #$00
-    sta ignore_brackets
+    +ASSIGN_U8V_EQ_IMM ignore_brackets, $00
 ; 
 ;   next_line$ = ""  ' new line if dimensioning...
     sta next_line
 ; 
 ;   if arg_cnt < 0 then begin
-    lda arg_cnt
-    cmp #$ff
+    +CMP_U8V_TO_IMM arg_cnt, $ff
     bne +
 ;     parser_error$ = "?declare parameter missing in line " + str$(cur_src_lineno)
     +SET_STRING parser_error, "?declare parameter missing in line "
@@ -1652,12 +1675,19 @@ generate_dest_line_for_assigned_var:
 generate_dest_line_for_dimensioned_var:
 ;-------------------------------------
 ;   if dimension$ <> "" then begin
+    lda dimension
+    ora dimension+1
+    beq +
 ;     id = element_cnt(ty)
+      +ASSIGN_U8V_EQ_ELCNT_IDX_OF_TY elidx
 ;     gosub generate_varname  ' fetch varname in gen_varname$
+      jsr generate_varname
+
 ;     if define_flag = 0 then begin
 ;       next_line$ = next_line$ + "dim " + gen_varname$ + t$ + "(" + dimension$ + "):"
 ;     bend
 ;   bend
++:
     rts
 
 ;-------------------------
@@ -2871,8 +2901,7 @@ check_defines_table:
     +SET_IS_PTR_TO_VARTABLE_AT_TY_IDX
     lda element_cnt,x
     sta elcnt
-    lda #$00
-    sta elidx
+    +ASSIGN_U8V_EQ_IMM elidx, $00
 ;   for id = 0 to element_cnt(TYP_DEF)
 @loop_next_element:
     ldy elidx
@@ -2920,6 +2949,56 @@ check_swap_vars_with_short_names:
 ;   ' - - - - - - - - - - - - - - - - - - - - - -
 ;   did_replace_flag = 0  ' did replace flag
 
+    jsr check_type
+
+  +SET_IS_PTR_TO_VARTABLE_AT_TY_IDX
+
+    +ASSIGN_U8V_EQ_ELCNT_IDX_OF_TY elcnt
+    +ASSIGN_U8V_EQ_IMM elidx, $00
+;   for id = 0 to element_cnt(ty)
+@loop_next_element:
+    ldy elidx
+    cpy elcnt
+    beq @bail_out
+;     if cur_tok$ = var_table$(ty, id) then begin
+      +ASSIGN_U16V_EQ_DEREF_U16V s_ptr, is_ptr
+      +CMP_S_PTR_TO_STR cur_tok+1
+        bcs @skip
+;       gosub generate_varname
+        jsr generate_varname
+;       cur_tok$ = gen_varname$ + type_ident$(ty)
+        +COPY_STR cur_tok+1, gen_varname
+        lda cur_line_len
+        sta cur_tok   ; store current length
+        ldx ty
+        lda type_ident,x
+        beq + ; skip for real (has no identifier)
+        ldx cur_line_len
+        sta cur_tok+1,x
+        inc cur_line_len
+        inc cur_tok  ; store current length
+        lda #$00
+        sta cur_tok+2,x
++:
+;       did_replace_flag = 1
+        +ASSIGN_U8V_EQ_IMM did_replace_flag, $01
+;       id = element_cnt(ty)
+        bra @bail_out
+;     bend
+@skip:
+;   next id
+    inc elidx
+    inw is_ptr
+    inw is_ptr
+    bra @loop_next_element
+
+@bail_out:
+    rts
+
+
+;---------
+check_type:
+;---------
 ;   t$ = right$(cur_tok$, 1)
     ldx cur_tok
     lda cur_tok,x
@@ -2946,50 +3025,6 @@ check_swap_vars_with_short_names:
     bne @skip
       +ASSIGN_U8V_EQ_IMM ty, TYP_BYTE
 @skip:
-
-  +SET_IS_PTR_TO_VARTABLE_AT_TY_IDX
-
-    ldx ty
-    lda element_cnt, x
-    sta elcnt
-    lda #$00
-    sta elidx
-;   for id = 0 to element_cnt(ty)
-@loop_next_element:
-    ldy elidx
-    cpy elcnt
-    beq @bail_out
-;     if cur_tok$ = var_table$(ty, id) then begin
-      +ASSIGN_U16V_EQ_DEREF_U16V s_ptr, is_ptr
-      +CMP_S_PTR_TO_STR cur_tok+1
-        bcs +
-;       gosub generate_varname
-        jsr generate_varname
-;       cur_tok$ = gen_varname$ + type_ident$(ty)
-        +COPY_STR cur_tok+1, gen_varname
-        lda cur_line_len
-        sta cur_tok   ; store current length
-        ldx ty
-        lda type_ident,x
-        beq + ; skip for real (has no identifier)
-        ldx cur_line_len
-        sta cur_tok+1,x
-        inc cur_line_len
-        inc cur_tok  ; store current length
-        lda #$00
-        sta cur_tok+2,x
-+:
-;       did_replace_flag = 1
-        +ASSIGN_U8V_EQ_IMM did_replace_flag, $01
-;       id = element_cnt(ty)
-        bra @bail_out
-;     bend
-+:
-;   next id
-    inc elidx
-    bra @loop_next_element
-
-@bail_out:
     rts
 
 
