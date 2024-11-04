@@ -414,13 +414,14 @@ basic_end:
 
 !macro check_09_range {
     cmp #'0'
-    bcs @skip_09_range_check
+    bcc +
     cmp #'9'+1
-    bcc @skip_09_range_check
+    bcc ++ ; branch to passed
++:  ; fail check
       ; if not, sec
       sec
       rts
-@skip_09_range_check:
+++:  ; passed
 }
 
 !macro add_multout_to_u16result {
