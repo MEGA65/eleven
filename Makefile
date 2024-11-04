@@ -24,6 +24,9 @@ test: 11.parse.asm 11.parse.test.asm
 xemu:
 	/c/projs/xemu/build/bin/xmega65.native -rom /c/projs/mega65-rom/newrom.bin -hdosvirt -uartmon :4510 -8 /C/Users/phuon/AppData/Roaming/xemu-lgb/mega65/hdos/11.D81 &> /dev/null &
 
+oldparse:
+	c1541 -attach /c/Users/phuon/AppData/Roaming/xemu-lgb/mega65/hdos/11.D81 -delete 11.parse -write 11.parse 
+
 tod81:
 	cp /c/Users/gurcei/AppData/Roaming/xemu-lgb/mega65/hdos/11.D81 .
 	c1541 -attach /c/Users/gurcei/AppData/Roaming/xemu-lgb/mega65/hdos/11.D81 -delete 11.defaults -write 11.defaults

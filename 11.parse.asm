@@ -590,6 +590,13 @@ basic_end:
   +CMP_S_PTR_TO_IMM .val
 }
 
+!macro INSTR_CHR_U8V_IN_STR .var, .chr {
+  ldx #<.var
+  ldy #>.var
+  lda .chr
+  jsr instr_chr
+}
+
 !macro INSTR_S_PTR_TO_IMM .str {
   bra +
 @imm_str:
@@ -833,7 +840,7 @@ label_cnt:
 whitespace:
 !byte 32, 160, $1d, $09, $00
 space_only:
-!pet ' '
+!pet ' ', $00
 
 ; #declare cur_attic_addr, total_lines, s$
 total_lines:
@@ -1451,12 +1458,12 @@ pass_1:
 @skip_add_label:
 ; 
 ;       if left$(cur_src_line$, 1) = "#" then begin
-      ldy #$00
-      lda (s_ptr),y
-      cmp #'#'
-      bne +
+        ldy #$00
+        lda (s_ptr),y
+        cmp #'#'
+        bne +
 ;         gosub parse_preprocessor_directive
-        jsr parse_preprocessor_directive
+          jsr parse_preprocessor_directive
 ;       bend
 +:
 ; 
@@ -1467,7 +1474,13 @@ pass_1:
 ;       bend
 ; 
 ;       if delete_line_flag = 0 then begin
+        +CMP_U8V_TO_IMM delete_line_flag, $00
+        bne @skip_df_zero
 ;         if verbose = 0 then print ".";
+          +CMP_U8V_TO_IMM verbose, $00
+          bne +
+          +PRINT_CHR '.'
++:
 ;         s$ = cur_src_line$
 ;         gosub replace_vars_and_labels
 ;         gosub check_for_creation_of_struct_object
@@ -1480,6 +1493,7 @@ pass_1:
 ;           next_line_flag = 1
 ;         bend
 ;       bend  ' endif delete_line_flag = 0
+@skip_df_zero:
 ;     bend  ' endif cur_src_line$ <> ""
 @skip_line_parse:
 ; 
@@ -2453,14 +2467,12 @@ parse_arguments:
 ;   delim$ = ",;"
 ; 
 ;   arg_cnt = 0
-    lda #$00
-    sta arg_cnt
+    +ASSIGN_U8V_EQ_IMM arg_cnt, $00
 
 ;   args_list$ = s$
 ;   args_list_len = len(s$)
 ;   ignore_delim_flag = 0
-    lda #$00
-    sta ignore_delim_flag
+    +ASSIGN_U8V_EQ_IMM ignore_delim_flag, $00
 ; 
 ;   if args_list_len = 0 then begin
     lda cur_line_len
@@ -2479,7 +2491,7 @@ parse_arguments:
     +ASSIGN_U16V_EQ_ADDR TMPHEAPPTR, tempheap
 
     ldy #$00
-    lda #$0
+    lda #$00
 @loop_clr_ptrs:
 ;   for arg_idx = 0 to 31
 ;     args$(arg_idx) = ""
@@ -2524,10 +2536,7 @@ parse_arguments:
 ; 
 ;     if instr(delim$, cur_ch$) = 0 or ignore_delim_flag = 1 then begin
       ldz #$00  ; count of successful clauses
-      ldx #<delim
-      ldy #>delim
-      lda cur_char
-      jsr instr_chr ; A=cur_ch,
+      +INSTR_CHR_U8V_IN_STR delim, cur_char
       bcc +
         inz
 +:
@@ -2947,6 +2956,10 @@ check_token_for_subbing:
 +:
 
     jsr decimal_number_check
+    bcc +
+    rts
++:
+    
     jsr check_mark_expected_label
 
 ;   if cur_tok$ = "goto" then next_line_flag = 1
@@ -3092,6 +3105,8 @@ check_defines_table:
 +:
 ;   next id
     inc elidx
+    inw is_ptr
+    inw is_ptr
     bra @loop_next_element
 
 @bail_out:
@@ -3425,6 +3440,7 @@ decimal_number_check:
 ;     expecting_label = 0
       +ASSIGN_U8V_EQ_IMM expecting_label, $00
 ;     return  ' never change numbers
+      sec
       rts
 ;   bend
 +:
@@ -3437,8 +3453,11 @@ decimal_number_check:
 ;     cur_tok$="."
     +ASSIGN_U8V_EQ_IMM cur_tok+1, '.'
 ;     return  ' stupid ms basic optimization
+      sec
+      rts
 ;   bend
 @skip;
+    clc
     rts
 
 
@@ -3728,11 +3747,11 @@ get_filename:
 ;   if peek(ba+0) = asc("s") and peek(ba+1) = asc("k") then begin
   ldz #$00
   lda [FOURPTR],z
-  cmp #'S'
+  cmp #'s'
   bne @skip_sig_check
   inz
   lda [FOURPTR],z
-  cmp #'K'
+  cmp #'k'
   bne @skip_sig_check
 
 ;     verbose = peek($ff07) and 8
@@ -4247,7 +4266,7 @@ s_define:
 parse_preprocessor_directive:
 ;---------------------------
 ;   if instr(cur_src_line$, "ifdef") = 2 then begin
-    +INSTR_S_PTR_TO_IMM "endif"
+    +INSTR_S_PTR_TO_IMM "ifdef"
     bcs +
     cmp #$01
     bne +
@@ -4301,7 +4320,6 @@ parse_preprocessor_directive:
 ;   bend
 +:
 
-  rts
 ; 
 ;   if instr(cur_src_line$, "declare") = 2 then begin
     +INSTR_S_PTR_TO_IMM "declare"
@@ -4330,8 +4348,9 @@ parse_preprocessor_directive:
 ;     delete_line_flag = 1
 ;   bend
 ;   return
-; 
-; 
+    rts
+
+
 ; '-----------------------------------
 ; .check_for_creation_of_struct_object
 ; '-----------------------------------
