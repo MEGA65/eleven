@@ -1422,6 +1422,34 @@ test__is_s_ptr_defined:
   rts
 
 
+;-------------------------------------
+test__check_compulsory_next_line_cases:
+;-------------------------------------
+  sec
+  rts
+
+
+;------------------------
+test__parse_standard_line:
+;------------------------
+  sec
+  rts
+
+
+;----------------------------------------
+test__check_for_creation_of_struct_object:
+;----------------------------------------
+  sec
+  rts
+
+
+;--------------------------------------
+test__check_for_continue_onto_next_line:
+;--------------------------------------
+  sec
+  rts
+
+
 ; -------
 ; HELPERS
 ; -------

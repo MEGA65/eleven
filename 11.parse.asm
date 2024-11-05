@@ -1449,102 +1449,47 @@ pass_1:
 
 @condition_passed:
 ;     gosub read_next_line
-    jsr read_next_line
+      jsr read_next_line
 
 ;     gosub single_quote_comment_trim
-    jsr single_quote_comment_trim
-  
-; 
+      jsr single_quote_comment_trim
+
 ;     ' strip whitespace from end
 ;     s$ = cur_src_line$
 ;     gosub strip_tr$_from_end
-    jsr strip_tr_from_end
+      jsr strip_tr_from_end
 
 ;     cur_src_line$ = s$
-; 
+
 ;     if cur_src_line$ <> "" then begin
       lda cur_line_len
       beq @skip_line_parse
 ;       delete_line_flag = 0
-        lda #$00
-        sta delete_line_flag
-; 
-;       if verbose then print ">> DEST:" dest_lineno;", SRC: "; cur_src_lineno;": "; cur_src_line$
-        lda verbose
-        beq @skip_verbose
+        +ASSIGN_U8V_EQ_IMM delete_line_flag, $00
 
-          +PRINT_INLINE ">> DEST: "
-          +PRINT_U16V dest_lineno
-          +PRINT_INLINE ", SRC: "
-          +PRINT_U16V cur_src_lineno
-          +PRINT_CHR ':'
-          +PRINT_CHR ' '
-          +PRINT_PSTR s_ptr
-          +PRINT_CHR $0d
+        jsr verbose_dest_to_src_mapping
 
-@skip_verbose:
-; 
-;       if left$(cur_src_line$, 1) = "." then begin
-      ldy #$00
-      lda (s_ptr),y
-      cmp #'.'
-      bne @skip_add_label
-;         next_line_flag = 1
-        lda #$01
-        sta next_line_flag
-;         gosub add_to_label_table
-        jsr add_to_label_table
-;       bend
-@skip_add_label:
-; 
-;       if left$(cur_src_line$, 1) = "#" then begin
-        ldy #$00
-        lda (s_ptr),y
-        cmp #'#'
-        bne +
-;         gosub parse_preprocessor_directive
-          jsr parse_preprocessor_directive
-;       bend
-+:
+        jsr check_add_label
+
+        jsr check_preproc_directive
 ; 
 ;       if inside_ifdef = 1 then goto parser_loop_skip
-; 
-;       if left$(cur_src_line$, 4) = "data" or right$(cur_src_line$, 5) = "begin" then begin
-;         next_line_flag = 1
-;       bend
-; 
-;       if delete_line_flag = 0 then begin
-        +CMP_U8V_TO_IMM delete_line_flag, $00
-        bne @skip_df_zero
-;         if verbose = 0 then print ".";
-          +CMP_U8V_TO_IMM verbose, $00
-          bne +
-          +PRINT_CHR '.'
-+:
-;         s$ = cur_src_line$
-;         gosub replace_vars_and_labels
-;         gosub check_for_creation_of_struct_object
-;         gosub check_for_continue_onto_next_line
-;         ' safe add cur_dest_line$+s$ to current or next dest_line$(dest_lineno)
-;         gosub safe_add_to_current_or_next_line
-; 
-;         if right$(s$, 4) = "bend" or right$(s$, 6) = "return" {x5F}
-;            or left$(s$, 2) = "if" then begin
-;           next_line_flag = 1
-;         bend
-;       bend  ' endif delete_line_flag = 0
-@skip_df_zero:
+        +CMP_U8V_TO_IMM inside_ifdef, $01
+        beq @parser_loop_skip
+
+        jsr check_compulsory_next_line_cases
+
+        jsr parse_standard_line
+
 ;     bend  ' endif cur_src_line$ <> ""
 @skip_line_parse:
 ; 
-; .parser_loop_skip
+@parser_loop_skip:
 ;     ' increase source code line (for error msgs...)
 ;     cur_src_lineno = cur_src_lineno + 1
-; 
-;     if verbose then begin
-;       print "cur_src_lineno="; cur_src_lineno
-;       get key z$
-;     bend
+      inw cur_src_lineno
+
+      jsr verbose_src_line_info
 ;   loop
   jmp @loop_pass1
 
@@ -1615,8 +1560,116 @@ pass_1:
 ;   poke 208,2      ' no# of chars in keyboard buffer
 ;   poke 688,13,13  ' return chars
 ;   end
+
+
+;----------------------
+check_preproc_directive:
+;----------------------
+;       if left$(cur_src_line$, 1) = "#" then begin
+        ldy #$00
+        lda (s_ptr),y
+        cmp #'#'
+        bne +
+;         gosub parse_preprocessor_directive
+          jsr parse_preprocessor_directive
+;       bend
++:
+  rts
+
+
+;--------------
+check_add_label:
+;--------------
+;       if left$(cur_src_line$, 1) = "." then begin
+      ldy #$00
+      lda (s_ptr),y
+      cmp #'.'
+      bne @skip_add_label
+;         next_line_flag = 1
+        lda #$01
+        sta next_line_flag
+;         gosub add_to_label_table
+        jsr add_to_label_table
+;       bend
+@skip_add_label:
+  rts
+
+
+;--------------------------
+verbose_dest_to_src_mapping:
+;--------------------------
+;       if verbose then print ">> DEST:" dest_lineno;", SRC: "; cur_src_lineno;": "; cur_src_line$
+        lda verbose
+        beq @skip_verbose
+
+          +PRINT_INLINE ">> DEST: "
+          +PRINT_U16V dest_lineno
+          +PRINT_INLINE ", SRC: "
+          +PRINT_U16V cur_src_lineno
+          +PRINT_CHR ':'
+          +PRINT_CHR ' '
+          +PRINT_PSTR s_ptr
+          +PRINT_CHR $0d
+@skip_verbose:
+  rts
+
+
+;--------------------
+verbose_src_line_info:
+;--------------------
+;     if verbose then begin
+      +CMP_U8V_TO_IMM verbose, $01
+      bne @skip_verbose2
+;       print "cur_src_lineno="; cur_src_lineno
+        +PRINT_INLINE "cur_src_lineno="
+        +PRINT_U16V cur_src_line
+        +PRINT_CHR $0d
+;       get key z$
+;     bend
+@skip_verbose2:
+  rts
+
+
+;-------------------------------
+check_compulsory_next_line_cases:
+;-------------------------------
+;       if left$(cur_src_line$, 4) = "data" or right$(cur_src_line$, 5) = "begin" then begin
+;         next_line_flag = 1
+;       bend
+  rts
+
+
+;------------------
+parse_standard_line:
+;------------------
+; if delete_line_flag = 0 then begin
+  +CMP_U8V_TO_IMM delete_line_flag, $00
+  bne @skip_df_zero
+;   if verbose = 0 then print ".";
+    +CMP_U8V_TO_IMM verbose, $00
+    bne +
+    +PRINT_CHR '.'
++:
+;   s$ = cur_src_line$
+;   gosub replace_vars_and_labels
+    jsr replace_vars_and_labels
+;   gosub check_for_creation_of_struct_object
+    jsr check_for_creation_of_struct_object
+;   gosub check_for_continue_onto_next_line
+    jsr check_for_continue_onto_next_line
+;   ' safe add cur_dest_line$+s$ to current or next dest_line$(dest_lineno)
+;   gosub safe_add_to_current_or_next_line
+    jsr safe_add_to_current_or_next_line
 ; 
-; 
+;   if right$(s$, 4) = "bend" or right$(s$, 6) = "return" {x5F}
+;       or left$(s$, 2) = "if" then begin
+;     next_line_flag = 1
+;   bend
+; bend  ' endif delete_line_flag = 0
+@skip_df_zero:
+  rts
+
+
 ;----------------
 declare_s_ptr_var:  ; declare_s$_var
 ;----------------
@@ -4461,9 +4514,9 @@ parse_preprocessor_directive:
     rts
 
 
-; '-----------------------------------
-; .check_for_creation_of_struct_object
-; '-----------------------------------
+; '--------------------------------
+check_for_creation_of_struct_object:
+; '--------------------------------
 ;   co$ = s$
 ;   cur_src_line$ = s$
 ;   found_idx = -1  ' preserve original string
@@ -4609,11 +4662,12 @@ parse_preprocessor_directive:
 ;   next_line$ = ""
 ;   zz$ = "z"
 ;   return
-; 
-; 
-; '---------------------------------
-; .check_for_continue_onto_next_line
-; '---------------------------------
+    rts
+
+
+;--------------------------------
+check_for_continue_onto_next_line:
+;--------------------------------
 ;   if right$(cur_dest_line$, 1) = "{x5F}" then begin
 ;     cur_dest_line$ = left$(cur_dest_line$, len(cur_dest_line$) - 1)
 ;     next_line_flag = 0
@@ -4622,11 +4676,12 @@ parse_preprocessor_directive:
 ;     cont_next_line_flag = 0
 ;   bend
 ;   return
-; 
-; 
-; '--------------------------------
-; .safe_add_to_current_or_next_line
-; '--------------------------------
+    rts
+
+
+;-------------------------------
+safe_add_to_current_or_next_line:
+;-------------------------------
 ;   ' --- safe add cur_dest_line$+s$ to current or next dest_line$(dest_lineno)
 ; 
 ;   if len(cur_dest_line$) + len(s$) + len(str$(dest_lineno)) >= 159 then begin
@@ -4655,8 +4710,9 @@ parse_preprocessor_directive:
 ; 
 ;   if verbose then print "<<" dest_lineno; s$
 ;   return
-; 
-; 
+    rts
+
+
 ; '---------
 ; .dump_vars
 ; '---------
