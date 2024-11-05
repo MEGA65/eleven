@@ -1341,7 +1341,26 @@ test__read_in_struct_details:
 ;--------------------
 test__read_next_token:
 ;--------------------
-  sec
+  +SET_STRING f_str, "ENVTYPE name$, attack, decay, sustain"
+  +ASSIGN_U16V_EQ_ADDR s_ptr, f_str
+
+  jsr read_next_token
+
+  +ASSIGN_U16V_EQ_U16V orig_sptr, s_ptr ; back it up
+  +CMP_PSTR_TO_IMM a_ptr, "ENVTYPE"
+  bcc +
+    +FAIL_REASON "SCEN1: struct name not as expected"
+    rts
++:
+
+  +ASSIGN_U16V_EQ_U16V s_ptr, orig_sptr ; back it up
+  +CMP_PSTR_TO_IMM s_ptr, "name$, attack, decay, sustain"
+  bcc +
+    +FAIL_REASON "SCEN2: struct vars not as expected"
+    rts
++:
+
+  clc
   rts
 
 

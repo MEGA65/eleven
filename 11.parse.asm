@@ -290,6 +290,12 @@ basic_end:
 !pet .txt, $00
 }
 
+!macro PRINT_U16V .var {
+  ldx .var
+  ldy .var+1
+  jsr print_uint
+}
+
 !macro PRINT_INLINE .txt {
   jsr print_inline_text
 !pet .txt, $00
@@ -1040,6 +1046,8 @@ append_inline_text_to_str:
    rts
 
 
+; todo: quite similar to print_str, decide which one is better to keep
+; (so far, I think print_str is shorter/faster)
 ;---------
 print_text:
 ;---------
@@ -1460,31 +1468,14 @@ pass_1:
         lda verbose
         beq @skip_verbose
 
-          jsr print_inline_text
-!pet ">> DEST: ", $00
-
-          ldx dest_lineno
-          ldy dest_lineno+1
-          jsr print_uint
-
-          jsr print_inline_text
-!pet ", SRC: ", $00
-
-          ldx cur_src_lineno
-          ldy cur_src_lineno+1
-          jsr print_uint
-
-          lda #':'
-          jsr CHROUT
-          lda #' '
-          jsr CHROUT
-
-          ldx s_ptr
-          ldy s_ptr+1
-          jsr print_str
-
-          lda #$0d
-          jsr CHROUT
+          +PRINT_INLINE ">> DEST: "
+          +PRINT_U16V dest_lineno
+          +PRINT_INLINE ", SRC: "
+          +PRINT_U16V cur_src_lineno
+          +PRINT_CHR ':'
+          +PRINT_CHR ' '
+          +PRINT_PSTR s_ptr
+          +PRINT_CHR $0d
 
 @skip_verbose:
 ; 
@@ -3986,10 +3977,17 @@ is_s_ptr_defined:  ; is_s$_defined
 read_in_struct_details:
 ;---------------------
 ; input:
-;   - s_ptr (pointing to cur_src_line)
+;   - s_ptr (the cur_src_line with the struct definition)
 ;       (e.g., "#struct ENVTYPE name$, attack, decay, sustain")
+;
 ; output:
-;   - 
+;   - struct_name(struct_cnt) = struct name
+;       (e.g. "ENVTYPE")
+;
+;   - struct_vars(struct_cnt) = struct vars
+;           (e.g. "name$, attack, decay, sustain")
+;
+;   - struct_cnt++
 
 ;   cur_src_line$ = mid$(cur_src_line$, 9)
     +ADD_TO_POINTER_U8 s_ptr, 9
@@ -4029,9 +4027,13 @@ read_in_struct_details:
 read_next_token
 ;--------------
 ; input:
-;   - cur_src_line ? =s_ptr?
+;   - s_ptr (pointing to cur_src_line, or a portion of it due to a prior call)
+;       (e.g., "ENVTYPE name$, attack, decay, sustain")
 ; output:
-;   - 
+;   - a_ptr (the currently read token)
+;           (e.g. "ENVTYPE")
+;   - s_ptr (pointing to remainder of cur_src_line minus current token)
+;           (e.g. "name$, attack, decay, sustain")
 
 ;   ' read next token from cur_src_line$ into s$
 ;   s$ = cur_src_line$
@@ -4041,7 +4043,8 @@ read_next_token
     jsr strip_tr_from_end
 ;   cur_src_line$ = s$
 ;   sf$ = " "
-    +ASSIGN_U8V_EQ_IMM sf_str, $00
+    +ASSIGN_U8V_EQ_IMM sf_str, ' '
+    +ASSIGN_U8V_EQ_IMM sf_str+1, $00
 ;   sf = 0
     +ASSIGN_U8V_EQ_IMM sf, $00
 
@@ -4051,10 +4054,9 @@ read_next_token
     cmp #'"'
     bne +
 ;     sf$ = dbl_quote$ + ", "
-      +ASSIGN_U8V_EQ_IMM sf_str, '"'
-      +ASSIGN_U8V_EQ_IMM sf_str+1, ','
-      +ASSIGN_U8V_EQ_IMM sf_str+2, ' '
-      +ASSIGN_U8V_EQ_IMM sf_str+2, $00
+      phw s_ptr
+      +SET_STRING sf_str, "\", "
+      +plw s_ptr
 ;     sf = 2
       +ASSIGN_U8V_EQ_IMM sf, $02
 ;   bend
@@ -4065,14 +4067,31 @@ read_next_token
 ;   if a <> 0 then begin
     bcs @skip_to_else_not_found
 ;     s$ = mid$(cur_src_line$, 1, instr(cur_src_line$, sf$) + sf - 1)
+      clc
+      adc sf
+      tay
+      lda #$00
+      sta (s_ptr),y ; add null term at end of token
+      +ASSIGN_U16V_EQ_U16V a_ptr, s_ptr
+
 ;     cur_src_line$ = mid$(cur_src_line$, instr(cur_src_line$, sf$) + sf + 1)
+      iny
+      tya
+      clc
+      adc s_ptr
+      sta s_ptr
+      lda #$00
+      adc s_ptr+1
+      sta s_ptr+1
 ;   bend
+    bra @skip_past_if_else
 ; 
 ;   if a = 0 then begin
 @skip_to_else_not_found:
 ;     s$ = cur_src_line$
 ;     cur_src_line$ = ""
 ;   bend
+@skip_past_if_else:
 ; 
 ;   return
     rts
