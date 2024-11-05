@@ -463,7 +463,7 @@ test__parse_declared_var:
   ; SCEN2: check define value added
   ; - - - - - -
   lda #$00  ; I'm expecting it to be the 1st define element
-  +SET_TMP_PTR_TO_DEFVALS_AT_DESIRE_ELIDX_OF_A
+  +SET_TMP_PTR_TO_WORDARRAY_AT_WORDIDX_OF_A define_val
 
   +CMP_PPSTR_TO_IMM tmp_ptr, "1"
   bcc +
@@ -1328,6 +1328,27 @@ test__set_output_file:
 +:
 
   clc
+  rts
+
+
+;---------------------------
+test__read_in_struct_details:
+;---------------------------
+  sec
+  rts
+
+
+;--------------------
+test__read_next_token:
+;--------------------
+  sec
+  rts
+
+
+;---------------------
+test__is_s_ptr_defined:
+;---------------------
+  sec
   rts
 
 

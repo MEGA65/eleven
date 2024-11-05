@@ -950,6 +950,7 @@ tokens$(0)=" print input if then else do loop while until gosub goto open close 
   for k = 0 to element_cnt(TYP_DEF)
     if var_table$(TYP_DEF, k) = s$ then begin
       inside_ifdef = 0
+      return
     bend
   next k
   return

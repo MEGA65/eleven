@@ -114,13 +114,11 @@ basic_end:
 
 !macro UPDATE_S_PTR_TO_SKIP_DECL_OR_DEF {
     +ADD_TO_POINTER_U8 s_ptr, 9
+
+    +SUB_U8V_WITH_IMM cur_line_len, 9
+
     +CMP_U8V_TO_IMM define_flag, $00
-
-    sec
-    lda cur_line_len
-    sbc #09
-    sta cur_line_len
-
+    beq +
     ; the (- define_flag) part
     lda define_flag
     beq +
@@ -169,25 +167,36 @@ basic_end:
   +ASSIGN_U16V_EQ_ADDR tmp_ptr, define_val
   ldx ty
   lda element_cnt,x
-  +UPDATE_TMP_PTR_TO_DEFVALS_AT_DESIRE_ELIDX_OF_A
+  +UPDATE_TMP_PTR_TO_WORD_IDX_OF_A
 }
 
-!macro SET_TMP_PTR_TO_DEFVALS_AT_DESIRE_ELIDX_OF_A {
+!macro SET_TMP_PTR_TO_WORDARRAY_AT_WORDIDX_OF_A .wrd_array {
   pha
-  +ASSIGN_U16V_EQ_ADDR tmp_ptr, define_val
+  +ASSIGN_U16V_EQ_ADDR tmp_ptr, .wrd_array
   pla
-  +UPDATE_TMP_PTR_TO_DEFVALS_AT_DESIRE_ELIDX_OF_A
+  +UPDATE_TMP_PTR_TO_WORD_IDX_OF_A
 }
 
-!macro UPDATE_TMP_PTR_TO_DEFVALS_AT_DESIRE_ELIDX_OF_A {
+!macro UPDATE_TMP_PTR_TO_WORD_IDX_OF_A {
     clc
     rol
-    adc tmp_ptr
+    adc tmp_ptr  ; todo: is there a chance the rol could set the carry and +1?
     sta tmp_ptr
     bcc +
     ; increment high-byte of pointer
     inc tmp_ptr+1
 +:
+}
+
+!macro SET_PTR_TO_ARRAY_AT_OFFSET .ptr, .array, .offset {
+    +ASSIGN_U16V_EQ_ADDR .ptr, .array
+    clc
+    lda .ptr
+    adc #<.offset
+    sta .ptr
+    lda .ptr+1
+    adc #>.offset
+    sta .ptr+1
 }
 
 !macro CMP_LSTR_LEN_TO_IMM .var, .len {
@@ -507,6 +516,13 @@ basic_end:
   sta .dest+3
 }
 
+!macro ASSIGN_U16V_EQ_IMM .var, .val16 {
+    lda #<.val16
+    sta .var
+    lda #>.val16
+    sta .var+1
+}
+
 !macro ASSIGN_U16V_EQ_ADDR .dest, .addr {
   lda #<.addr
   sta .dest
@@ -598,6 +614,14 @@ basic_end:
   jsr instr_chr
 }
 
+!macro INSTR_S_PTR_TO_STR .var {
+  ldx #<.var
+  ldy #>.var
+  lda s_ptr
+  ldz s_ptr+1
+  jsr instr
+}
+
 !macro INSTR_S_PTR_TO_IMM .str {
   bra +
 @imm_str:
@@ -611,6 +635,7 @@ basic_end:
     jsr instr
 }
 
+; todo: consider how this streq: logic compares to cmp_tmp_ptr_to_s_str:
 !macro CMP_S_PTR_TO_IMM .str {
   bra +
 @imm_str:
@@ -715,6 +740,8 @@ initialise:
   sta element_cnt+1
   sta element_cnt+2
   sta element_cnt+3
+
+  sta struct_cnt
 
 ; #declare var_table$(4,200)             ' variable table per type
   ; ptr to memory for array (4*200*2 = 1600 bytes in size, $640)
@@ -833,9 +860,21 @@ label_cnt:
 
 ; 
 ; #declare struct_name$(30)
+struct_name:
+!fill 30*2, $00   ; array of pointers to strings
+
 ; #declare struct_fields$(30)
+struct_fields:
+!fill 30*2, $00   ; array of pointers to strings
+
 ; #declare struct_vars$(30)              ' struct vars (each entry has string of vars)
+struct_vars:
+!fill 30*2, $00   ; array of pointers to strings
+
 ; #declare struct_cnt=0                  ' index to next free struct definition
+struct_cnt:
+!byte $00
+
 ; 
 ; #declare cb
 whitespace:
@@ -910,6 +949,10 @@ a_str:
 lc:
 !fill 16, $00
 ; #declare n1, n2, ba, a, ad, tf$, found_idx, k, sf$, sf
+sf_str:
+!fill 256, $00
+sf:
+!byte $00
 n1:
 !byte $00
 n2:
@@ -3094,7 +3137,7 @@ check_defines_table:
       bcs +
 ;       cur_tok$ = define_val$(id)
         lda elidx
-        +SET_TMP_PTR_TO_DEFVALS_AT_DESIRE_ELIDX_OF_A
+        +SET_TMP_PTR_TO_WORDARRAY_AT_WORDIDX_OF_A define_val
         +ASSIGN_U16V_EQ_DEREF_U16V is_ptr, tmp_ptr
         +COPY_STR_FROM_PSTR cur_tok+1, is_ptr
         lda cur_line_len
@@ -3596,7 +3639,7 @@ check_hex:
     +CMP_U8V_IN_IMM_RANGE cur_char, 'A', 'F'
     bcc @valid
  
- @invalid:
+@invalid:
     jmp illegal_hex_handler
 
 @valid:
@@ -3888,57 +3931,40 @@ chain_editor:
 
     jmp bail_out_early
 ;   end
-; 
-; 
+
+sd_idx:
+!byte $00
+
 ;---------------
-is_s_ptr_defined  ; is_s$_defined
+is_s_ptr_defined:  ; is_s$_defined
 ;---------------
 ;   inside_ifdef = 1
-  lda #$01
-  sta inside_ifdef
+  +ASSIGN_U8V_EQ_IMM inside_ifdef, $01
+
+  +SET_PTR_TO_ARRAY_AT_OFFSET a_ptr, var_table, 200*2*TYP_DEF
 
   ldy #$00
+  sta sd_idx
 @loop:
 ;   for k = 0 to element_cnt(TYP_DEF)
+  ldy sd_idx
   cpy element_cnt + TYP_DEF
   beq @bail_out
 ;     if var_table$(TYP_DEF, k) = s$ then begin
-
-    ; temp16 = 200*2*TYP_DEF + k * 2  (as each entry in array is a word)
-    clc
-    lda #<200*2*TYP_DEF
-    sta temp16
-    lda #>200*2*TYP_DEF
-    sta temp16+1
-
-    tya
-    clc
-    rol
-    adc temp16
-    sta temp16
-    lda #$00
-    rol
-    adc temp16+1
-    sta temp16+1
-
     ; tmp_ptr is pointer to indexed address within var_table$()
-    clc
-    lda #<var_table
-    adc temp16
-    sta tmp_ptr
-    lda #>var_table
-    adc temp16+1
-    sta tmp_ptr+1
 
+      +ASSIGN_U16V_EQ_DEREF_U16V tmp_ptr, a_ptr
       jsr cmp_tmp_ptr_to_s_str
       bcs + ; skip if string not foud
 ;       inside_ifdef = 0
-        lda #$00
-        sta inside_ifdef
+        +ASSIGN_U8V_EQ_IMM inside_ifdef, $00
+        rts
 ;     bend
 +:
 ;   next k
-  iny
+  inc sd_idx
+  inw a_ptr
+  inw a_ptr
   bra @loop
 
 @bail_out:
@@ -3946,53 +3972,100 @@ is_s_ptr_defined  ; is_s$_defined
   rts
 ; 
 ; 
-; '----------------------
-; .read_in_struct_details
-; '----------------------
+;---------------------
+read_in_struct_details:
+;---------------------
+; input:
+;   - s_ptr (pointing to cur_src_line)
+;       (e.g., "#struct ENVTYPE name$, attack, decay, sustain")
+; output:
+;   - 
+
 ;   cur_src_line$ = mid$(cur_src_line$, 9)
+    +ADD_TO_POINTER_U8 s_ptr, 9
+    +SUB_U8V_WITH_IMM cur_line_len, $09
+
 ;   gosub read_next_token  ' get next token in s$
+    jsr read_next_token
 ; 
 ;   if s$ = "" then begin
+    +CMP_U8V_TO_IMM cur_line_len, $00
+    bne +
 ;     print "error: no struct name found"
+      +SET_PARSER_ERROR_ON_LINE "?no struct name found on line "
 ;     sleep 1
 ;     return
+      jmp return_to_editor_with_error
 ;   bend
++:
 ; 
 ;   struct_name$(struct_cnt) = s$
+    lda struct_cnt
+    +SET_TMP_PTR_TO_WORDARRAY_AT_WORDIDX_OF_A struct_name
+    +HEAP_COPY_PSTR_EQ_PSTR tmp_ptr, s_ptr
+
 ;   struct_vars$(struct_cnt) = cur_src_line$
+    +SET_TMP_PTR_TO_WORDARRAY_AT_WORDIDX_OF_A struct_vars
+    +HEAP_COPY_PSTR_EQ_PSTR tmp_ptr, s_ptr
+
 ;   struct_cnt = struct_cnt + 1
+    inc struct_cnt
+
 ;   return
-; 
-; 
-; '---------------
-; .read_next_token
-; '---------------
+    rts
+
+
+;--------------
+read_next_token
+;--------------
+; input:
+;   - cur_src_line ? =s_ptr?
+; output:
+;   - 
+
 ;   ' read next token from cur_src_line$ into s$
 ;   s$ = cur_src_line$
 ;   gosub strip_tr$_from_beginning
+    jsr strip_tr_from_beginning
 ;   gosub strip_tr$_from_end
+    jsr strip_tr_from_end
 ;   cur_src_line$ = s$
 ;   sf$ = " "
+    +ASSIGN_U8V_EQ_IMM sf_str, $00
 ;   sf = 0
-; 
+    +ASSIGN_U8V_EQ_IMM sf, $00
+
 ;   if left$(s$, 1) = dbl_quote$ then begin
+    ldy #$0
+    lda (s_ptr),y
+    cmp #'"'
+    bne +
 ;     sf$ = dbl_quote$ + ", "
+      +ASSIGN_U8V_EQ_IMM sf_str, '"'
+      +ASSIGN_U8V_EQ_IMM sf_str+1, ','
+      +ASSIGN_U8V_EQ_IMM sf_str+2, ' '
+      +ASSIGN_U8V_EQ_IMM sf_str+2, $00
 ;     sf = 2
+      +ASSIGN_U8V_EQ_IMM sf, $02
 ;   bend
-; 
++:
+
 ;   a = instr(cur_src_line$, sf$)
-; 
+    +INSTR_S_PTR_TO_STR sf_str
 ;   if a <> 0 then begin
+    bcs @skip_to_else_not_found
 ;     s$ = mid$(cur_src_line$, 1, instr(cur_src_line$, sf$) + sf - 1)
 ;     cur_src_line$ = mid$(cur_src_line$, instr(cur_src_line$, sf$) + sf + 1)
 ;   bend
 ; 
 ;   if a = 0 then begin
+@skip_to_else_not_found:
 ;     s$ = cur_src_line$
 ;     cur_src_line$ = ""
 ;   bend
 ; 
 ;   return
+    rts
 ; 
 ; 
 ;-------------
@@ -4255,13 +4328,6 @@ single_quote_comment_trim:
   rts
 
 
-s_ifdef:
-!pet "ifdef", $00
-s_endif:
-!pet "endif", $00
-s_define:
-!pet "define", $00
-
 ; 
 ;---------------------------
 parse_preprocessor_directive:
@@ -4345,9 +4411,15 @@ parse_preprocessor_directive:
 +:
 ; 
 ;   if instr(cur_src_line$,"struct")=2 then begin
+    +INSTR_S_PTR_TO_IMM "struct"
+    bcs +
 ;     gosub read_in_struct_details
+      jsr read_in_struct_details
 ;     delete_line_flag = 1
+      +ASSIGN_U8V_EQ_IMM delete_line_flag, $01
 ;   bend
++:
+
 ;   return
     rts
 
