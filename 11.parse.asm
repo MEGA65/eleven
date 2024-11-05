@@ -3938,6 +3938,16 @@ sd_idx:
 ;---------------
 is_s_ptr_defined:  ; is_s$_defined
 ;---------------
+; NOTE: Is used exclusively during parsing of "#ifdef FISHY" directives
+;
+; input:
+;   - s_ptr  (the token to check if is defined in var_table(TYP_DEF,x) or not)
+;            (e.g. "FISHY")
+; output:
+;   - inside_ifdef
+;       =1 if define does not exist, so that compiler ignores lines within
+;       =0 if define exists, so that compiler parses lines within
+
 ;   inside_ifdef = 1
   +ASSIGN_U8V_EQ_IMM inside_ifdef, $01
 

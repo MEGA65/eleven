@@ -1348,7 +1348,32 @@ test__read_next_token:
 ;---------------------
 test__is_s_ptr_defined:
 ;---------------------
-  sec
+  ; SCEN1: successfully find already defined token
+  ; - - - - - - -
+  +SET_STRING f_str, "FISHY"
+  +ASSIGN_U16V_EQ_ADDR s_ptr, f_str
+
+  jsr is_s_ptr_defined
+
+  +CMP_U8V_TO_IMM inside_ifdef, $00   ; 0 = exists
+  beq +
+    +FAIL_REASON "SCEN1: expected 'FISHY' to be defined already"
+    rts
++:
+
+  ; SCEN2: assure we can't find a token not defined yet
+  ; - - - - - - -
+  +SET_STRING f_str, "NOT_DEFINED_YET_THINGIE"
+
+  jsr is_s_ptr_defined
+
+  +CMP_U8V_TO_IMM inside_ifdef, $01   ; 1 = doesn't exit
+  beq +
+    +FAIL_REASON "SCEN2: didn't expect undefined token to be found"
+    rts
++:
+
+  clc
   rts
 
 
