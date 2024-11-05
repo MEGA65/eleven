@@ -2237,7 +2237,7 @@ set_output_file:
     +COPY_TO_STR_FROM_S_PTR outfile
 
 ;   delete_line_flag = 1  ' disable passthrough
-    +ASSIGN_U8V_EQ_IMM delete_line_flag, $00
+    +ASSIGN_U8V_EQ_IMM delete_line_flag, $01
 ;   return
     rts
 ; 
@@ -3507,7 +3507,7 @@ get_u16_val_of_cur_tok:
     ply
     dey
     plx
-    inx
+    dex
   bne @loop_next_char
 @skip
 
