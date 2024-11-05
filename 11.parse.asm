@@ -170,6 +170,11 @@ basic_end:
   +UPDATE_TMP_PTR_TO_WORD_IDX_OF_A
 }
 
+!macro SET_TMP_PTR_TO_WORDARRAY_AT_WORDIDX_OF_U8V .wrd_array, .var {
+  lda .var
+  +SET_TMP_PTR_TO_WORDARRAY_AT_WORDIDX_OF_A .wrd_array
+}
+
 !macro SET_TMP_PTR_TO_WORDARRAY_AT_WORDIDX_OF_A .wrd_array {
   pha
   +ASSIGN_U16V_EQ_ADDR tmp_ptr, .wrd_array
@@ -3990,14 +3995,15 @@ read_in_struct_details:
 ;   - struct_cnt++
 
 ;   cur_src_line$ = mid$(cur_src_line$, 9)
-    +ADD_TO_POINTER_U8 s_ptr, 9
-    +SUB_U8V_WITH_IMM cur_line_len, $09
+    +ADD_TO_POINTER_U8 s_ptr, 8
+    +SUB_U8V_WITH_IMM cur_line_len, $08
 
 ;   gosub read_next_token  ' get next token in s$
     jsr read_next_token
 ; 
 ;   if s$ = "" then begin
-    +CMP_U8V_TO_IMM cur_line_len, $00
+    ldy #$00
+    lda (a_ptr),y
     bne +
 ;     print "error: no struct name found"
       +SET_PARSER_ERROR_ON_LINE "?no struct name found on line "
@@ -4006,15 +4012,17 @@ read_in_struct_details:
       jmp return_to_editor_with_error
 ;   bend
 +:
-; 
+
+    +ASSIGN_U16V_EQ_U16V sr_ptr, s_ptr  ; back up current s_ptr into sr_ptr
+
 ;   struct_name$(struct_cnt) = s$
     lda struct_cnt
     +SET_TMP_PTR_TO_WORDARRAY_AT_WORDIDX_OF_A struct_name
-    +HEAP_COPY_PSTR_EQ_PSTR tmp_ptr, s_ptr
+    +HEAP_COPY_PSTR_EQ_PSTR tmp_ptr, a_ptr
 
 ;   struct_vars$(struct_cnt) = cur_src_line$
     +SET_TMP_PTR_TO_WORDARRAY_AT_WORDIDX_OF_A struct_vars
-    +HEAP_COPY_PSTR_EQ_PSTR tmp_ptr, s_ptr
+    +HEAP_COPY_PSTR_EQ_PSTR tmp_ptr, sr_ptr
 
 ;   struct_cnt = struct_cnt + 1
     inc struct_cnt

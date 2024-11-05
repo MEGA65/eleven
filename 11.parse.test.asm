@@ -1330,11 +1330,37 @@ test__set_output_file:
   clc
   rts
 
+s_idx:
+!byte 00
 
 ;---------------------------
 test__read_in_struct_details:
 ;---------------------------
-  sec
+  +SET_STRING f_str, "#struct ENVTYPE name$, attack, decay, sustain"
+  +ASSIGN_U16V_EQ_ADDR s_ptr, f_str
+
+  jsr read_in_struct_details
+
+  ; s_idx = struct_cnt - 1
+  ldy struct_cnt
+  dey
+  sty s_idx
+
+  +SET_TMP_PTR_TO_WORDARRAY_AT_WORDIDX_OF_U8V struct_name, s_idx
+  +CMP_PPSTR_TO_IMM tmp_ptr, "ENVTYPE"
+  bcc +
+    +FAIL_REASON "SCEN1: struct_name(idx) not as expected"
+    rts
++:
+
+  +SET_TMP_PTR_TO_WORDARRAY_AT_WORDIDX_OF_U8V struct_vars, s_idx
+  +CMP_PPSTR_TO_IMM tmp_ptr, "name$, attack, decay, sustain"
+  bcc +
+    +FAIL_REASON "SCEN2: struct_vars(idx) not as expected"
+    rts
++:
+
+  clc
   rts
 
 
