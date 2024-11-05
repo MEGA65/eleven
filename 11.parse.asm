@@ -2720,7 +2720,7 @@ replace_vars_and_labels:
 ;   ' -- replace vars & labels in source string --
 ;   '    in:   s$ = source string (which is really f_str)
 ;   '    out:  s$ = dest string with replaced items
-;   
+
     lda s_ptr
     sta orig_sptr
     lda s_ptr+1
@@ -2744,7 +2744,7 @@ replace_vars_and_labels:
       rts
 ;   bend
 +:
-; 
+
 ;   quote_flag = 0
     lda #$00
     sta quote_flag
@@ -2778,38 +2778,8 @@ replace_vars_and_labels:
 ;     cur_ch$ = mid$(s$, rv_idx, 1)
       lda (s_ptr),y
       sta cur_char
-; 
-;     if cur_ch$ = ":" and quote_flag = 0 then begin
-      cmp #':'
-      bne +
-      lda quote_flag
-      bne +
-;       shitty_syntax_flag = 0
-        +ASSIGN_U8V_EQ_IMM shitty_syntax_flag, $00
-;     bend
-+:
 
-;     if shitty_syntax_flag and cur_ch$ = "(" then begin
-      lda shitty_syntax_flag
-      beq +
-      lda cur_char
-      cmp #'('
-      bne +
-;       delim$ = default_delim$
-        +ASSIGN_U16V_EQ_ADDR is_ptr, default_delim
-;     bend
-+:
-
-;     if shitty_syntax_flag and cur_ch$ = ")" then begin
-      lda shitty_syntax_flag
-      beq +
-      lda cur_char
-      cmp #'('
-      bne +
-;       delim$ = default_delim$ + "dpub"
-        +ASSIGN_U16V_EQ_ADDR is_ptr, default_plus_dpub_delim
-;     bend
-+:
+      jsr shitty_syntax_checks
 
       ; assess if a starting double-quote appeared
       ; (this implies that the prior content is a token)
@@ -2817,7 +2787,6 @@ replace_vars_and_labels:
       jsr dbl_quote_check
       bcs @rval_for_continue
 
-; 
 ;     if instr(delim$, cur_ch$) <> 0 then begin
       lda cur_char
       jsr instr_chr_quick
@@ -2855,6 +2824,43 @@ replace_vars_and_labels:
     +COPY_PSTR_FROM_STR orig_sptr, a_str+1
 ;   return
     rts
+
+
+;-------------------
+shitty_syntax_checks:
+;-------------------
+;     if cur_ch$ = ":" and quote_flag = 0 then begin
+      cmp #':'
+      bne +
+      lda quote_flag
+      bne +
+;       shitty_syntax_flag = 0
+        +ASSIGN_U8V_EQ_IMM shitty_syntax_flag, $00
+;     bend
++:
+
+;     if shitty_syntax_flag and cur_ch$ = "(" then begin
+      lda shitty_syntax_flag
+      beq +
+      lda cur_char
+      cmp #'('
+      bne +
+;       delim$ = default_delim$
+        +ASSIGN_U16V_EQ_ADDR is_ptr, default_delim
+;     bend
++:
+
+;     if shitty_syntax_flag and cur_ch$ = ")" then begin
+      lda shitty_syntax_flag
+      beq +
+      lda cur_char
+      cmp #'('
+      bne +
+;       delim$ = default_delim$ + "dpub"
+        +ASSIGN_U16V_EQ_ADDR is_ptr, default_plus_dpub_delim
+;     bend
++:
+      rts
 
 
 ;------------------------
