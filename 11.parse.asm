@@ -470,6 +470,11 @@ basic_end:
     bvs @wait_for_mult_to_finish
 }
 
+!macro CMP_U8V_TO_U8V .var, .cmpvar {
+  lda .var
+  cmp .cmpvar
+}
+
 !macro CMP_U8V_TO_IMM .var, .val {
   lda .var
   cmp #.val
@@ -504,19 +509,17 @@ basic_end:
   +ASSIGN_U16V_EQ_ADDR .var, -
 }
 
-!macro assign_u16v_eq_imm .dest, .val {
-  lda #<.val
-  sta .dest
-  lda #>.val
-  sta .dest+1
-}
-
 !macro ASSIGN_U8V_EQ_IMM .dest, .val {
   lda #.val
   sta .dest
 }
 
-!macro assign_u32v_eq_addr .dest, .addr1, .addr2 {
+!macro ASSIGN_U8V_EQ_U8V .dest, .src {
+  lda .src
+  sta .dest
+}
+
+!macro ASSIGN_U32V_EQ_ADDR .dest, .addr1, .addr2 {
   lda #<.addr2
   sta .dest
   lda #>.addr2
@@ -557,16 +560,6 @@ basic_end:
   sta .dest+1
 }
 
-!macro assign_u16v_eq_deref_ptr_u16 .dest, .src {
-  +ASSIGN_U16V_EQ_U16V tmp_ptr, .src
-  ldy #$00
-  lda (tmp_ptr),y
-  sta .dest
-  iny
-  lda (tmp_ptr),y
-  sta .dest+1
-}
-
 !macro ALLOC .inptr, size {
   lda HEAPPTR
   sta .inptr
@@ -595,6 +588,14 @@ basic_end:
 }
 
 
+!macro CMP_S_PTR_TO_PSTR .ptr {
+    ldx .ptr
+    ldy .ptr+1
+    lda s_ptr
+    ldz s_ptr+1
+    jsr instr
+}
+
 !macro CMP_S_PTR_TO_STR .str {
     ldx #<.str
     ldy #>.str
@@ -611,6 +612,16 @@ basic_end:
 !macro CMP_PSTR_TO_IMM .ptr, .val {
   +ASSIGN_U16V_EQ_U16V s_ptr, .ptr
   +CMP_S_PTR_TO_IMM .val
+}
+
+!macro CMP_PPSTR_TO_PSTR .pptr, .ptr {
+  +ASSIGN_U16V_EQ_DEREF_U16V is_ptr, .pptr
+  +CMP_S_PTR_TO_PSTR .ptr
+  ldx is_ptr
+  ldy is_ptr+1
+  lda .ptr
+  ldz .ptr+1
+  jsr streq
 }
 
 !macro CMP_PPSTR_TO_IMM .pptr, .val {
@@ -960,6 +971,8 @@ a_str:
 lc:
 !fill 16, $00
 ; #declare n1, n2, ba, a, ad, tf$, found_idx, k, sf$, sf
+found_idx:
+!byte $00
 sf_str:
 !fill 256, $00
 sf:
@@ -976,6 +989,10 @@ cut_tail_idx:
 
 ; #declare cur_line_len_minus_one, cur_linebuff_addr, chr
 ; #declare co$, ridx, sk$, bl, sz, sr, sm, zz$
+co_ptr:
+!word $0000   ; co$
+ridx:
+!byte $00
 ; #declare cont_next_line_flag, tok_name$, clean_varname$
 tok_name:
 !fill 32, $00
@@ -3479,7 +3496,7 @@ get_u16_val_of_cur_tok:
 ;   - C = 1 (token appears not to be a number)
 
   ; initialise result to zero
-  +assign_u16v_eq_imm u16result, $00
+  +ASSIGN_U16V_EQ_IMM u16result, $00
 
   ldy cur_tok   ; holds the length
   tya
@@ -4524,17 +4541,17 @@ parse_preprocessor_directive:
 check_for_creation_of_struct_object:
 ; '--------------------------------
 ;   co$ = s$
+    +ASSIGN_U16V_EQ_U16V co_ptr, s_ptr
 ;   cur_src_line$ = s$
 ;   found_idx = -1  ' preserve original string
-; 
+    +ASSIGN_U8V_EQ_IMM found_idx, $ff
+
 ;   gosub read_next_token  ' read next token from cur_src_line$ into s$
-; 
-;   for ridx = 0 to struct_cnt - 1
-;     if s$=struct_name$(ridx) then begin
-;       found_idx = ridx
-;       ridx = struct_cnt - 1
-;     bend
-;   next ridx
+    jsr read_next_token
+
+    jsr find_struct_name
+    
+
 ; 
 ;   if found_idx = -1 then begin
 ;     cur_src_line$ = co$
@@ -4668,6 +4685,41 @@ check_for_creation_of_struct_object:
 ;   next_line$ = ""
 ;   zz$ = "z"
 ;   return
+    rts
+
+
+;---------------
+find_struct_name:
+;---------------
+; input:
+;   - s_ptr = name of parsed token we believe is a struct name
+; output:
+;   - found_idx
+;     = $ff (if not found)
+;     = all else (found at idx)
+    +ASSIGN_U8V_EQ_IMM ridx, $00
+    +SET_TMP_PTR_TO_WORDARRAY_AT_WORDIDX_OF_U8V struct_name, ridx
+;   for ridx = 0 to struct_cnt - 1
+@loop_next_struct_name:
+      +CMP_U8V_TO_U8V ridx, struct_cnt
+      beq @bail_out
+
+;     if s$=struct_name$(ridx) then begin
+      +CMP_PPSTR_TO_PSTR tmp_ptr, s_ptr
+      bcs +
+;       found_idx = ridx
+        +ASSIGN_U8V_EQ_U8V found_idx, ridx
+;       ridx = struct_cnt - 1
+        rts
+;     bend
++:
+;   next ridx
+    inc ridx
+    inw tmp_ptr
+    inw tmp_ptr
+    bra @loop_next_struct_name
+@bail_out:
+    +ASSIGN_U8V_EQ_IMM found_idx, $ff
     rts
 
 

@@ -1450,6 +1450,34 @@ test__check_for_continue_onto_next_line:
   rts
 
 
+;---------------------
+test__find_struct_name:
+;---------------------
+  +SET_STRING f_str, "ENVTYPE"
+  +ASSIGN_U16V_EQ_ADDR s_ptr, f_str
+
+  jsr find_struct_name
+
+  +CMP_U8V_TO_IMM found_idx, $00
+  beq +
+    +FAIL_REASON "SCEN1: expected found_idx=0"
+    rts
++:
+
+  +SET_STRING f_str, "BOOGIE"
+  
+  jsr find_struct_name
+  
+  +CMP_U8V_TO_IMM found_idx, $FF
+  beq +
+    +FAIL_REASON "SCEN2: expected found_idx=$ff"
+    rts
++:
+
+  clc
+  rts
+
+
 ; -------
 ; HELPERS
 ; -------
@@ -1566,8 +1594,8 @@ print_to_dummy_string:
 
 
 set_font_a:
-  +assign_u32v_eq_addr FOURPTR, $0002, $9000  ; source is FONT A
-  +assign_u32v_eq_addr FOURPTR+4,  $0ff7, $e000  ; dest FONT
+  +ASSIGN_U32V_EQ_ADDR FOURPTR, $0002, $9000  ; source is FONT A
+  +ASSIGN_U32V_EQ_ADDR FOURPTR+4,  $0ff7, $e000  ; dest FONT
 
   ; copy across
     ldz  #0
