@@ -4540,6 +4540,13 @@ parse_preprocessor_directive:
 ; '--------------------------------
 check_for_creation_of_struct_object:
 ; '--------------------------------
+; input:
+;   - s_ptr  e.g.:
+;             "ENVTYPE envs(9) = [ {x5F}
+;             [ "Piano",       0,  9,  0,  0,  2, 1536 ], {x5F}
+; output:
+;   - ...
+
 ;   co$ = s$
     +ASSIGN_U16V_EQ_U16V co_ptr, s_ptr
 ;   cur_src_line$ = s$
@@ -4550,16 +4557,14 @@ check_for_creation_of_struct_object:
     jsr read_next_token
 
     jsr find_struct_name
-    
+    bcc +
+      rts
++:
 
 ; 
-;   if found_idx = -1 then begin
-;     cur_src_line$ = co$
-;     s$ = co$
-;     return
-;   bend
-; 
 ;   gosub read_next_token
+    jsr read_next_token
+
 ;   sk$ = s$  ' get struct object name
 ;   bl = instr(sk$, "(")
 ; 
@@ -4694,6 +4699,8 @@ find_struct_name:
 ; input:
 ;   - s_ptr = name of parsed token we believe is a struct name
 ; output:
+;   - C (=0 for successfully found)
+;       (=1 for not found)
 ;   - found_idx
 ;     = $ff (if not found)
 ;     = all else (found at idx)
@@ -4710,6 +4717,7 @@ find_struct_name:
 ;       found_idx = ridx
         +ASSIGN_U8V_EQ_U8V found_idx, ridx
 ;       ridx = struct_cnt - 1
+        clc  ; successfully found
         rts
 ;     bend
 +:
@@ -4718,9 +4726,15 @@ find_struct_name:
     inw tmp_ptr
     inw tmp_ptr
     bra @loop_next_struct_name
+
 @bail_out:
-    +ASSIGN_U8V_EQ_IMM found_idx, $ff
-    rts
+  +ASSIGN_U8V_EQ_IMM found_idx, $ff
+; cur_src_line$ = co$
+; s$ = co$
+  +ASSIGN_U16V_EQ_U16V s_ptr, co_ptr
+; return
+  sec   ; indicate failed to find
+  rts
 
 
 ;--------------------------------

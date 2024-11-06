@@ -1458,19 +1458,29 @@ test__find_struct_name:
 
   jsr find_struct_name
 
+  bcc +
+    +FAIL_REASON "SCEN1: expected carry=0 (found)"
+    rts
++:
+
   +CMP_U8V_TO_IMM found_idx, $00
   beq +
-    +FAIL_REASON "SCEN1: expected found_idx=0"
+    +FAIL_REASON "SCEN2: expected found_idx=0"
     rts
 +:
 
   +SET_STRING f_str, "BOOGIE"
   
   jsr find_struct_name
+
+  bcs +
+    +FAIL_REASON "SCEN3: expected carry=1 (not found)"
+    rts
++:
   
   +CMP_U8V_TO_IMM found_idx, $FF
   beq +
-    +FAIL_REASON "SCEN2: expected found_idx=$ff"
+    +FAIL_REASON "SCEN4: expected found_idx=$ff"
     rts
 +:
 
