@@ -1488,6 +1488,20 @@ test__find_struct_name:
   rts
 
 
+;---------------------------
+test__parse_no_brackets_case:
+;---------------------------
+  sec
+  rts
+
+
+;-------------------------------------
+test__safe_add_to_current_or_next_line:
+;-------------------------------------
+  sec
+  rts
+
+
 ; -------
 ; HELPERS
 ; -------

@@ -1156,6 +1156,7 @@ tokens$(0)=" print input if then else do loop while until gosub goto open close 
         struct_fields$(sz) = var_name$
         sz = sz + 1
       ' if next_line$<>"" then delete_line_flag=0:cur_src_line$="^^"+next_line$:else delete_line_flag=1
+      bend
     bend
   next ridx
 
