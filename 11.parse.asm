@@ -295,6 +295,12 @@ basic_end:
 !pet .txt, $00
 }
 
+!macro PRINT_U8V .var {
+  ldx .var
+  ldy #$00
+  jsr print_uint
+}
+
 !macro PRINT_U16V .var {
   ldx .var
   ldy .var+1
@@ -368,6 +374,28 @@ basic_end:
 !macro APPEND_PSTR_TO_S_PTR .ptr {
     +ASSIGN_U16V_EQ_U16V ret_ptr_lo, .ptr
     jsr append_text_to_str
+}
+
+!macro APPEND_MIDZ_PSTR_TO_S_PTR .var, .midposvar {
+    +ASSIGN_U8V_EQ_IMM cur_line_len, $00
+    clc
+    lda .var
+    adc .midposvar
+    sta ret_ptr_lo
+    lda .var+1
+    adc #$00
+    sta ret_ptr_hi
+    jsr append_text_to_str
+}
+
+!macro APPEND_LEFTZ_PSTR_TO_S_PTR .var, .leftlengthvar {
+    +ASSIGN_U8V_EQ_IMM cur_line_len, $00
+    lda .var
+    sta ret_ptr_lo
+    lda .var+1
+    sta ret_ptr_hi
+    ldz .leftlengthvar
+    jsr append_left_text_to_str
 }
 
 !macro COPY_STR .var1, .var2 {
@@ -625,7 +653,6 @@ basic_end:
 
 !macro CMP_PPSTR_TO_PSTR .pptr, .ptr {
   +ASSIGN_U16V_EQ_DEREF_U16V is_ptr, .pptr
-  +CMP_S_PTR_TO_PSTR .ptr
   ldx is_ptr
   ldy is_ptr+1
   lda .ptr
@@ -743,7 +770,7 @@ SRCPTR = $1c   // $1C-$1F
 verbose = $20  // byte
 cur_src_lineno = $21  ; $21-$22
 HEAPPTR = $23 ; $23-$24  (pointer to free location of heap)
-             ; (I'll try start it at $8000 and grow it upwards)
+             ; (I'll try start it at $a000 and grow it upwards)
 TMPHEAPPTR = $25 ;  $25-$26
 TESTPTR = $27 ; $27-$28
 
@@ -761,10 +788,7 @@ initialise:
   lda #$04
   sta FOURPTR+2
 
-  lda #$00
-  sta HEAPPTR
-  lda #$80
-  sta HEAPPTR+1
+  +ASSIGN_U16V_EQ_IMM HEAPPTR, $a000
 
   ; allocate label_name$(200)
   +ALLOC label_name, 200*2
@@ -1006,13 +1030,13 @@ cut_tail_idx:
 !byte $00
 
 ; #declare cur_line_len_minus_one, cur_linebuff_addr, chr
-; #declare co$, ridx, struct_obj_name$, bkt_open_idx, sz, sr, sm, zz$
-sz:
+; #declare orig$, ridx, struct_obj_name$, bkt_open_idx, sz, sr, sm, zz$
+field_count:   ; old sz
 !byte 00
 struct_obj_name:
 !word $0000   ; ptr to string   ; old struct_obj_name$
-co_ptr:
-!word $0000   ; co$
+orig_ptr:
+!word $0000   ; orig$
 ridx:
 !byte $00
 ; #declare cont_next_line_flag, tok_name$, clean_varname$
@@ -1145,6 +1169,35 @@ append_text_to_str:
   bne append_text_to_str
 
 @found_null:
+  ldy cur_line_len  ; add null terminator
+  lda #$00
+  sta (s_ptr),y
+  rts
+
+
+;----------------------
+append_left_text_to_str:
+;----------------------
+; input: z = number of left chars to copy over
+@loop:
+  cpz #$00
+  beq @bail_out
+  dez
+
+  ldx #$00
+  lda (ret_ptr_lo,x)
+  beq @bail_out
+
+  ldy cur_line_len
+  sta (s_ptr),y
+  inc cur_line_len
+
+  inc ret_ptr_lo
+  bne append_text_to_str
+  inc ret_ptr_hi
+  bne append_text_to_str
+
+@bail_out:
   ldy cur_line_len  ; add null terminator
   lda #$00
   sta (s_ptr),y
@@ -4569,45 +4622,22 @@ check_for_creation_of_struct_object:
 ; output:
 ;   - ...
 
-;   co$ = s$
-    +ASSIGN_U16V_EQ_U16V co_ptr, s_ptr
+;   orig$ = s$
+    +ASSIGN_U16V_EQ_U16V orig_ptr, s_ptr
 ;   cur_src_line$ = s$
 ;   found_idx = -1  ' preserve original string
     +ASSIGN_U8V_EQ_IMM found_idx, $ff
 
-;   gosub read_next_token  ' read next token from cur_src_line$ into s$
-    jsr read_next_token
-
-    jsr find_struct_name
+    jsr find_struct_type    ; e.g. "ENVTYPE"
     bcc +
       rts
 +:
-;   gosub read_next_token
-    jsr read_next_token
+    ; e.g. "envs(9)" => envs_name$(9), envs_attack(9)
+    jsr find_struct_obj_name_and_dimension  
+    bcc +
+      rts
++:
 
-;   struct_obj_name$ = s$  ' get struct object name
-    +ASSIGN_U16V_EQ_U16V struct_obj_name, s_ptr
-
-;   bkt_open_idx = instr(struct_obj_name$, "(")
-    +INSTR_PSTR_TO_IMM_CHAR struct_obj_name, '('
-    sta bkt_open_idx
-; 
-;   ' *** found it, so make dim's for each member var
-;   s$ = struct_vars$(found_idx)
-    +SET_TMP_PTR_TO_WORDARRAY_AT_WORDIDX_OF_U8V struct_vars, found_idx
-    +ASSIGN_U16V_EQ_U16V tmp2_ptr, s_ptr
-    +ASSIGN_U16V_EQ_DEREF_U16V  s_ptr, tmp_ptr
-
-;   gosub parse_arguments  ' parse args into args$(), arg_cnt
-    jsr parse_arguments
-; 
-;   found_idx = 1
-    +ASSIGN_U8V_EQ_IMM found_idx, $01
-;   sz = 0
-    +ASSIGN_U8V_EQ_IMM sz, $00
-
-    jsr parse_args_of_struct
-; 
 ;   s$ = next_line$
     +ASSIGN_U16V_EQ_ADDR s_ptr, next_line
 ;   gosub safe_add_to_current_or_next_line
@@ -4632,8 +4662,8 @@ check_for_creation_of_struct_object:
 ;   gosub read_next_token
     jsr read_next_token
 ; 
-;   sz=0
-    +ASSIGN_U8V_EQ_IMM sz, $00
+;   field_count=0
+    +ASSIGN_U8V_EQ_IMM field_count, $00
 ;   sr=0
 ;   sm=0  ' read next token from cur_src_line$ into s$
 ; 
@@ -4667,6 +4697,38 @@ check_for_creation_of_struct_object:
     rts
 
 
+;---------------------------------
+find_struct_obj_name_and_dimension:
+;---------------------------------
+;   gosub read_next_token
+    jsr read_next_token     
+
+;   struct_obj_name$ = s$  ' get struct object name
+    +ASSIGN_U16V_EQ_U16V struct_obj_name, a_ptr
+
+;   bkt_open_idx = instr(struct_obj_name$, "(")
+    +INSTR_PSTR_TO_IMM_CHAR struct_obj_name, '('
+    sta bkt_open_idx
+; 
+;   ' *** found it, so make dim's for each member var
+;   s$ = struct_vars$(found_idx)
+    +SET_TMP_PTR_TO_WORDARRAY_AT_WORDIDX_OF_U8V struct_vars, found_idx
+    +ASSIGN_U16V_EQ_U16V tmp2_ptr, s_ptr
+    +ASSIGN_U16V_EQ_DEREF_U16V  s_ptr, tmp_ptr
+
+;   gosub parse_arguments  ' parse args into args$(), arg_cnt
+    jsr parse_arguments   ; e.g. in: s_ptr="name$, attack, decay, sustain"
+                          ;     out: args[0]="name$", args[1]="attack", ...
+; 
+;   found_idx = 1
+    +ASSIGN_U8V_EQ_IMM found_idx, $01
+;   field_count = 0
+    +ASSIGN_U8V_EQ_IMM field_count, $00
+
+    jsr parse_args_of_struct
+    clc
+    rts
+
 ;--------------------------
 check_continue_on_next_line:
 ;--------------------------
@@ -4699,7 +4761,7 @@ check_sm1_after_sm2:
 ;-------------------
 ;     if sm = 1 and s$ = "[" then begin
 ;       sm = 2
-;       sz = 0
+;       field_count = 0
 ;     bend
 ; 
 ;     if sm = 1 and s$ = "]" then begin
@@ -4725,7 +4787,7 @@ check_sm2:
 ;     if sm = 2 then begin
 ;       if left$(s$, 1) = "]" then begin
 ;         sr = sr + 1
-;         sz = 0
+;         field_count = 0
 ;         sm = 1
 ;         s$ = ""
 ;         goto cfcoso_nextrow  ' next row
@@ -4745,13 +4807,13 @@ check_sm2:
 ;       if right$(s$, 1) = "," then begin
 ;         s$ = left$(s$, len(s$) - 1)
 ;       bend
-;       s$ = struct_fields$(sz) + "(" + str$(sr) + ")=" + s$
+;       s$ = struct_fields$(field_count) + "(" + str$(sr) + ")=" + s$
 ;       gosub replace_vars_and_labels
         jsr replace_vars_and_labels
 ;       gosub safe_add_to_current_or_next_line
         jsr safe_add_to_current_or_next_line
 ;       s$ = ""
-;       sz = sz + 1  ' safe add to dest_line$(dest_lineno)
+;       field_count = field_count + 1  ' safe add to dest_line$(dest_lineno)
 ; 
 ; .cfcoso_nextrow
 ;     bend
@@ -4761,15 +4823,30 @@ check_sm2:
 ;-------------------
 parse_args_of_struct:
 ;-------------------
+; input:
+;  - args  (e.g. args[0]="name$", args[1]="attack", ...)
+; output:
+;  - var_table  (struct fields will each get added here)
+;  - struct_fields  (struct fields will also get added here)
+; 
     +ASSIGN_U8V_EQ_IMM ridx, $00
 ;   for ridx = 0 to arg_cnt
 @loop_next_arg:
 ;     if args$(ridx) <> "" then begin
+      +SET_TMP_PTR_TO_WORDARRAY_AT_WORDIDX_OF_U8V args, ridx
+      
 ;       print "args$(";ridx;")=";args$(ridx)
+      +CMP_U8V_TO_IMM verbose, $01
+      bne +
+        +PRINT_INLINE "args$("
+        +PRINT_U8V ridx
+        +PRINT_INLINE ")="
+        +PRINT_PSTR tmp_ptr
++:
 
-        jsr parse_no_brackets_case
+        jsr parse_no_brackets_case  ; add simple var to var_table
 
-        jsr parse_brackets_case
+        jsr parse_brackets_case     ; add dimensioned var to var_table (and struct_fields)
 ;     bend
 ;   next ridx
     inc ridx
@@ -4781,20 +4858,66 @@ parse_args_of_struct:
 ;------------------
 parse_brackets_case:
 ;------------------
+; inputs:
+;   - args[ridx]  (which struct field we're focused on, e.g. "name$")
+;   - struct_obj_name  ( e.g. 'envs(9)' )
+;   - bkt_open_idx     ( e.g. = 4 )
+; output:
+;  - var_table  (added new field, e.g. "envs_name$")
+;  - struct_fields[field_count]  (new field name is added in here)
+
 ;       if bkt_open_idx <> 0 then begin
         +CMP_U8V_TO_IMM bkt_open_idx, $ff
         beq @skip_parse_brackets
-;         s$ = left$(struct_obj_name$, bkt_open_idx - 1) + "_" + args$(ridx) + mid$(struct_obj_name$, bkt_open_idx)
-;         print "struct: ";s$
-; 
+          phw s_ptr
+          jsr gen_dimensioned_struct_field_name
+          ; returns f_str (e.g. "envs_name$(9)")
+
 ;         var_name$ = s$
+          +ASSIGN_U16V_EQ_ADDR var_name, f_str
 ;         gosub parse_declared_var
+          jsr parse_declared_var
 ; 
-;         struct_fields$(sz) = var_name$
-;         sz = sz + 1
+;         struct_fields$(field_count) = var_name$
+          +ASSIGN_U16V_EQ_DEREF_U16V_WORDARRAY_AT_WORDIDX_OF_U8V is_ptr, struct_fields, field_count
+          +HEAP_COPY_PSTR_EQ_PSTR tmp_ptr, var_name
+
+  ;         field_count = field_count + 1
+          inc field_count
 ;       ' if next_line$<>"" then delete_line_flag=0:cur_src_line$="^^"+next_line$:else delete_line_flag=1
 @skip_parse_brackets:
   rts
+
+
+;--------------------------------
+gen_dimensioned_struct_field_name:
+;--------------------------------
+; input:
+;  - struct_obj_name  (e.g. "envs(9)"
+;  - ridx (index of which field name to generate full name for)
+; output:
+;  - f_str = "envs_name$(9)"
+
+;         s$ = left$(struct_obj_name$, bkt_open_idx - 1) + "_" + args$(ridx) + mid$(struct_obj_name$, bkt_open_idx)
+          +ASSIGN_U16V_EQ_ADDR s_ptr, f_str
+          ldz bkt_open_idx
+          dez
+          +ASSIGN_U8V_EQ_IMM cur_line_len, $00
+          +APPEND_LEFTZ_PSTR_TO_S_PTR struct_obj_name, bkt_open_idx
+          +APPEND_IMM_CHR_TO_S_PTR '_'
+          +ASSIGN_U16V_EQ_DEREF_U16V_WORDARRAY_AT_WORDIDX_OF_U8V is_ptr, args, ridx
+          +APPEND_PSTR_TO_S_PTR is_ptr
+          +APPEND_MIDZ_PSTR_TO_S_PTR struct_obj_name, bkt_open_idx
+
+;         print "struct: ";s$
+          +CMP_U8V_TO_IMM verbose, $01
+          bne @skip_verbose
+            +PRINT_INLINE "struct: "
+            +PRINT_PSTR s_ptr
+            +PRINT_CHR $0d
+@skip_verbose:
+
+          rts
 
 
 ;---------------------
@@ -4812,6 +4935,7 @@ parse_no_brackets_case:
 ; outputs:
 ;   - s_ptr = struct_obj_name + "_" + args[ridx]
 ;             e.g. "envs_name$'
+;   - var_table  (add simple var to var_table)
 
 ;       if bkt_open_idx = 0 then begin
         +CMP_U8V_TO_IMM bkt_open_idx, $ff
@@ -4840,16 +4964,19 @@ parse_no_brackets_case:
 
 
 ;---------------
-find_struct_name:
+find_struct_type:
 ;---------------
 ; input:
-;   - s_ptr = name of parsed token we believe is a struct name
+;   - s_ptr = string where 1st token is a struct type (e.g., "ENVS")
 ; output:
 ;   - C (=0 for successfully found)
 ;       (=1 for not found)
 ;   - found_idx
 ;     = $ff (if not found)
 ;     = all else (found at idx)
+;   gosub read_next_token  ' read next token from cur_src_line$ into s$
+    jsr read_next_token
+
     +ASSIGN_U8V_EQ_IMM ridx, $00
     +SET_TMP_PTR_TO_WORDARRAY_AT_WORDIDX_OF_U8V struct_name, ridx
 ;   for ridx = 0 to struct_cnt - 1
@@ -4858,7 +4985,7 @@ find_struct_name:
       beq @bail_out
 
 ;     if s$=struct_name$(ridx) then begin
-      +CMP_PPSTR_TO_PSTR tmp_ptr, s_ptr
+      +CMP_PPSTR_TO_PSTR tmp_ptr, a_ptr
       bcs +
 ;       found_idx = ridx
         +ASSIGN_U8V_EQ_U8V found_idx, ridx
@@ -4875,9 +5002,9 @@ find_struct_name:
 
 @bail_out:
   +ASSIGN_U8V_EQ_IMM found_idx, $ff
-; cur_src_line$ = co$
-; s$ = co$
-  +ASSIGN_U16V_EQ_U16V s_ptr, co_ptr
+; cur_src_line$ = orig$
+; s$ = orig$
+  +ASSIGN_U16V_EQ_U16V s_ptr, orig_ptr
 ; return
   sec   ; indicate failed to find
   rts

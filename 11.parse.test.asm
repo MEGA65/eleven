@@ -1439,6 +1439,11 @@ test__parse_standard_line:
 ;----------------------------------------
 test__check_for_creation_of_struct_object:
 ;----------------------------------------
+  +SET_STRING f_str, "ENVTYPE envs(9) = [ [ \"Piano\", 0, 9, 0 ] ]"
+  +ASSIGN_U16V_EQ_ADDR s_ptr, f_str
+
+  jsr check_for_creation_of_struct_object
+
   sec
   rts
 
@@ -1451,12 +1456,12 @@ test__check_for_continue_onto_next_line:
 
 
 ;---------------------
-test__find_struct_name:
+test__find_struct_type:
 ;---------------------
   +SET_STRING f_str, "ENVTYPE"
   +ASSIGN_U16V_EQ_ADDR s_ptr, f_str
 
-  jsr find_struct_name
+  jsr find_struct_type
 
   bcc +
     +FAIL_REASON "SCEN1: expected carry=0 (found)"
@@ -1471,7 +1476,7 @@ test__find_struct_name:
 
   +SET_STRING f_str, "BOOGIE"
   
-  jsr find_struct_name
+  jsr find_struct_type
 
   bcs +
     +FAIL_REASON "SCEN3: expected carry=1 (not found)"
@@ -1485,6 +1490,13 @@ test__find_struct_name:
 +:
 
   clc
+  rts
+
+
+;-------------------------
+test__parse_args_of_struct:
+;-------------------------
+  sec
   rts
 
 
