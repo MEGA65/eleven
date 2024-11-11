@@ -74,6 +74,14 @@ basic_end:
 ; ------
 ; MACROS
 ; ------
+!macro ASSIGN_ZPV_TO_DEREF_LATEST_VARTABLE_ELEMENT_OF_TYPE .zpvar, .type {
+  +ASSIGN_U8V_EQ_IMM ty, .type
+  +SET_IS_PTR_TO_VARTABLE_AT_TY_IDX
+  +ASSIGN_A_EQ_ELCNT_OF_TYPE_MINUS_1 .type
+  +UPDATE_IS_PTR_TO_DESIRED_ELEMENT_IDX_OF_A
+  +ASSIGN_U16V_EQ_DEREF_U16V .zpvar, is_ptr
+}
+
 !macro SUB_U8V_WITH_IMM .var, .val {
   sec
   lda .var
@@ -273,6 +281,9 @@ basic_end:
     clc
     adc is_ptr
     sta is_ptr
+    lda #$00
+    adc is_ptr+1
+    sta is_ptr+1
 }
     
 !macro SET_IS_PTR_TO_VARTABLE_AT_TY_IDX {
@@ -307,6 +318,11 @@ basic_end:
   jsr print_uint
 }
 
+!macro PRINT_INLINE_CR .txt {
+  +PRINT_INLINE .txt
+  +PRINT_CHR $0d
+}
+
 !macro PRINT_INLINE .txt {
   jsr print_inline_text
 !pet .txt, $00
@@ -319,6 +335,11 @@ basic_end:
 
 !macro PRINT_PSTR .ptr {
   +ASSIGN_U16V_EQ_U16V ret_ptr_lo, .ptr
+  jsr print_text
+}
+
+!macro PRINT_PPSTR .ptr {
+  +ASSIGN_U16V_EQ_DEREF_U16V ret_ptr_lo, .ptr
   jsr print_text
 }
 
@@ -1071,20 +1092,26 @@ dmatable_modulo:
 ;----------------
 print_inline_text:
 ;----------------
-  pla
+  tsx
+  inx
+  lda $0100,x
   clc
   adc #$01
   sta ret_ptr_lo
-  pla
+  inx
+  lda $0100,x
   adc #$00
   sta ret_ptr_hi
 
   jsr print_text
 
-  lda ret_ptr_hi
-  pha
+  tsx
+  inx
   lda ret_ptr_lo
-  pha
+  sta $0100,x
+  inx
+  lda ret_ptr_hi
+  sta $0100,x
   rts
 
 ;------------------------
@@ -2091,7 +2118,7 @@ declare_type_check:
     ldy #>vartype_delim
     lda cur_char
     jsr instr_chr
-    bcs @skip_check_real
+    bcc @skip_check_real
 ;     t$ = ""
       +ASSIGN_U8V_EQ_IMM cur_char, $00
 ;     ty = TYP_REAL
@@ -4825,6 +4852,8 @@ parse_args_of_struct:
 ;-------------------
 ; input:
 ;  - args  (e.g. args[0]="name$", args[1]="attack", ...)
+;  - arg_cnt (number of args in array)
+;
 ; output:
 ;  - var_table  (struct fields will each get added here)
 ;  - struct_fields  (struct fields will also get added here)
@@ -4925,7 +4954,9 @@ parse_no_brackets_case:
 ;---------------------
 ; inputs:
 ;   - bkt_open_idx (needs to be $ff in order to do anything)
-;   - struct_obj_name (e.g., = "envs" for the given example)
+;   - struct_obj_name (e.g., = "envs(9)" for the given example)
+;   - args (e.g. args[0] = 'name$', args[1] = 'attack')
+;   - ridx (current arg being assessed)
 ;
 ;             #struct ENVTYPE name$, attack, decay, sustain
 ;
@@ -4933,18 +4964,19 @@ parse_no_brackets_case:
 ;             [ "Piano",       0,  9,  0  ], {x5F}
 ;
 ; outputs:
-;   - s_ptr = struct_obj_name + "_" + args[ridx]
+;   - struct_obj_name + "_" + args[ridx]
 ;             e.g. "envs_name$'
 ;   - var_table  (add simple var to var_table)
 
 ;       if bkt_open_idx = 0 then begin
         +CMP_U8V_TO_IMM bkt_open_idx, $ff
-        bne @skip_parse_no_brackets
+        lbne @skip_parse_no_brackets
 ;         s$ = struct_obj_name$ + "_" + args$(ridx)
-          +COPY_STR_FROM_PSTR s_ptr, struct_obj_name
+          +COPY_PSTR_FROM_PSTR s_ptr, struct_obj_name
           +APPEND_IMM_CHR_TO_S_PTR "_"
           +ASSIGN_U16V_EQ_DEREF_U16V_WORDARRAY_AT_WORDIDX_OF_U8V is_ptr, args, ridx
-          +APPEND_PSTR_TO_S_PTR is_ptr
+          +ASSIGN_U16V_EQ_DEREF_U16V sr_ptr, is_ptr
+          +APPEND_PSTR_TO_S_PTR sr_ptr
 
 ;         print "struct: "; s$
           +CMP_U8V_TO_IMM verbose, $01

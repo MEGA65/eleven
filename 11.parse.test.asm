@@ -1,6 +1,19 @@
 ; ------
 ; MACROS
 ; ------
+!macro SET_CURSOR_POS .col, .row {
+  clc
+  ldy #.col
+  ldx #.row
+  jsr $fff0
+}
+
+!macro PRESS_ANY_KEY {
+-:
+  jsr $ffe4
+  beq -
+}
+
 !macro FORCE_ADD_VAR_TO_VARTABLE .name, .type {
   +FORCE_ADD_VAR_TO_VARTABLE_NO_INC .name, .type
   +INCREMENT_ELCNT_OF_TY
@@ -61,6 +74,8 @@ failed_cnt:
 !byte $00
 total_cnt:
 !byte $00
+row_cnt:
+!byte $00
 fail_reason_flag:
 !byte $00
 
@@ -73,14 +88,11 @@ run_tests:
   +ASSIGN_U16V_EQ_ADDR TESTPTR, test_array
 
   ; lower-case
-  lda #$0e
-  jsr CHROUT
+  +PRINT_CHR $0e
 
   ; 80x50
-  lda #27
-  jsr CHROUT
-  lda #'5'
-  jsr CHROUT
+  +PRINT_CHR 27
+  +PRINT_CHR '5'
 
   lda #$00
   sta $d020
@@ -88,14 +100,19 @@ run_tests:
 
   jsr set_font_a
 
-  jsr print_inline_text
-!pet 147, $05, "^\"11.parse\"", $0d,$00
-  jsr print_inline_text
-!pet "---------------------",$0d,$00
-  jsr print_inline_text
-!pet "'11.parse' test suite",$0d,$00
-  jsr print_inline_text
-!pet "---------------------",$0d,$00
+  +PRINT_CHR 147  ; clear-screen
+  +PRINT_CHR $05  ; white-text
+  +PRINT_INLINE_CR "^\"11.parse\""
+  +PRINT_INLINE_CR "---------------------"
+  +PRINT_INLINE_CR "'11.parse' test suite"
+  +PRINT_INLINE_CR "---------------------"
+
+@loop_next_page:
+  +ASSIGN_U8V_EQ_IMM row_cnt, $04
+  +SET_CURSOR_POS 0, 4
+  ; + @ = clear text from cursor-pos to end of screen
+  +PRINT_CHR 27 ; escape
+  +PRINT_CHR '@' 
 
 @loop_next_test:
   lda #$00
@@ -105,36 +122,23 @@ run_tests:
   lda (TESTPTR),y
   iny
   ora (TESTPTR),y
-  beq @bail_out  ; if word pointer is zero, then bail out
+  lbeq @bail_out  ; if word pointer is zero, then bail out
 
   inc total_cnt
 
-  jsr print_inline_text
-!pet $05, "[    ] ",$00
+  +PRINT_CHR $05  ; white
+  +PRINT_INLINE "[    ] "
 
-  ldy #$00
-  lda (TESTPTR),y
-  sta ret_ptr_lo
-  iny
-  lda (TESTPTR),y
-  sta ret_ptr_hi
-  jsr print_text
+  +PRINT_PPSTR TESTPTR
 
   ; go back to start of line
-  lda #27
-  jsr CHROUT
-  lda #'J'
-  jsr CHROUT
+  +PRINT_CHR 27 ; escape
+  +PRINT_CHR 'J'
 
   inw TESTPTR
   inw TESTPTR
 
-  ldy #$00
-  lda (TESTPTR),y
-  sta tmp_ptr
-  iny
-  lda (TESTPTR),y
-  sta tmp_ptr+1
+  +ASSIGN_U16V_EQ_DEREF_U16V tmp_ptr, TESTPTR
 
   jsr (tmp_ptr)  ; test__read_next_line
   bcc +
@@ -162,42 +166,37 @@ run_tests:
   inw TESTPTR
   inw TESTPTR
 
-  lda #$0d
-  jsr CHROUT
+  +PRINT_CHR $0d
+
+  inc row_cnt
+  +CMP_U8V_TO_IMM row_cnt, 48
+  bne @skip_next_page_indicator
+    +PRINT_CHR 154  ; light blue
+    +PRINT_INLINE "[Press any key to continue...]"
+    +PRESS_ANY_KEY
+    jmp @loop_next_page
+@skip_next_page_indicator:
 
   jmp @loop_next_test
 
 @bail_out:
-  jsr print_inline_text
-!pet "---------------------",$0d,$00
-  jsr print_inline_text
-!pet "TOTAL TESTS: ",$00
-  ldx total_cnt
-  ldy #$00
-  jsr print_uint
-  lda #$0d
-  jsr CHROUT
+  +PRINT_INLINE_CR "---------------------"
+  +PRINT_INLINE "TOTAL TESTS: "
+  +PRINT_U8V total_cnt
+  +PRINT_CHR $0d
 
-  jsr print_inline_text
-!pet $1e, "TOTAL PASSED: ",$00
-  ldx passed_cnt
-  ldy #$00
-  jsr print_uint
-  lda #$0d
-  jsr CHROUT
+  +PRINT_CHR $1e  ; green
+  +PRINT_INLINE "TOTAL PASSED: "
+  +PRINT_U8V passed_cnt
+  +PRINT_CHR $0d
 
-  jsr print_inline_text
-!pet $1c, "TOTAL FAILED: ",$00
-  ldx failed_cnt
-  ldy #$00
-  jsr print_uint
-  lda #$0d
-  jsr CHROUT
-  lda #$05
-  jsr CHROUT
+  +PRINT_CHR $1c  ; red
+  +PRINT_INLINE "TOTAL FAILED: "
+  +PRINT_U8V failed_cnt
+  +PRINT_CHR $0d
+  +PRINT_CHR $05  ; white
 
-  jsr print_inline_text
-!pet "---------------------",$0d,$00
+  +PRINT_INLINE_CR "---------------------"
   
   rts
 
@@ -370,12 +369,7 @@ test__add_varname_to_vartable:
   +SET_IS_PTR_TO_VARTABLE_AT_TY_IDX
   +UPDATE_IS_PTR_TO_LATEST_ELEMENT_COUNT_IDX
   
-  ldy #$00
-  lda (is_ptr),y
-  sta s_ptr
-  iny
-  lda (is_ptr),y
-  sta s_ptr+1
+  +ASSIGN_U16V_EQ_DEREF_U16V s_ptr, is_ptr
 
   +CMP_S_PTR_TO_IMM "fishy$"
   bcc +
@@ -1297,6 +1291,7 @@ test__generate_dest_line_for_assigned_var:
 
   jsr generate_dest_line_for_assigned_var
 
+  +ASSIGN_U8V_EQ_IMM define_flag, $00   ; so it doesn't surprise following tests
   +CMP_STR_TO_IMM next_line, "a&=10:"
   bcc +
     +FAIL_REASON "next_line not as expected"
@@ -1436,6 +1431,84 @@ test__parse_standard_line:
   rts
 
 
+;---------------------------
+test__parse_no_brackets_case:
+;---------------------------
+  +ASSIGN_U8V_EQ_IMM bkt_open_idx, $ff
+  +SET_STRING f_str, "envs"
+  +ASSIGN_U16V_EQ_ADDR struct_obj_name, f_str
+  +ASSIGN_U8V_EQ_IMM ridx, $00
+  jsr assign_dummy_args
+
+  jsr parse_no_brackets_case
+
+  +CMP_PSTR_TO_IMM struct_obj_name, "envs_name$"
+  bcc +
+  +FAIL_REASON "SCEN1: struct field name not correct"
+  rts
++:
+
+  +ASSIGN_ZPV_TO_DEREF_LATEST_VARTABLE_ELEMENT_OF_TYPE s_ptr, TYP_STR
+
+  +CMP_S_PTR_TO_IMM "envs_name$"
+  bcc +
+  +FAIL_REASON "SCEN2: struct field not found in var table"
+  rts
++:
+
+  clc
+  rts
+
+
+;------------------------
+test__parse_brackets_case:
+;------------------------
+  sec
+  rts
+
+
+assign_dummy_args:
+;----------------
+  bra +
+@a1: !pet "name$", $0
+@a2: !pet "attack", $0
++:
+  +ASSIGN_U16V_EQ_ADDR args + 0, @a1
+  +ASSIGN_U16V_EQ_ADDR args + 2, @a2
+  +ASSIGN_U16V_EQ_IMM  args + 4, $0000  ; null terminator?
+  +ASSIGN_U8V_EQ_IMM arg_cnt, $02
+rts
+
+;-------------------------
+test__parse_args_of_struct:
+;-------------------------
+  jsr assign_dummy_args
+
+  jsr parse_args_of_struct
+
+  +ASSIGN_U8V_EQ_IMM ty, TYP_STR
+  +SET_IS_PTR_TO_VARTABLE_AT_TY_IDX
+  +UPDATE_IS_PTR_TO_LATEST_ELEMENT_COUNT_IDX
+
+  +ASSIGN_U16V_EQ_DEREF_U16V s_ptr, is_ptr
+
+  +CMP_S_PTR_TO_IMM "fishy$"
+  bcc +
+  +FAIL_REASON "SCEN1: string var not found in var table"
+  rts
++:
+
+  sec
+  rts
+
+
+;-------------------------------------
+test__safe_add_to_current_or_next_line:
+;-------------------------------------
+  sec
+  rts
+
+
 ;----------------------------------------
 test__check_for_creation_of_struct_object:
 ;----------------------------------------
@@ -1490,27 +1563,6 @@ test__find_struct_type:
 +:
 
   clc
-  rts
-
-
-;-------------------------
-test__parse_args_of_struct:
-;-------------------------
-  sec
-  rts
-
-
-;---------------------------
-test__parse_no_brackets_case:
-;---------------------------
-  sec
-  rts
-
-
-;-------------------------------------
-test__safe_add_to_current_or_next_line:
-;-------------------------------------
-  sec
   rts
 
 
