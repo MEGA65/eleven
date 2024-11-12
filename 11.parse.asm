@@ -4934,6 +4934,7 @@ gen_dimensioned_struct_field_name:
 ; input:
 ;  - struct_obj_name  (e.g. "envs(9)"
 ;  - ridx (index of which field name to generate full name for)
+;  - bkt_open_idx
 ; output:
 ;  - f_str = "envs_name$(9)"
 

@@ -1465,7 +1465,20 @@ test__parse_no_brackets_case:
 ;--------------------------------------
 test__gen_dimensioned_struct_field_name:
 ;--------------------------------------
-  sec
+  +ASSIGN_U8V_EQ_IMM bkt_open_idx, $04
+  +ASSIGN_STRING_PTR_TO_IMM struct_obj_name, "envs(9)"
+  +ASSIGN_U8V_EQ_IMM ridx, $00
+  jsr assign_dummy_args
+
+  jsr gen_dimensioned_struct_field_name
+
+  +CMP_STR_TO_IMM f_str, "envs_name$(9)"
+  bcc +
+  +FAIL_REASON "generated field name not right"
+  rts
++:
+
+  clc
   rts
 
 
