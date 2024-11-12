@@ -1526,23 +1526,29 @@ rts
 ;-------------------------
 test__parse_args_of_struct:
 ;-------------------------
+  +ASSIGN_U8V_EQ_IMM bkt_open_idx, $04
+  +ASSIGN_STRING_PTR_TO_IMM struct_obj_name, "envs(9)"
   jsr assign_dummy_args
 
   jsr parse_args_of_struct
 
-  +ASSIGN_U8V_EQ_IMM ty, TYP_STR
-  +SET_IS_PTR_TO_VARTABLE_AT_TY_IDX
-  +UPDATE_IS_PTR_TO_LATEST_ELEMENT_COUNT_IDX
+  +ASSIGN_ZPV_TO_DEREF_VARTABLE_ELEMENT_AT_BACKIDX_IMM s_ptr, TYP_STR, 1
 
-  +ASSIGN_U16V_EQ_DEREF_U16V s_ptr, is_ptr
-
-  +CMP_S_PTR_TO_IMM "fishy$"
+  +CMP_S_PTR_TO_IMM "envs_name$"
   bcc +
-  +FAIL_REASON "SCEN1: string var not found in var table"
+  +FAIL_REASON "SCEN1: envs_name$ not found in var_table"
   rts
 +:
 
-  sec
+  +ASSIGN_ZPV_TO_DEREF_VARTABLE_ELEMENT_AT_BACKIDX_IMM s_ptr, TYP_REAL, 1
+
+  +CMP_S_PTR_TO_IMM "envs_attack"
+  bcc +
+  +FAIL_REASON "SCEN2: envs_attack not found in var_table"
+  rts
++:
+
+  clc
   rts
 
 

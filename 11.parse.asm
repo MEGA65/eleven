@@ -74,8 +74,32 @@ basic_end:
 ; ------
 ; MACROS
 ; ------
-!macro ASSIGN_ZPV_TO_DEREF_WORDARRAY_ELEMENT_AT_IDX_IMM .zpvar, .array, .idx {
+!macro PUSH_U8V .var {
+  lda .var
+  pha
+}
+
+!macro PULL_U8V .var {
+  pla
+  sta .var
+}
+
+!macro ASSIGN_ZPV_TO_DEREF_VARTABLE_ELEMENT_AT_BACKIDX_IMM .zpvar, .type, .idx {
+  +ASSIGN_U8V_EQ_IMM ty, .type
   +SET_IS_PTR_TO_VARTABLE_AT_TY_IDX
+  +ASSIGN_A_EQ_ELCNT_OF_TYPE_MINUS_IMM .type, .idx
+  +UPDATE_IS_PTR_TO_DESIRED_ELEMENT_IDX_OF_A
+  +ASSIGN_U16V_EQ_DEREF_U16V .zpvar, is_ptr
+}
+
+!macro ASSIGN_ZPV_TO_DEREF_WORDARRAY_ELEMENT_AT_BACKIDX_IMM .zpvar, .array, .idx {
+  +ASSIGN_U16V_EQ_ADDR is_ptr, .array
+  +ASSIGN_A_EQ_ELCNT_OF_TYPE_MINUS_IMM .type, .imm
+  +UPDATE_IS_PTR_TO_DESIRED_ELEMENT_IDX_OF_A
+  +ASSIGN_U16V_EQ_DEREF_U16V .zpvar, is_ptr
+}
+
+!macro ASSIGN_ZPV_TO_DEREF_WORDARRAY_ELEMENT_AT_IDX_IMM .zpvar, .array, .idx {
   +ASSIGN_U16V_EQ_ADDR is_ptr, .array
   lda #.idx
   +UPDATE_IS_PTR_TO_DESIRED_ELEMENT_IDX_OF_A
@@ -115,6 +139,13 @@ basic_end:
   tax
   dex
   txa
+}
+
+!macro ASSIGN_A_EQ_ELCNT_OF_TYPE_MINUS_IMM .type, .imm {
+  ldx #.type
+  lda element_cnt,x
+  sec
+  sbc #.imm
 }
 
 !macro ASSIGN_U8V_EQ_ELCNT_IDX_OF_TY .var {
@@ -1768,6 +1799,11 @@ check_compulsory_next_line_cases:
 ;------------------
 parse_standard_line:
 ;------------------
+; input:
+;  - delete_line_flag
+; output:
+;  - 
+
 ; if delete_line_flag = 0 then begin
   +CMP_U8V_TO_IMM delete_line_flag, $00
   bne @skip_df_zero
@@ -4860,6 +4896,8 @@ check_sm2:
 parse_args_of_struct:
 ;-------------------
 ; input:
+;  - bkt_open_idx (will determine whether it is dimensioned or not)
+;  - struct_obj_name  ( e.g. 'envs(9)' )
 ;  - args  (e.g. args[0]="name$", args[1]="attack", ...)
 ;  - arg_cnt (number of args in array)
 ;
@@ -4915,7 +4953,9 @@ parse_brackets_case:
 ;         var_name$ = s$
           +ASSIGN_U16V_EQ_ADDR var_name, f_str
 ;         gosub parse_declared_var
+          +PUSH_U8V bkt_open_idx
           jsr parse_declared_var
+          +PULL_U8V bkt_open_idx
 ; 
 ;         struct_fields$(field_count) = var_name$
           +ASSIGN_U16V_EQ_DEREF_U16V_WORDARRAY_AT_WORDIDX_OF_U8V is_ptr, struct_fields, field_count
