@@ -4,7 +4,6 @@ autocls
 scope 15
 ws cur_src_line
 ww cur_src_lineno
-ww temp16
 # wd MULTINA
 # wd MULTINB
 # wd MULTOUT
@@ -13,4 +12,5 @@ ww temp16
 # ww column_val
 
 ww s_ptr
+ws *s_ptr
 wb /d cur_line_len

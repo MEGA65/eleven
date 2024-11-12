@@ -74,6 +74,14 @@ basic_end:
 ; ------
 ; MACROS
 ; ------
+!macro ASSIGN_ZPV_TO_DEREF_WORDARRAY_ELEMENT_AT_IDX_IMM .zpvar, .array, .idx {
+  +SET_IS_PTR_TO_VARTABLE_AT_TY_IDX
+  +ASSIGN_U16V_EQ_ADDR is_ptr, .array
+  lda #.idx
+  +UPDATE_IS_PTR_TO_DESIRED_ELEMENT_IDX_OF_A
+  +ASSIGN_U16V_EQ_DEREF_U16V .zpvar, is_ptr
+}
+
 !macro ASSIGN_ZPV_TO_DEREF_LATEST_VARTABLE_ELEMENT_OF_TYPE .zpvar, .type {
   +ASSIGN_U8V_EQ_IMM ty, .type
   +SET_IS_PTR_TO_VARTABLE_AT_TY_IDX
@@ -398,7 +406,6 @@ basic_end:
 }
 
 !macro APPEND_MIDZ_PSTR_TO_S_PTR .var, .midposvar {
-    +ASSIGN_U8V_EQ_IMM cur_line_len, $00
     clc
     lda .var
     adc .midposvar
@@ -1220,9 +1227,9 @@ append_left_text_to_str:
   inc cur_line_len
 
   inc ret_ptr_lo
-  bne append_text_to_str
+  bne @loop
   inc ret_ptr_hi
-  bne append_text_to_str
+  bne @loop
 
 @bail_out:
   ldy cur_line_len  ; add null terminator
@@ -2099,6 +2106,8 @@ declare_type_check:
 
 ;   t$ = right$(var_name$, 1)  ' type (if any) in t$
     +ASSIGN_U16V_EQ_U16V s_ptr, var_name
+    jsr get_s_ptr_length
+    
     ldy cur_line_len
     dey
     lda (s_ptr),y
@@ -4897,10 +4906,11 @@ parse_brackets_case:
 
 ;       if bkt_open_idx <> 0 then begin
         +CMP_U8V_TO_IMM bkt_open_idx, $ff
-        beq @skip_parse_brackets
+        lbeq @skip_parse_brackets
           phw s_ptr
           jsr gen_dimensioned_struct_field_name
           ; returns f_str (e.g. "envs_name$(9)")
+          +plw s_ptr
 
 ;         var_name$ = s$
           +ASSIGN_U16V_EQ_ADDR var_name, f_str
@@ -4909,7 +4919,7 @@ parse_brackets_case:
 ; 
 ;         struct_fields$(field_count) = var_name$
           +ASSIGN_U16V_EQ_DEREF_U16V_WORDARRAY_AT_WORDIDX_OF_U8V is_ptr, struct_fields, field_count
-          +HEAP_COPY_PSTR_EQ_PSTR tmp_ptr, var_name
+          +HEAP_COPY_PSTR_EQ_PSTR is_ptr, var_name
 
   ;         field_count = field_count + 1
           inc field_count
@@ -4928,25 +4938,26 @@ gen_dimensioned_struct_field_name:
 ;  - f_str = "envs_name$(9)"
 
 ;         s$ = left$(struct_obj_name$, bkt_open_idx - 1) + "_" + args$(ridx) + mid$(struct_obj_name$, bkt_open_idx)
-          +ASSIGN_U16V_EQ_ADDR s_ptr, f_str
-          ldz bkt_open_idx
-          dez
-          +ASSIGN_U8V_EQ_IMM cur_line_len, $00
-          +APPEND_LEFTZ_PSTR_TO_S_PTR struct_obj_name, bkt_open_idx
-          +APPEND_IMM_CHR_TO_S_PTR '_'
-          +ASSIGN_U16V_EQ_DEREF_U16V_WORDARRAY_AT_WORDIDX_OF_U8V is_ptr, args, ridx
-          +APPEND_PSTR_TO_S_PTR is_ptr
-          +APPEND_MIDZ_PSTR_TO_S_PTR struct_obj_name, bkt_open_idx
+  +ASSIGN_U16V_EQ_ADDR s_ptr, f_str
+  ldz bkt_open_idx
+  dez
+  +ASSIGN_U8V_EQ_IMM cur_line_len, $00
+  +APPEND_LEFTZ_PSTR_TO_S_PTR struct_obj_name, bkt_open_idx
+  +APPEND_IMM_CHR_TO_S_PTR '_'
+  +ASSIGN_U16V_EQ_DEREF_U16V_WORDARRAY_AT_WORDIDX_OF_U8V is_ptr, args, ridx
+  +ASSIGN_U16V_EQ_DEREF_U16V tmp2_ptr, is_ptr
+  +APPEND_PSTR_TO_S_PTR tmp2_ptr
+  +APPEND_MIDZ_PSTR_TO_S_PTR struct_obj_name, bkt_open_idx
 
 ;         print "struct: ";s$
-          +CMP_U8V_TO_IMM verbose, $01
-          bne @skip_verbose
-            +PRINT_INLINE "struct: "
-            +PRINT_PSTR s_ptr
-            +PRINT_CHR $0d
+  +CMP_U8V_TO_IMM verbose, $01
+  bne @skip_verbose
+    +PRINT_INLINE "struct: "
+    +PRINT_PSTR s_ptr
+    +PRINT_CHR $0d
 @skip_verbose:
 
-          rts
+  rts
 
 
 ;---------------------

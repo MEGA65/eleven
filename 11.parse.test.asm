@@ -59,7 +59,7 @@
     sta cur_line_len
     +ASSIGN_U16V_EQ_ADDR s_ptr, parser_error
     jsr append_inline_text_to_str
-!pet $0d,150,$09,.txt,$0d,$05,$00
+!pet $0d,150,$09,.txt,$05,$00
 
   lda #$01
   sta fail_reason_flag
@@ -84,6 +84,7 @@ run_tests:
   sta passed_cnt
   sta failed_cnt
   sta total_cnt
+  sta row_cnt
 
   +ASSIGN_U16V_EQ_ADDR TESTPTR, test_array
 
@@ -152,6 +153,7 @@ run_tests:
 
     +ASSIGN_U16V_EQ_ADDR ret_ptr_lo, parser_error
 
+    inc row_cnt
     jsr print_text
 
 @skip_fail_reason:
@@ -169,8 +171,8 @@ run_tests:
   +PRINT_CHR $0d
 
   inc row_cnt
-  +CMP_U8V_TO_IMM row_cnt, 48
-  bne @skip_next_page_indicator
+  +CMP_U8V_TO_IMM row_cnt, 47
+  bcc @skip_next_page_indicator
     +PRINT_CHR 154  ; light blue
     +PRINT_INLINE "[Press any key to continue...]"
     +PRESS_ANY_KEY
@@ -1435,14 +1437,14 @@ test__parse_standard_line:
 test__parse_no_brackets_case:
 ;---------------------------
   +ASSIGN_U8V_EQ_IMM bkt_open_idx, $ff
-  +SET_STRING f_str, "envs"
+  +SET_STRING f_str, "env"
   +ASSIGN_U16V_EQ_ADDR struct_obj_name, f_str
   +ASSIGN_U8V_EQ_IMM ridx, $00
   jsr assign_dummy_args
 
   jsr parse_no_brackets_case
 
-  +CMP_PSTR_TO_IMM struct_obj_name, "envs_name$"
+  +CMP_PSTR_TO_IMM struct_obj_name, "env_name$"
   bcc +
   +FAIL_REASON "SCEN1: struct field name not correct"
   rts
@@ -1450,7 +1452,7 @@ test__parse_no_brackets_case:
 
   +ASSIGN_ZPV_TO_DEREF_LATEST_VARTABLE_ELEMENT_OF_TYPE s_ptr, TYP_STR
 
-  +CMP_S_PTR_TO_IMM "envs_name$"
+  +CMP_S_PTR_TO_IMM "env_name$"
   bcc +
   +FAIL_REASON "SCEN2: struct field not found in var table"
   rts
@@ -1460,10 +1462,39 @@ test__parse_no_brackets_case:
   rts
 
 
+;--------------------------------------
+test__gen_dimensioned_struct_field_name:
+;--------------------------------------
+  sec
+  rts
+
+
 ;------------------------
 test__parse_brackets_case:
 ;------------------------
-  sec
+  +ASSIGN_U8V_EQ_IMM bkt_open_idx, $04
+  +ASSIGN_STRING_PTR_TO_IMM struct_obj_name, "envs(9)"
+  +ASSIGN_U8V_EQ_IMM ridx, $00
+  jsr assign_dummy_args
+
+  jsr parse_brackets_case
+
+  +ASSIGN_ZPV_TO_DEREF_LATEST_VARTABLE_ELEMENT_OF_TYPE s_ptr, TYP_STR
+  +CMP_S_PTR_TO_IMM "envs_name$"
+  bcc +
+  +FAIL_REASON "SCEN1: struct field not found in var table"
+  rts
++:
+
+  ; s_ptr = struct_fields[0]
+  +ASSIGN_ZPV_TO_DEREF_WORDARRAY_ELEMENT_AT_IDX_IMM s_ptr, struct_fields, $00
+  +CMP_S_PTR_TO_IMM "envs_name$"
+  bcc +
+  +FAIL_REASON "SCEN2: struct field not found in struct_fields"
+  rts
++:
+
+  clc
   rts
 
 
