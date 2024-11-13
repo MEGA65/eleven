@@ -2715,6 +2715,13 @@ cur_arg_len:
 ;--------------
 parse_arguments:
 ;--------------
+; input:
+;   - f_str  (e.g. "  a=1  ,b=2  ,c = 3")
+; output:
+;   - args[0] = "a=1"
+;   - args[1] = "b=2", etc...
+;   - arg_cnt
+
 ;   ' -- parse arguments --
 ;   '     in: s$ = string   (e.g., "a=1, b=2")
 ;   '    out: args$(x) = argument list, arg_cnt = argument count
@@ -4772,6 +4779,15 @@ check_for_creation_of_struct_object:
 ;---------------------------------
 find_struct_obj_name_and_dimension:
 ;---------------------------------
+; input:
+;   - s_ptr (e.g. "envs(9) = [ ... ]")
+;   - found_idx  (what struct type index it is. E.g. 0 = "ENVTYPE")
+; output:
+;   - *struct_obj_name = "envs(9)"
+;   - *dimension = "9"
+;   - bkt_open_idx = 4
+;   - var_table (updated with "envs_name$", "envs_attack", "envs_decay", etc)
+
 ;   gosub read_next_token
     jsr read_next_token     
 
@@ -4791,8 +4807,9 @@ find_struct_obj_name_and_dimension:
 ;   gosub parse_arguments  ' parse args into args$(), arg_cnt
     jsr parse_arguments   ; e.g. in: s_ptr="name$, attack, decay, sustain"
                           ;     out: args[0]="name$", args[1]="attack", ...
-; 
-;   found_idx = 1
+
+;   found_idx = 1   ; todo: is this right? it's an index into struct_vars
+                    ;       why we setting it to 1 here?
     +ASSIGN_U8V_EQ_IMM found_idx, $01
 ;   field_count = 0
     +ASSIGN_U8V_EQ_IMM field_count, $00

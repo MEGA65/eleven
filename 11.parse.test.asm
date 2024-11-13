@@ -1559,6 +1559,63 @@ test__safe_add_to_current_or_next_line:
   rts
 
 
+;---------------------------------------
+test__find_struct_obj_name_and_dimension:
+;---------------------------------------
+; NOTE: We're relying on a prior test adding ENVTYPE into struct_vars
+  +SET_STRING cur_src_line, "envs(9) = [ [ \"Piano\", 0, 9, 0 ] ]"
+  +ASSIGN_U16V_EQ_ADDR s_ptr, cur_src_line
+  +ASSIGN_U8V_EQ_IMM found_idx, $00
+
+  jsr find_struct_obj_name_and_dimension
+
+  +CMP_PSTR_TO_IMM struct_obj_name, "envs(9)"
+  bcc +
+    +FAIL_REASON "SCEN1: struct name not as expected"
+    rts
++:
+
+  +CMP_U8V_TO_IMM bkt_open_idx, $04
+  beq +
+    +FAIL_REASON "SCEN2: bkt_open_idx != 4"
+    rts
++:
+
+  +ASSIGN_ZPV_TO_DEREF_VARTABLE_ELEMENT_AT_BACKIDX_IMM s_ptr, TYP_STR, 1
+  +CMP_S_PTR_TO_IMM "envs_name$"
+  bcc +
+  +FAIL_REASON "SCEN3: envs_name$ not found in var_table"
+  rts
++:
+
+  +ASSIGN_ZPV_TO_DEREF_VARTABLE_ELEMENT_AT_BACKIDX_IMM s_ptr, TYP_REAL, 3
+
+  +CMP_S_PTR_TO_IMM "envs_attack"
+  bcc +
+  +FAIL_REASON "SCEN4: envs_attack not found in var_table"
+  rts
++:
+
+  +ASSIGN_ZPV_TO_DEREF_VARTABLE_ELEMENT_AT_BACKIDX_IMM s_ptr, TYP_REAL, 2
+
+  +CMP_S_PTR_TO_IMM "envs_decay"
+  bcc +
+  +FAIL_REASON "SCEN4: envs_decay not found in var_table"
+  rts
++:
+
+  +ASSIGN_ZPV_TO_DEREF_VARTABLE_ELEMENT_AT_BACKIDX_IMM s_ptr, TYP_REAL, 1
+
+  +CMP_S_PTR_TO_IMM "envs_sustain"
+  bcc +
+  +FAIL_REASON "SCEN4: envs_sustain not found in var_table"
+  rts
++:
+
+  clc
+  rts
+
+
 ;----------------------------------------
 test__check_for_creation_of_struct_object:
 ;----------------------------------------
