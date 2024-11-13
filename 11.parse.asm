@@ -4267,6 +4267,7 @@ read_next_token
 ; input:
 ;   - s_ptr (pointing to cur_src_line, or a portion of it due to a prior call)
 ;       (e.g., "ENVTYPE name$, attack, decay, sustain")
+;
 ; output:
 ;   - a_ptr (the currently read token)
 ;           (e.g. "ENVTYPE")
@@ -4327,7 +4328,15 @@ read_next_token
 ;   if a = 0 then begin
 @skip_to_else_not_found:
 ;     s$ = cur_src_line$
+      +ASSIGN_U16V_EQ_U16V a_ptr, s_ptr
 ;     cur_src_line$ = ""
+      clc
+      lda s_ptr
+      adc cur_line_len
+      sta s_ptr
+      lda s_ptr+1
+      adc #$00
+      sta s_ptr+1
 ;   bend
 @skip_past_if_else:
 ; 
@@ -4712,7 +4721,7 @@ check_for_creation_of_struct_object:
       rts
 +:
     ; e.g. "envs(9)" => envs_name$(9), envs_attack(9)
-    jsr find_struct_obj_name_and_dimension  
+    jsr find_struct_obj_name_and_gen_struct_field_vars  
     bcc +
       rts
 +:
@@ -4776,15 +4785,14 @@ check_for_creation_of_struct_object:
     rts
 
 
-;---------------------------------
-find_struct_obj_name_and_dimension:
-;---------------------------------
+;---------------------------------------------
+find_struct_obj_name_and_gen_struct_field_vars:
+;---------------------------------------------
 ; input:
 ;   - s_ptr (e.g. "envs(9) = [ ... ]")
 ;   - found_idx  (what struct type index it is. E.g. 0 = "ENVTYPE")
 ; output:
 ;   - *struct_obj_name = "envs(9)"
-;   - *dimension = "9"
 ;   - bkt_open_idx = 4
 ;   - var_table (updated with "envs_name$", "envs_attack", "envs_decay", etc)
 
@@ -4808,9 +4816,6 @@ find_struct_obj_name_and_dimension:
     jsr parse_arguments   ; e.g. in: s_ptr="name$, attack, decay, sustain"
                           ;     out: args[0]="name$", args[1]="attack", ...
 
-;   found_idx = 1   ; todo: is this right? it's an index into struct_vars
-                    ;       why we setting it to 1 here?
-    +ASSIGN_U8V_EQ_IMM found_idx, $01
 ;   field_count = 0
     +ASSIGN_U8V_EQ_IMM field_count, $00
 
@@ -4935,6 +4940,7 @@ parse_args_of_struct:
         +PRINT_U8V ridx
         +PRINT_INLINE ")="
         +PRINT_PSTR tmp_ptr
+        +PRINT_CHR $0d
 +:
 
         jsr parse_no_brackets_case  ; add simple var to var_table

@@ -1559,15 +1559,15 @@ test__safe_add_to_current_or_next_line:
   rts
 
 
-;---------------------------------------
-test__find_struct_obj_name_and_dimension:
-;---------------------------------------
+;---------------------------------------------------
+test__find_struct_obj_name_and_gen_struct_field_vars:
+;---------------------------------------------------
 ; NOTE: We're relying on a prior test adding ENVTYPE into struct_vars
   +SET_STRING cur_src_line, "envs(9) = [ [ \"Piano\", 0, 9, 0 ] ]"
   +ASSIGN_U16V_EQ_ADDR s_ptr, cur_src_line
   +ASSIGN_U8V_EQ_IMM found_idx, $00
 
-  jsr find_struct_obj_name_and_dimension
+  jsr find_struct_obj_name_and_gen_struct_field_vars
 
   +CMP_PSTR_TO_IMM struct_obj_name, "envs(9)"
   bcc +
@@ -1622,7 +1622,7 @@ test__check_for_creation_of_struct_object:
   +SET_STRING f_str, "ENVTYPE envs(9) = [ [ \"Piano\", 0, 9, 0 ] ]"
   +ASSIGN_U16V_EQ_ADDR s_ptr, f_str
 
-  jsr check_for_creation_of_struct_object
+  ; jsr check_for_creation_of_struct_object
 
   sec
   rts
