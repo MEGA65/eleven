@@ -1570,6 +1570,24 @@ test__tally_up_next_dest_line_length:
   clc
   rts
 
+
+;----------------------
+test__add_cur_dest_line:
+;----------------------
+  +SET_LSTRING cur_dest_line, "testing a line"
+
+  jsr add_cur_dest_line
+
+  +ASSIGN_U32V_EQ_IMM DESTPTR, $0005, $0000
+  +CMP_S_PTR_TO_PSTR32 DESTPTR
+  bcc +
+    +FAIL_REASON "dest line not added as expected"
+    rts
++:
+  clc
+  rts
+
+
 ;-------------------------------------
 test__safe_add_to_current_or_next_line:
 ;-------------------------------------
@@ -1841,8 +1859,8 @@ print_to_dummy_string:
 
 
 set_font_a:
-  +ASSIGN_U32V_EQ_ADDR FOURPTR, $0002, $9000  ; source is FONT A
-  +ASSIGN_U32V_EQ_ADDR FOURPTR+4,  $0ff7, $e000  ; dest FONT
+  +ASSIGN_U32V_EQ_IMM FOURPTR, $0002, $9000  ; source is FONT A
+  +ASSIGN_U32V_EQ_IMM FOURPTR+4,  $0ff7, $e000  ; dest FONT
 
   ; copy across
     ldz  #0

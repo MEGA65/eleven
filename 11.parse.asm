@@ -641,14 +641,14 @@ basic_end:
   sta .dest
 }
 
-!macro ASSIGN_U32V_EQ_ADDR .dest, .addr1, .addr2 {
-  lda #<.addr2
+!macro ASSIGN_U32V_EQ_IMM .dest, .addr_hi16, .addr_lo16 {
+  lda #<.addr_lo16
   sta .dest
-  lda #>.addr2
+  lda #>.addr_lo16
   sta .dest+1
-  lda #<.addr1
+  lda #<.addr_hi16
   sta .dest+2
-  lda #>.addr1
+  lda #>.addr_hi16
   sta .dest+3
 }
 
@@ -724,7 +724,35 @@ basic_end:
     ldy .ptr+1
     lda s_ptr
     ldz s_ptr+1
-    jsr instr
+    jsr streq
+}
+
+!macro CMP_S_PTR_TO_PSTR32 .ptr32 {
+  ldy #$00
+  ldz #$00
+-:  ; loop
+  lda (s_ptr),y
+  beq + ; bail out on null-term
+
+  cmp [.ptr32],z
+  bne ++  ; bail out fail
+
+  lda [.ptr32],z
+  beq ++  ; bail out fail
+
+  iny
+  inz
+  bra - ; loop
+
++:  ; @bail_out_on_null_term
+  lda [.ptr32],z
+  bne ++  ; bail out fail
+  clc     ; success flag
+  bra +++ ; bail out
+
+++: ; @bail_out_fail
+  sec     ; fail flag
++++:  ; @bail out
 }
 
 !macro CMP_S_PTR_TO_STR .str {
@@ -732,7 +760,7 @@ basic_end:
     ldy #>.str
     lda s_ptr
     ldz s_ptr+1
-    jsr instr
+    jsr streq
 }
 
 !macro CMP_STR_TO_IMM .var, .val {
@@ -878,19 +906,17 @@ TMPHEAPPTR = $25 ;  $25-$26
 TESTPTR = $27 ; $27-$28
 
 tmp2_ptr = $29 ; $29-$2a
+DESTPTR = $2b ; $2b-2e
 
 ;---------
 initialise:
 ;---------
   sei
 
-  lda #$00
-  sta FOURPTR
-  sta FOURPTR+1
-  sta FOURPTR+3
-  lda #$04
-  sta FOURPTR+2
+  +ASSIGN_U32V_EQ_IMM FOURPTR, $0004, $0000
 
+  +ASSIGN_U32V_EQ_IMM DESTPTR, $0005, $0000
+  
   +ASSIGN_U16V_EQ_IMM HEAPPTR, $a000
 
   ; allocate label_name$(200)
@@ -909,8 +935,8 @@ initialise:
   sta element_cnt+3
 
   sta struct_cnt
-
   sta cur_dest_line
+  sta struct_was_created
 
 ; #declare var_table$(4,200)             ' variable table per type
   ; ptr to memory for array (4*200*2 = 1600 bytes in size, $640)
@@ -974,7 +1000,6 @@ type_ident:
 !pet '$'  ; type_ident$(TYP_STR)="$"
 !pet '&'  ; type_ident$(TYP_BYTE)="&"
 
-; #declare next_line$
 cur_src_line:
 !fill 256, $00
 next_line_flag:
@@ -1138,6 +1163,8 @@ cut_tail_idx:
 
 ; #declare cur_line_len_minus_one, cur_linebuff_addr, chr
 ; #declare orig$, ridx, struct_obj_name$, bkt_open_idx, sz, sr, sm, zz$
+struct_was_created:   ; old zz$
+!byte $00
 field_count:   ; old sz
 !byte 00
 struct_obj_name:
@@ -3558,7 +3585,7 @@ check_ignore_existing_vocab:
       adc s_ptr+1
       sta s_ptr+1   ; increment s_ptr to tokens$(ty)
 
-      +CMP_S_PTR_TO_STR tok_name
+      +INSTR_S_PTR_TO_STR tok_name
       bcs +
 ;       lc$ = cur_tok$
         +COPY_STR lc, cur_tok
@@ -4820,8 +4847,12 @@ check_for_creation_of_struct_object:
 ; 
 ;   s$ = ""
 ;   cur_src_line$ = ""
+    +ASSIGN_U8V_EQ_IMM cur_src_line, $00  ; put null-term at start
+    +ASSIGN_U8V_EQ_IMM cur_line_len, $00
 ;   next_line$ = ""
+    +ASSIGN_U8V_EQ_IMM next_line, $00  ; put null-term at start
 ;   zz$ = "z"
+    +ASSIGN_U8V_EQ_IMM struct_was_created, $01
 ;   return
     rts
 
@@ -5214,6 +5245,32 @@ tally_up_next_dest_line_length:
     adc temp16
   rts
 
+
+;----------------
+add_cur_dest_line:
+;----------------
+; input:
+;   - cur_dest_line
+; output:
+;   - memory at DESTPTR contains contents of this line
+;   - DESTPTR location has been updated to next free space
+
+  ldy #$00
+  ldz #$00
+  +ASSIGN_U16V_EQ_ADDR tmp_ptr, cur_dest_line + 1
+@loop:
+  lda (tmp_ptr),y
+  sta [DESTPTR],z
+  inw DESTPTR
+  bne +
+    inw DESTPTR+1
++:
+  iny
+  cmp #$00  ; found null-term?
+  bne @loop
+  rts
+
+
 ;-------------------------------
 safe_add_to_current_or_next_line:
 ;-------------------------------
@@ -5227,21 +5284,29 @@ safe_add_to_current_or_next_line:
 ; 
 ;   if len(cur_dest_line$) + len(s$) + len(str$(dest_lineno)) >= 159 then begin
     jsr tally_up_next_dest_line_length
-
+    cmp #159
+    bcc @skip_next_line_check
 ;     next_line_flag=1
       +ASSIGN_U8V_EQ_IMM next_line_flag, $01
 ;   bend
-; 
+@skip_next_line_check:
+
 ;   if zz$ <> "" then begin
+    +CMP_U8V_TO_IMM struct_was_created, $01
+    bne @skip_struct_was_created_check
 ;     s$ = ""
 ;     zz$ = ""
+      +ASSIGN_U8V_EQ_IMM struct_was_created, $00
 ;     return  ' force s$ to empty
+      rts
 ;   bend
+@skip_struct_was_created_check:
 ; 
 ;   if next_line_flag = 1 then begin
     +CMP_U8V_TO_IMM next_line_flag, $01
     bne @skip_to_else
 ;     dest_line$(dest_lineno) = cur_dest_line$
+      jsr add_cur_dest_line
 ;     cur_dest_line$ = s$
 ;     map_dest_to_src_lineno%(dest_lineno) = cur_src_lineno
 ;     dest_lineno = dest_lineno + 1
