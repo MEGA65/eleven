@@ -501,7 +501,7 @@ test__replace_vars_and_labels:
 test__check_token_for_subbing:
 ;----------------------------
   +FORCE_ADD_VAR_TO_VARTABLE "moo$", TYP_STR
-  +SET_LSTRING cur_tok, $04, "moo$"
+  +SET_LSTRING cur_tok, "moo$"
 
   jsr check_token_for_subbing
 
@@ -519,8 +519,8 @@ test__check_token_for_subbing:
 ;-----------------------
 test__add_curtok_to_astr:
 ;-----------------------
-  +SET_LSTRING a_str, $06, "hello "
-  +SET_LSTRING cur_tok, $05, "world"
+  +SET_LSTRING a_str, "hello "
+  +SET_LSTRING cur_tok, "world"
 
   jsr add_curtok_to_astr
 
@@ -548,7 +548,7 @@ test__add_curtok_to_astr:
 ;------------------------
 test__add_curchar_to_astr:
 ;------------------------
-  +SET_LSTRING a_str, $04, "hell"
+  +SET_LSTRING a_str, "hell"
   +ASSIGN_U8V_EQ_IMM cur_char, 'o'
 
   jsr add_curchar_to_astr
@@ -566,7 +566,7 @@ test__add_curchar_to_astr:
 ;------------------------
 test__add_curchar_to_curtok:
 ;------------------------
-  +SET_LSTRING cur_tok, $04, "hell"
+  +SET_LSTRING cur_tok, "hell"
 
   lda #'o'
   sta cur_char
@@ -588,8 +588,8 @@ test__dbl_quote_check:
 ;--------------------
   ; SCEN1: char is not a quote, so do nothing to a_str
   +ASSIGN_U8V_EQ_IMM cur_char, 'z'
-  +SET_LSTRING a_str, $02, "xy"
-  +SET_LSTRING cur_tok, $05, "token"
+  +SET_LSTRING a_str, "xy"
+  +SET_LSTRING cur_tok, "token"
   +ASSIGN_U8V_EQ_IMM quote_flag, $00
 
   jsr dbl_quote_check
@@ -685,8 +685,8 @@ test__dbl_quote_check:
 ;------------------------------
 test__add_subbed_curtok_to_astr:
 ;------------------------------
-  +SET_LSTRING a_str, $06, "hello "
-  +SET_LSTRING cur_tok, $07, "moocow$"
+  +SET_LSTRING a_str, "hello "
+  +SET_LSTRING cur_tok, "moocow$"
 
   jsr add_subbed_curtok_to_astr
 
@@ -709,9 +709,9 @@ test__add_subbed_curtok_to_astr:
 +:
 
   ; SCEN3:
-  +SET_LSTRING a_str, $06, "hello "
+  +SET_LSTRING a_str, "hello "
   +FORCE_ADD_VAR_TO_VARTABLE "moocow$", TYP_STR
-  +SET_LSTRING cur_tok, $07, "moocow$"
+  +SET_LSTRING cur_tok, "moocow$"
 
   jsr add_subbed_curtok_to_astr
   
@@ -1007,7 +1007,7 @@ test__check_expect_label_next:
   ; SCEN1: cur_tok = "gosub", so expect_label_next flag should be set
   ; - - - - - - - - -
   +ASSIGN_U8V_EQ_IMM expecting_label, $00
-  +SET_LSTRING cur_tok, $05, "gosub"
+  +SET_LSTRING cur_tok, "gosub"
 
   jsr check_expect_label_next
 
@@ -1042,7 +1042,7 @@ test__check_hex_and_binary_value:
   ; SCEN1: Valid hex
   ; - - - - - - - -
   +ASSIGN_U8V_EQ_IMM parser_error, $00
-  +SET_LSTRING cur_tok, $05, "$ABCD"
+  +SET_LSTRING cur_tok, "$ABCD"
 
   jsr check_hex_and_binary_value
 
@@ -1055,7 +1055,7 @@ test__check_hex_and_binary_value:
 
   ; SCEN2: Valid hex (in lowercase)
   ; - - - - - - - -
-  +SET_LSTRING cur_tok, $05, "$abcd"
+  +SET_LSTRING cur_tok, "$abcd"
 
   jsr check_hex_and_binary_value
 
@@ -1067,7 +1067,7 @@ test__check_hex_and_binary_value:
 
   ; SCEN3: Invalid hex
   ; - - - - - - - -
-  +SET_LSTRING cur_tok, $05, "$EFGH"
+  +SET_LSTRING cur_tok, "$EFGH"
 
   jsr check_hex_and_binary_value
 
@@ -1080,7 +1080,7 @@ test__check_hex_and_binary_value:
   ; SCEN4: valid binary
   ; - - - - - - - -
   +ASSIGN_U8V_EQ_IMM parser_error, $00
-  +SET_LSTRING cur_tok, $05, "%0101"
+  +SET_LSTRING cur_tok, "%0101"
 
   jsr check_hex_and_binary_value
 
@@ -1092,7 +1092,7 @@ test__check_hex_and_binary_value:
 
   ; SCEN5: invalid binary
   ; - - - - - - - -
-  +SET_LSTRING cur_tok, $08, "%0101234"
+  +SET_LSTRING cur_tok, "%0101234"
 
   jsr check_hex_and_binary_value
 
@@ -1111,7 +1111,7 @@ test__check_ignore_existing_vocab:
 ;--------------------------------
   ; SCEN1: not in vocab
   ; - - - - - - - -
-  +SET_LSTRING cur_tok, $08, "fishy"
+  +SET_LSTRING cur_tok, "fishy"
 
   jsr check_ignore_existing_vocab
 
@@ -1122,7 +1122,7 @@ test__check_ignore_existing_vocab:
 
   ; SCEN2: in vocab
   ; - - - - - - - -
-  +SET_LSTRING cur_tok, $08, "tron"
+  +SET_LSTRING cur_tok, "tron"
 
   jsr check_ignore_existing_vocab
 
@@ -1152,7 +1152,7 @@ test__check_swap_vars_with_short_names:
   ; SCEN1:  Check 'ty' returns correctly
   ; -----
   +ASSIGN_U8V_EQ_IMM ty, $ff  ; dummy value (to assure it changes)
-  +SET_LSTRING cur_tok, $06, "dishy%"
+  +SET_LSTRING cur_tok, "dishy%"
 
   jsr check_swap_vars_with_short_names
 
@@ -1203,7 +1203,7 @@ test__check_defines_table:
   ; NOTE: This test presently expects a prior test to
   ; define "FISHY = 1"
 
-  +SET_LSTRING cur_tok, $05, "FISHY"
+  +SET_LSTRING cur_tok, "FISHY"
 
   jsr check_defines_table
 
@@ -1631,7 +1631,41 @@ test__check_for_creation_of_struct_object:
 ;--------------------------------------
 test__check_for_continue_onto_next_line:
 ;--------------------------------------
-  sec
+  +SET_LSTRING cur_dest_line, "testing a line with left-arrow marker "
+  +APPEND_IMM_CHR_TO_S_PTR $5f  ; right-arrow char
+  inc cur_dest_line ; update length-byte
+
+  jsr check_for_continue_onto_next_line
+
+  +CMP_U8V_TO_IMM cont_next_line_flag, $01
+  beq +
+    +FAIL_REASON "SCEN1: flag not set"
+    rts
++:
+
+  +CMP_STR_TO_IMM cur_dest_line+1, "testing a line with left-arrow marker "
+  bcc +
+    +FAIL_REASON "SCEN2: dest-line not valid"
+    rts
++:
+
+  +SET_LSTRING cur_dest_line, "line with no cont marker"
+
+  jsr check_for_continue_onto_next_line
+
+  +CMP_U8V_TO_IMM cont_next_line_flag, $00
+  beq +
+    +FAIL_REASON "SCEN3: flag not clear"
+    rts
++:
+
+  +CMP_STR_TO_IMM cur_dest_line+1, "line with no cont marker"
+  bcc +
+    +FAIL_REASON "SCEN4: dest-line not valid"
+    rts
++:
+
+  clc
   rts
 
 

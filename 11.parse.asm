@@ -251,6 +251,21 @@ basic_end:
     sta .ptr+1
 }
 
+!macro CMP_LAST_CHAR_OF_LSTR_TO_IMM .var, .imm {
+  ldy .var
+  beq +  ; bail out early on zero-length string
+  +ASSIGN_U16V_EQ_ADDR s_ptr, .var
+  lda (s_ptr),y
+  cmp #.imm
+  beq ++
++:  ; fail-case
+  sec
+  bra +++
+++:
+  clc
++++:
+}
+
 !macro CMP_LSTR_LEN_TO_IMM .var, .len {
   lda .var
   cmp #.len
@@ -567,11 +582,17 @@ basic_end:
   cmp #.val
 }
 
-!macro SET_LSTRING .var, .len, .val {
+!macro SET_LSTRING .var, .val {
   +ASSIGN_U16V_EQ_ADDR s_ptr, .var
+  inw s_ptr
   +ASSIGN_U8V_EQ_IMM cur_line_len, $00
   jsr append_inline_text_to_str
-!pet .len, .val, $00  ; length-encoded in first byte
+!pet .val, $00  ; length-encoded in first byte
+  dew s_ptr
+  lda cur_line_len
+  ldy #$00
+  sta (s_ptr),y
+  inw s_ptr
 }
 
 !macro SET_STRING .var, .val {
@@ -866,6 +887,8 @@ initialise:
 
   sta struct_cnt
 
+  sta cur_dest_line
+
 ; #declare var_table$(4,200)             ' variable table per type
   ; ptr to memory for array (4*200*2 = 1600 bytes in size, $640)
   +ALLOC var_table, 4*200*2
@@ -1012,6 +1035,8 @@ delete_line_flag:
 !byte $00
 
 ; #declare verbose, z$, cur_dest_line$
+cur_dest_line:  ; lstr
+!fill 256, $00
 inside_ifdef:
 !byte $00
 dest_lineno:
@@ -1099,6 +1124,8 @@ orig_ptr:
 ridx:
 !byte $00
 ; #declare cont_next_line_flag, tok_name$, clean_varname$
+cont_next_line_flag:
+!byte $00
 tok_name:
 !fill 32, $00
 ; #declare shitty_syntax_flag, zz
@@ -3577,26 +3604,17 @@ check_hex_and_binary_value:
 ;----------------------
 check_expect_label_next:
 ;----------------------
-;  input: cur_tok
+;  input: cur_tok (in s_ptr?)
 ;  output: expecting_label
 
 ;   ' are we expecting a label next?
 ;   ' - - - - - - - - - - - - - - -
-    bra +
-@exp1:
-!pet $04, "goto", $00
-@exp2:
-!pet $05, "gosub", $00
-@exp3:
-!pet $04, "trap", $00
-+:
-
 ;   if cur_tok$ = "goto" or cur_tok$ = "gosub" or cur_tok$ = "trap" then begin
-    +STR_MATCH_TO_SPTR @exp1
+    +CMP_S_PTR_TO_IMM "goto"
     bcc +
-    +STR_MATCH_TO_SPTR @exp2
+    +CMP_S_PTR_TO_IMM "gosub"
     bcc +
-    +STR_MATCH_TO_SPTR @exp3
+    +CMP_S_PTR_TO_IMM "trap"
     bcc +
     bra ++
 +:
@@ -5120,13 +5138,31 @@ find_struct_type:
 ;--------------------------------
 check_for_continue_onto_next_line:
 ;--------------------------------
+; input:
+;   - cur_dest_line (e.g. "rem this is long line with continue marker {x5F}")
+; output:
+;   - cont_next_line_flag (=1 if found left-arrow marker at end of cur-line)
+;   - cur_dest_line (any trailing {x5F} marker will be truncated)
+
 ;   if right$(cur_dest_line$, 1) = "{x5F}" then begin
+    +CMP_LAST_CHAR_OF_LSTR_TO_IMM cur_dest_line, $5f
+    bcs @skip_continue_marker_to_else
 ;     cur_dest_line$ = left$(cur_dest_line$, len(cur_dest_line$) - 1)
+      dec cur_dest_line
+      lda #$00
+      sta (s_ptr),y  ; y was set to cur-dest-line length via +CMP earlier
+
 ;     next_line_flag = 0
+      +ASSIGN_U8V_EQ_IMM next_line_flag, $00
 ;     cont_next_line_flag = 1
+      +ASSIGN_U8V_EQ_IMM cont_next_line_flag, $01
+      bra @skip_else
 ;   bend: else begin
+@skip_continue_marker_to_else:
 ;     cont_next_line_flag = 0
+      +ASSIGN_U8V_EQ_IMM cont_next_line_flag, $00
 ;   bend
+@skip_else:
 ;   return
     rts
 
@@ -5134,6 +5170,11 @@ check_for_continue_onto_next_line:
 ;-------------------------------
 safe_add_to_current_or_next_line:
 ;-------------------------------
+; input:
+;   -
+; output:
+;   - cur_dest_line
+
 ;   ' --- safe add cur_dest_line$+s$ to current or next dest_line$(dest_lineno)
 ; 
 ;   if len(cur_dest_line$) + len(s$) + len(str$(dest_lineno)) >= 159 then begin
