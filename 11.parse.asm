@@ -74,6 +74,20 @@ basic_end:
 ; ------
 ; MACROS
 ; ------
+!macro GET_LEN_OF_PSTR_IN_A .pstr {
+  phw s_ptr
+  +PUSH_U8V cur_line_len
+
+  +ASSIGN_U16V_EQ_U16V s_ptr, .pstr
+  jsr get_s_ptr_length
+  ldz cur_line_len
+
+  +PULL_U8V cur_line_len
+  +plw s_ptr
+
+  tza
+}
+
 !macro PUSH_U8V .var {
   lda .var
   pha
@@ -804,6 +818,15 @@ basic_end:
   sta .ptr+1
 }
 
+!macro ADD_IMM_TO_U16V .var, .imm {
+  lda .var
+  clc
+  adc #<.imm
+  sta .var
+  lda .var + 1
+  adc #>.imm
+  sta .var + 1
+}
 
 !macro add_to_pointer_u16 .ptr, .val {
   clc
@@ -1849,7 +1872,7 @@ parse_standard_line:
 ;   ' safe add cur_dest_line$+s$ to current or next dest_line$(dest_lineno)
 ;   gosub safe_add_to_current_or_next_line
     jsr safe_add_to_current_or_next_line
-; 
+
 ;   if right$(s$, 4) = "bend" or right$(s$, 6) = "return" {x5F}
 ;       or left$(s$, 2) = "if" then begin
 ;     next_line_flag = 1
@@ -5167,18 +5190,46 @@ check_for_continue_onto_next_line:
     rts
 
 
+;-----------------------------
+tally_up_next_dest_line_length:
+;-----------------------------
+; input:
+;   - dest_lineno
+;   - a_ptr (the next token to add to dest line?)
+;   - cur_dest_line
+; output:
+;   - A = total length if line-number and newly added token are added to
+;         existing dest-line
+    ; len(str$(dest_lineno))
+    +SET_STRING f_str, ""
+    +APPEND_UINT_TO_S_PTR dest_lineno
+
+    lda cur_line_len
+    clc
+    adc cur_dest_line
+    sta temp16
+
+    +GET_LEN_OF_PSTR_IN_A a_ptr
+    clc
+    adc temp16
+  rts
+
 ;-------------------------------
 safe_add_to_current_or_next_line:
 ;-------------------------------
 ; input:
-;   -
+;   - a_ptr (the current token length?)
+;   - s_ptr (remainder of currently parsed line?)
 ; output:
 ;   - cur_dest_line
 
 ;   ' --- safe add cur_dest_line$+s$ to current or next dest_line$(dest_lineno)
 ; 
 ;   if len(cur_dest_line$) + len(s$) + len(str$(dest_lineno)) >= 159 then begin
+    jsr tally_up_next_dest_line_length
+
 ;     next_line_flag=1
+      +ASSIGN_U8V_EQ_IMM next_line_flag, $01
 ;   bend
 ; 
 ;   if zz$ <> "" then begin
@@ -5188,18 +5239,25 @@ safe_add_to_current_or_next_line:
 ;   bend
 ; 
 ;   if next_line_flag = 1 then begin
+    +CMP_U8V_TO_IMM next_line_flag, $01
+    bne @skip_to_else
 ;     dest_line$(dest_lineno) = cur_dest_line$
 ;     cur_dest_line$ = s$
 ;     map_dest_to_src_lineno%(dest_lineno) = cur_src_lineno
 ;     dest_lineno = dest_lineno + 1
+      +ADD_IMM_TO_U16V dest_lineno, 1
+
 ;     next_line_flag = 0
+      +ASSIGN_U8V_EQ_IMM next_line_flag, $00
 ;   bend : else begin  ' -- add to cur_dest_line$
+@skip_to_else:
 ;     if cur_dest_line$ <> "" and cont_next_line_flag = 0 and right$(cur_dest_line$,1) <> ":" then begin
 ;       cur_dest_line$ = cur_dest_line$ + ":"
 ;     bend
 ;     
 ;     cur_dest_line$ = cur_dest_line$ + s$
 ;   bend
+@skip_else:
 ; 
 ;   if verbose then print "<<" dest_lineno; s$
 ;   return

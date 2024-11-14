@@ -1552,6 +1552,24 @@ test__parse_args_of_struct:
   rts
 
 
+;-----------------------------------
+test__tally_up_next_dest_line_length:
+;-----------------------------------
+  +ASSIGN_U16V_EQ_IMM dest_lineno, 1240
+  +SET_LSTRING cur_dest_line, "this is a short line :"
+  +SET_STRING sf_str, "next token to add"
+  +ASSIGN_U16V_EQ_U16V a_ptr, s_ptr
+
+  jsr tally_up_next_dest_line_length
+
+  cmp #43
+  beq +
+    +FAIL_REASON "did not tally to correct amount"
+    rts
++:
+  clc
+  rts
+
 ;-------------------------------------
 test__safe_add_to_current_or_next_line:
 ;-------------------------------------
