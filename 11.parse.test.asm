@@ -1672,6 +1672,17 @@ test__safe_add_to_current_or_next_line:
     rts
 +:
 
+  +ASSIGN_U32V_EQ_IMM DESTPTR, $0005, $0000
+  +SET_LSTRING cur_dest_line, "short line"
+;
+  jsr safe_add_to_current_or_next_line
+;
+  +CMP_STR_TO_IMM cur_dest_line + 1, "short line:next bit to add"
+  bcc +
+    +FAIL_REASON "SCEN3: cur_dest_line not as expected"
+    rts
++:
+
   clc
   rts
 

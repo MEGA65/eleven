@@ -1026,7 +1026,7 @@ SRCPTR = $1c   // $1C-$1F
 verbose = $20  // byte
 cur_src_lineno = $21  ; $21-$22
 HEAPPTR = $23 ; $23-$24  (pointer to free location of heap)
-             ; (I'll try start it at $a000 and grow it upwards)
+             ; (I'll try start it at $b000 and grow it upwards)
 TMPHEAPPTR = $25 ;  $25-$26
 TESTPTR = $27 ; $27-$28
 
@@ -1042,7 +1042,7 @@ initialise:
 
   +ASSIGN_U32V_EQ_IMM DESTPTR, $0005, $0000
   
-  +ASSIGN_U16V_EQ_IMM HEAPPTR, $a000
+  +ASSIGN_U16V_EQ_IMM HEAPPTR, $b000
 
   ; allocate label_name$(200)
   +ALLOC label_name, 200*2
@@ -5453,6 +5453,7 @@ handle_on_this_line:
 ; input:
 ;   - cur_dest_line
 ;   - cont_next_line_flag
+;   - a_ptr
 ; output:
 ;   - cur_dest_line (modified with update)
 
@@ -5476,7 +5477,7 @@ handle_on_this_line:
 @skip_if:
 ;     
 ; cur_dest_line$ = cur_dest_line$ + s$
-  +APPEND_PSTR_TO_LSTR cur_dest_line, s_ptr
+  +APPEND_PSTR_TO_LSTR cur_dest_line, a_ptr
   rts
 
 
