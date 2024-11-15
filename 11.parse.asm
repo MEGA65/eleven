@@ -74,6 +74,38 @@ basic_end:
 ; ------
 ; MACROS
 ; ------
+!macro APPEND_PSTR_TO_LSTR .lstr, .ptr {
+  +ASSIGN_U16V_EQ_ADDR tmp_ptr, .lstr
+  +ASSIGN_U16V_EQ_U16V tmp2_ptr, .ptr
+  ldy .lstr ; length-byte
+  ldz #$00
+@loop:
+  lda (tmp2_ptr),z
+  beq @bail_out ; found null term
+
+  iny
+  sta (tmp_ptr),y
+  inz
+  bra @loop
+
+@bail_out:
+  sty .lstr ; length-byte
+  iny
+  lda #$00
+  sta (tmp_ptr),y ; add null-term
+}
+
+!macro CMP_RIGHT_CHAR_OF_LSTR_TO_IMM .lstr, .imm {
+  +GET_RIGHT_CHAR_OF_LSTR .lstr
+  cmp #.imm
+}
+
+!macro GET_RIGHT_CHAR_OF_LSTR .lstr {
+  ldy .lstr
+  +ASSIGN_U16V_EQ_ADDR tmp_ptr, .lstr
+  lda (tmp_ptr),y
+}
+
 !macro GET_LEN_OF_PSTR_IN_A .pstr {
   phw s_ptr
   +PUSH_U8V cur_line_len
@@ -878,7 +910,6 @@ basic_end:
     jsr instr
 }
 
-; todo: consider how this streq: logic compares to cmp_tmp_ptr_to_s_str:
 !macro CMP_S_PTR_TO_IMM .str {
   bra +
 @imm_str:
@@ -1232,8 +1263,9 @@ orig_ptr:
 ridx:
 !byte $00
 ; #declare cont_next_line_flag, tok_name$, clean_varname$
-cont_next_line_flag:
-!byte $00
+cont_next_line_flag:  ; has the <- left arrow been used to extend a line? 
+!byte $00             ; (note that 'next_line_flag' relates to if dest line is
+                      ;  too long and we need to break into a new line)
 tok_name:
 !fill 32, $00
 ; #declare shitty_syntax_flag, zz
@@ -5348,9 +5380,9 @@ add_cur_dest_line:
   rts
 
 
-;---------------
-handle_next_line:
-;---------------
+;------------------
+handle_on_next_line:
+;------------------
 ; input:
 ;   - cur_dest_line
 ;   - s_ptr
@@ -5374,6 +5406,39 @@ handle_next_line:
 
 ; next_line_flag = 0
   +ASSIGN_U8V_EQ_IMM next_line_flag, $00
+  rts
+
+
+;------------------
+handle_on_this_line:
+;------------------
+; input:
+;   - cur_dest_line
+;   - cont_next_line_flag
+; output:
+;   - cur_dest_line (modified with update)
+
+; if cur_dest_line$ <> "" and cont_next_line_flag = 0 and right$(cur_dest_line$,1) <> ":" then begin
+  +CMP_U8V_TO_IMM cur_dest_line, $00
+  beq @skip_if  ; skip on empty line
+  +CMP_U8V_TO_IMM cont_next_line_flag, $00
+  bne @skip_if
+  +CMP_RIGHT_CHAR_OF_LSTR_TO_IMM cur_dest_line, ':'
+  beq @skip_if
+
+;   cur_dest_line$ = cur_dest_line$ + ":"
+    iny
+    lda #':'
+    sta (tmp_ptr),y
+    sty cur_dest_line ; update length-byte
+    iny
+    lda #$00
+    sta (tmp_ptr),y   ; add null-term
+; bend
+@skip_if:
+;     
+; cur_dest_line$ = cur_dest_line$ + s$
+  +APPEND_PSTR_TO_LSTR cur_dest_line, s_ptr
   rts
 
 
@@ -5411,15 +5476,11 @@ safe_add_to_current_or_next_line:
 ;   if next_line_flag = 1 then begin
     +CMP_U8V_TO_IMM next_line_flag, $01
     bne @skip_to_else
-      jsr handle_next_line
+      jsr handle_on_next_line
       bra @skip_else
 ;   bend : else begin  ' -- add to cur_dest_line$
 @skip_to_else:
-;     if cur_dest_line$ <> "" and cont_next_line_flag = 0 and right$(cur_dest_line$,1) <> ":" then begin
-;       cur_dest_line$ = cur_dest_line$ + ":"
-;     bend
-;     
-;     cur_dest_line$ = cur_dest_line$ + s$
+      jsr handle_on_this_line
 ;   bend
 @skip_else:
 ; 

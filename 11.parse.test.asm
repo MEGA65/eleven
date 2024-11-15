@@ -1588,15 +1588,15 @@ test__add_cur_dest_line:
   rts
 
 
-;---------------------
-test__handle_next_line:
-;---------------------
+;------------------------
+test__handle_on_next_line:
+;------------------------
   +SET_LSTRING cur_dest_line, "testing a line"
   +SET_STRING cur_src_line, "next bit to add"  ; will set s_ptr also
   +ASSIGN_U16V_EQ_IMM dest_lineno, 123
   +ASSIGN_U16V_EQ_IMM cur_src_lineno, 456
 
-  jsr handle_next_line
+  jsr handle_on_next_line
   
   ; I won't bother checking DESTPTR memory, as prior test does that already
   +CMP_STR_TO_IMM cur_dest_line + 1, "next bit to add"
@@ -1623,9 +1623,29 @@ test__handle_next_line:
   clc
   rts
 
+
+;------------------------
+test__handle_on_this_line:
+;------------------------
+  +SET_LSTRING cur_dest_line, "testing a line"
+  +SET_STRING cur_src_line, "next bit to add"  ; will set s_ptr also
+
+  jsr handle_on_this_line
+  
+  +CMP_STR_TO_IMM cur_dest_line + 1, "testing a line:next bit to add"
+  bcc +
+    +FAIL_REASON "cur_dest_line not updated as expected"
+    rts
++:
+
+  clc
+  rts
+
+
 ;-------------------------------------
 test__safe_add_to_current_or_next_line:
 ;-------------------------------------
+  +SET_LSTRING cur_dest_line, "testing a line"
   sec
   rts
 
