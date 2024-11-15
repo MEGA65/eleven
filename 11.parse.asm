@@ -576,15 +576,43 @@ basic_end:
 }
 
 !macro COPY_TO_STR_FROM_S_PTR .var {
-    ldy #$00
+  ldy #$00
 -:
-    lda (s_ptr),y
-    sta .var,y
-    cmp #$00  ; null term?
-    beq +
-    iny
-    bra -
+  lda (s_ptr),y
+  sta .var,y
+  cmp #$00  ; null term?
+  beq +
+  iny
+  bra -
 +:
+}
+
+!macro APPEND_TO_LSTR_FROM_PSTR .lstr, .pstr {
+  ldy #$00
+  ldx .lstr   ; length-byte
+-:
+  lda (.pstr),y
+  sta .lstr+1,x
+  cmp #$00    ; null term?
+  beq +
+  iny
+  inx
+  bra -
++:
+  stx .lstr   ; length-byte
+}
+
+!macro COPY_TO_LSTR_FROM_PSTR .lstr, .pstr {
+  ldy #$00
+-:
+  lda (.pstr),y
+  sta .lstr+1,y
+  cmp #$00    ; null term?
+  beq +
+  iny
+  bra -
++:
+  sty .lstr   ; length-byte
 }
 
 !macro COPY_STR_FROM_PSTR .var1, .var2 {
@@ -603,6 +631,16 @@ basic_end:
     lda .var2
     sta ret_ptr_lo
     lda .var2+1
+    sta ret_ptr_hi
+    jsr append_text_to_str
+}
+
+!macro COPY_STR_FROM_STR .var1, .var2 {
+    +ASSIGN_U16V_EQ_ADDR s_ptr, .var1
+    +ASSIGN_U8V_EQ_IMM cur_line_len, $00
+    lda #<.var2
+    sta ret_ptr_lo
+    lda #>.var2
     sta ret_ptr_hi
     jsr append_text_to_str
 }
@@ -5385,20 +5423,20 @@ handle_on_next_line:
 ;------------------
 ; input:
 ;   - cur_dest_line
-;   - s_ptr
+;   - a_ptr (next bit to add)
 ;   - dest_lineno
 ;   - cur_src_lineno
 ; output:
 ;   - DESTPTR memory updated with newly added cur_dest_line
-;   - cur_dest_line = s_ptr contents (the next token to be added)
+;   - cur_dest_line = a_ptr contents (the next token to be added)
 ;   - dest_lineno (incremented by one)
 ;   - next_line_flag (reset to zero)
 
 ; dest_line$(dest_lineno) = cur_dest_line$
   jsr add_cur_dest_line
 ; cur_dest_line$ = s$
-  +COPY_TO_STR_FROM_S_PTR cur_dest_line + 1
-  +ASSIGN_U8V_EQ_U8V cur_dest_line, cur_line_len
+  +COPY_TO_LSTR_FROM_PSTR cur_dest_line, a_ptr
+
 ; map_dest_to_src_lineno%(dest_lineno) = cur_src_lineno
   +ASSIGN_WORDARRAY_AT_WORDIDX_OF_U16V_EQ_U16V map_dest_to_src_lineno, dest_lineno, cur_src_lineno
 ; dest_lineno = dest_lineno + 1
@@ -5446,8 +5484,10 @@ handle_on_this_line:
 safe_add_to_current_or_next_line:
 ;-------------------------------
 ; input:
-;   - a_ptr (the current token length?)
+;   - a_ptr (the next token to add to dest line?)
 ;   - s_ptr (remainder of currently parsed line?)
+;   - dest_lineno
+;   - cur_dest_line
 ; output:
 ;   - cur_dest_line
 
@@ -5466,6 +5506,7 @@ safe_add_to_current_or_next_line:
     +CMP_U8V_TO_IMM struct_was_created, $01
     bne @skip_struct_was_created_check
 ;     s$ = ""
+      +ASSIGN_U16V_EQ_IMM a_ptr, $0000  ; null pointer is ok?
 ;     zz$ = ""
       +ASSIGN_U8V_EQ_IMM struct_was_created, $00
 ;     return  ' force s$ to empty
@@ -5485,6 +5526,15 @@ safe_add_to_current_or_next_line:
 @skip_else:
 ; 
 ;   if verbose then print "<<" dest_lineno; s$
+    +CMP_U8V_TO_IMM verbose, $01
+    bne @skip_verbose
+      +PRINT_INLINE "<<"
+      +PRINT_CHR ' '
+      +PRINT_U16V dest_lineno
+      +PRINT_CHR ' '
+      +PRINT_PSTR s_ptr
+@skip_verbose:
+
 ;   return
     rts
 

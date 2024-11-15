@@ -1593,6 +1593,7 @@ test__handle_on_next_line:
 ;------------------------
   +SET_LSTRING cur_dest_line, "testing a line"
   +SET_STRING cur_src_line, "next bit to add"  ; will set s_ptr also
+  +ASSIGN_U16V_EQ_U16V a_ptr, s_ptr
   +ASSIGN_U16V_EQ_IMM dest_lineno, 123
   +ASSIGN_U16V_EQ_IMM cur_src_lineno, 456
 
@@ -1645,8 +1646,33 @@ test__handle_on_this_line:
 ;-------------------------------------
 test__safe_add_to_current_or_next_line:
 ;-------------------------------------
-  +SET_LSTRING cur_dest_line, "testing a line"
-  sec
+  +ASSIGN_U32V_EQ_IMM DESTPTR, $0005, $0000
+  +SET_STRING cur_src_line, "next bit to add"  ; will set s_ptr also
+  +ASSIGN_U16V_EQ_U16V a_ptr, s_ptr
+
+  +SET_LSTRING cur_dest_line, "012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789"  ; 150 chars long
+  +ASSIGN_U16V_EQ_U16V is_ptr, s_ptr
+  +COPY_STR_FROM_PSTR sf_str, is_ptr ; preserve original contents in sf_str
+  +ASSIGN_U16V_EQ_IMM dest_lineno, 123
+
+  jsr safe_add_to_current_or_next_line
+
+  ; check current line was added to DESTPTR
+  +ASSIGN_U32V_EQ_IMM DESTPTR, $0005, $0000
+  +ASSIGN_U16V_EQ_ADDR s_ptr, sf_str
+  +CMP_S_PTR_TO_PSTR32 DESTPTR
+  bcc +
+    +FAIL_REASON "SCEN1: DESTPTR data not added as expected"
+    rts
++:
+
+  +CMP_STR_TO_IMM cur_dest_line + 1, "next bit to add"
+  bcc +
+    +FAIL_REASON "SCEN2: cur_dest_line not as expected"
+    rts
++:
+
+  clc
   rts
 
 
