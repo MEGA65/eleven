@@ -223,6 +223,14 @@ basic_end:
     +COPY_PSTR_FROM_PSTR temp16, .src
 }
 
+!macro ASSIGN_DEREF_PU16V_EQ_U16V .ptr, .var {
+  ldy #$00
+  lda .var
+  sta (.ptr),y
+  iny
+  lda .var+1
+  sta (.ptr),y
+}
 
 !macro SET_TMP_PTR_TO_DEFVALS_AT_ELCNT_IDX {
   +ASSIGN_U16V_EQ_ADDR tmp_ptr, define_val
@@ -252,6 +260,45 @@ basic_end:
     ; increment high-byte of pointer
     inc tmp_ptr+1
 +:
+}
+
+!macro ASSIGN_WORDARRAY_AT_WORDIDX_OF_U16V_EQ_U16V .wordarray, .idx, .var {
+  +SET_TMP_PTR_TO_WORDARRAY_AT_WORDIDX_OF_U16V .wordarray, .idx
+  +ASSIGN_DEREF_PU16V_EQ_U16V tmp_ptr, .var
+}
+
+!macro SET_TMP_PTR_TO_WORDARRAY_AT_WORDIDX_OF_U16V .wrd_array, .var {
+  lda .var
+  ldz .var+1
+  +SET_TMP_PTR_TO_WORDARRAY_AT_WORDIDX_OF_ZA .wrd_array
+}
+
+!macro SET_TMP_PTR_TO_WORDARRAY_AT_WORDIDX_OF_ZA .wrd_array {
+  pha
+  +ASSIGN_U16V_EQ_ADDR tmp_ptr, .wrd_array
+  pla
+  +UPDATE_TMP_PTR_TO_WORD_IDX_OF_ZA
+}
+
+!macro UPDATE_TMP_PTR_TO_WORD_IDX_OF_ZA {
+  clc
+  rol
+  sta temp16
+  tza
+  rol
+  sta temp16+1
+  
+  +ADD_U16V_TO_U16V tmp_ptr, temp16
+}
+
+!macro ADD_U16V_TO_U16V .var1, .var2 {  ; var1 += var2
+  clc
+  lda .var1
+  adc .var2
+  sta .var1
+  lda .var1+1
+  adc .var2+1
+  sta .var1+1
 }
 
 !macro SET_PTR_TO_ARRAY_AT_OFFSET .ptr, .array, .offset {
@@ -594,6 +641,15 @@ basic_end:
 !macro CMP_U8V_TO_IMM .var, .val {
   lda .var
   cmp #.val
+}
+
+!macro CMP_U16V_TO_IMM .var, .val {
+  lda .var
+  cmp #<.val
+  bne +   ; bail out fail
+  lda .var+1
+  cmp #>.val
++:
 }
 
 !macro SET_LSTRING .var, .val {
@@ -1019,6 +1075,8 @@ TKN_STR_CNT = 7
 ; #declare bin_conv(16)  ' bit shifter's fast binary conversion
 ; 
 ; #declare map_dest_to_src_lineno%(1000) ' dest file line nr --> src file line nr
+map_dest_to_src_lineno:
+!fill 1000*2, $00
 ; #declare dest_line$(1000)              ' post processed lines
 ; #declare element_cnt(4)                ' element count per type
 element_cnt:
@@ -1351,7 +1409,7 @@ cmp_tmp_ptr_to_s_str:
 ;-------------------
   ; returns C=0 if equal, C=1 if unequal
   clc
-  ldy #$0
+  ldy #$00
 @loop:
   lda (tmp_ptr),y
   beq @bail_out_on_null_term
@@ -4559,18 +4617,37 @@ cur_scan_idx:
 streq:
 ;----
 ; C=0 if equal, C=1 if unequal
-  jsr instr
-  bcc +  ; bail out if not instr
-  rts
-+:
+  stx needle_ptr
+  sty needle_ptr+1
+  sta haystack_ptr
+  stz haystack_ptr+1
+
+  clc
+  ldy #$00
+@loop:
+  lda (needle_ptr),y
+  beq @bail_out_on_null_term
+
+  cmp (haystack_ptr),y
+  bne @bail_out_fail
+
   lda (haystack_ptr),y
-  beq @bail_out_succeed   ; assure haystack has null-term
+  beq @bail_out_fail
+
+  iny
+  bra @loop
+
+@bail_out_fail:
   sec
   rts
 
-@bail_out_succeed:
+@bail_out_on_null_term:
+  lda (haystack_ptr),y
+  bne @bail_out_fail
+
   clc
   rts
+
 
 ;----
 instr:
@@ -5271,6 +5348,35 @@ add_cur_dest_line:
   rts
 
 
+;---------------
+handle_next_line:
+;---------------
+; input:
+;   - cur_dest_line
+;   - s_ptr
+;   - dest_lineno
+;   - cur_src_lineno
+; output:
+;   - DESTPTR memory updated with newly added cur_dest_line
+;   - cur_dest_line = s_ptr contents (the next token to be added)
+;   - dest_lineno (incremented by one)
+;   - next_line_flag (reset to zero)
+
+; dest_line$(dest_lineno) = cur_dest_line$
+  jsr add_cur_dest_line
+; cur_dest_line$ = s$
+  +COPY_TO_STR_FROM_S_PTR cur_dest_line + 1
+  +ASSIGN_U8V_EQ_U8V cur_dest_line, cur_line_len
+; map_dest_to_src_lineno%(dest_lineno) = cur_src_lineno
+  +ASSIGN_WORDARRAY_AT_WORDIDX_OF_U16V_EQ_U16V map_dest_to_src_lineno, dest_lineno, cur_src_lineno
+; dest_lineno = dest_lineno + 1
+  +ADD_IMM_TO_U16V dest_lineno, 1
+
+; next_line_flag = 0
+  +ASSIGN_U8V_EQ_IMM next_line_flag, $00
+  rts
+
+
 ;-------------------------------
 safe_add_to_current_or_next_line:
 ;-------------------------------
@@ -5305,15 +5411,8 @@ safe_add_to_current_or_next_line:
 ;   if next_line_flag = 1 then begin
     +CMP_U8V_TO_IMM next_line_flag, $01
     bne @skip_to_else
-;     dest_line$(dest_lineno) = cur_dest_line$
-      jsr add_cur_dest_line
-;     cur_dest_line$ = s$
-;     map_dest_to_src_lineno%(dest_lineno) = cur_src_lineno
-;     dest_lineno = dest_lineno + 1
-      +ADD_IMM_TO_U16V dest_lineno, 1
-
-;     next_line_flag = 0
-      +ASSIGN_U8V_EQ_IMM next_line_flag, $00
+      jsr handle_next_line
+      bra @skip_else
 ;   bend : else begin  ' -- add to cur_dest_line$
 @skip_to_else:
 ;     if cur_dest_line$ <> "" and cont_next_line_flag = 0 and right$(cur_dest_line$,1) <> ":" then begin

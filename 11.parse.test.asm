@@ -1588,6 +1588,41 @@ test__add_cur_dest_line:
   rts
 
 
+;---------------------
+test__handle_next_line:
+;---------------------
+  +SET_LSTRING cur_dest_line, "testing a line"
+  +SET_STRING cur_src_line, "next bit to add"  ; will set s_ptr also
+  +ASSIGN_U16V_EQ_IMM dest_lineno, 123
+  +ASSIGN_U16V_EQ_IMM cur_src_lineno, 456
+
+  jsr handle_next_line
+  
+  ; I won't bother checking DESTPTR memory, as prior test does that already
+  +CMP_STR_TO_IMM cur_dest_line + 1, "next bit to add"
+  bcc +
+    +FAIL_REASON "SCEN1: cur_dest_line not updated as expected"
+    rts
++:
+
+  +CMP_U16V_TO_IMM dest_lineno, 124
+  beq +
+    +FAIL_REASON "SCEN2: dest_lineno not incremented"
+    rts
++:
+  
+  +ASSIGN_U16V_EQ_IMM dest_lineno, 123  ; bring it back for next check
+  +SET_TMP_PTR_TO_WORDARRAY_AT_WORDIDX_OF_U16V map_dest_to_src_lineno, dest_lineno
+  +ASSIGN_U16V_EQ_DEREF_U16V temp16, tmp_ptr
+  +CMP_U16V_TO_IMM temp16, 456
+  beq +
+    +FAIL_REASON "SCEN3: map_dest_to_src_lineno[] not updated as expected"
+    rts
++:
+
+  clc
+  rts
+
 ;-------------------------------------
 test__safe_add_to_current_or_next_line:
 ;-------------------------------------
