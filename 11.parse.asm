@@ -565,6 +565,35 @@ basic_end:
     jsr append_left_text_to_str
 }
 
+!macro CMP_RIGHT_S_PTR_TO_IMM .backidx, .imm {
+  bra +
+-:
+!pet .imm, $00
++:
+  phw s_ptr
+  lda cur_line_len
+  clc
+  sbc #.backidx
+  adc s_ptr
+  sta s_ptr
+  lda #$00
+  adc s_ptr+1
+  sta s_ptr+1
+
+  +CMP_S_PTR_TO_PSTR -
+  bcc +
+
+  +plw s_ptr  ; not equal
+  sec
+  bra ++
+
++:  
+  +plw s_ptr  ; equal
+  clc
+++:
+}
+
+
 !macro COPY_STR .var1, .var2 {
     +ASSIGN_U16V_EQ_ADDR s_ptr, .var1
     +ASSIGN_U8V_EQ_IMM cur_line_len, $00
@@ -959,6 +988,17 @@ basic_end:
     lda s_ptr
     ldz s_ptr+1
     jsr streq
+}
+
+!macro CMP_LEFT_S_PTR_TO_IMM .cnt, .imm {
+  bra +
+@imm_str:
+!pet .imm, $00
++:
+  ldx #<@imm_str
+  ldy #>@imm_str
+  ldz #.cnt
+  jsr streq_left
 }
 
 !macro ADD_TO_POINTER_U8 .ptr, .val {
@@ -2006,16 +2046,17 @@ parse_standard_line:
 ;------------------
 ; input:
 ;  - delete_line_flag
+;  - s_ptr (pointing to cur_src_line) = current line to parse
 ; output:
 ;  - 
 
 ; if delete_line_flag = 0 then begin
   +CMP_U8V_TO_IMM delete_line_flag, $00
-  bne @skip_df_zero
+  lbne @skip_df_zero
 ;   if verbose = 0 then print ".";
     +CMP_U8V_TO_IMM verbose, $00
     bne +
-    +PRINT_CHR '.'
+      +PRINT_CHR '.'
 +:
 ;   s$ = cur_src_line$
 ;   gosub replace_vars_and_labels
@@ -2030,8 +2071,18 @@ parse_standard_line:
 
 ;   if right$(s$, 4) = "bend" or right$(s$, 6) = "return" {x5F}
 ;       or left$(s$, 2) = "if" then begin
+    +CMP_RIGHT_S_PTR_TO_IMM 4, "bend"
+    bcc @do_next_line_flag
+    +CMP_RIGHT_S_PTR_TO_IMM 6, "return"
+    bcc @do_next_line_flag
+    +CMP_LEFT_S_PTR_TO_IMM 2, "if"
+    bcc @do_next_line_flag
+    bra @skip_next_line_flag
+@do_next_line_flag:
 ;     next_line_flag = 1
+      +ASSIGN_U8V_EQ_IMM next_line_flag, $01
 ;   bend
+@skip_next_line_flag:
 ; bend  ' endif delete_line_flag = 0
 @skip_df_zero:
   rts
@@ -3093,14 +3144,16 @@ orig_sptr:
 ;----------------------
 replace_vars_and_labels:
 ;----------------------
+; input:
+;   - s_ptr (pointing to f_str)
+; output:
+;   - s_ptr
+
 ;   ' -- replace vars & labels in source string --
 ;   '    in:   s$ = source string (which is really f_str)
 ;   '    out:  s$ = dest string with replaced items
 
-    lda s_ptr
-    sta orig_sptr
-    lda s_ptr+1
-    sta orig_sptr+1
+    +ASSIGN_U16V_EQ_U16V orig_sptr, s_ptr
 
     +ASSIGN_U16V_EQ_ADDR sr_ptr, f_str
 
@@ -3438,13 +3491,11 @@ check_token_for_subbing:
     jsr check_mark_expected_label
 
 ;   if cur_tok$ = "goto" then next_line_flag = 1
-    phw s_ptr
     +ASSIGN_U16V_EQ_ADDR s_ptr, cur_tok+1
     +CMP_S_PTR_TO_IMM "goto"
     bcs +
       +ASSIGN_U8V_EQ_IMM next_line_flag, $01
 +:
-    +plw s_ptr
 
     jsr check_expect_label_next
     jsr check_hex_and_binary_value
@@ -3464,8 +3515,11 @@ check_token_for_subbing:
     rts
 
 +:
+    +ASSIGN_U16V_EQ_ADDR a_ptr, cur_tok + 1
     jsr check_struct_names
-    bcc +
+    bcs + ; if we found a struct name, bail out early
+      +ASSIGN_U16V_EQ_U16V s_ptr, orig_sptr
+      jsr check_for_creation_of_struct_object
     rts
 +:
 
@@ -3517,28 +3571,6 @@ check_dumb_commands:
     rts
 
 
-;-----------------
-check_struct_names:
-;-----------------
-;   ' check for struct names
-;   ' ----------------------
-;   found_struct_idx = -1
-; 
-;   for id = 0 to struct_cnt - 1  ' check struct names
-;     if cur_tok$ = struct_name$(id) then begin
-;       gosub check_for_creation_of_struct_object
-;       found_struct_idx = id
-;       id = struct_cnt - 1  ' create new struct object
-;     bend
-;   next id
-; 
-;   if found_struct_idx <> -1 then begin
-;     return
-;   bend
-    clc
-    rts
-
-
 ;------------------
 check_defines_table:
 ;------------------
@@ -3551,6 +3583,7 @@ check_defines_table:
 ;   ' check defines table too
 ;   ' - - - - - - - - - - - -
     
+    phw s_ptr
     ldx #TYP_DEF
     stx ty
     +SET_IS_PTR_TO_VARTABLE_AT_TY_IDX
@@ -3574,6 +3607,7 @@ check_defines_table:
         lda cur_line_len
         sta cur_tok  ; store current length
 ;       return
+        +plw s_ptr
         sec
         rts
 ;     bend
@@ -3585,6 +3619,7 @@ check_defines_table:
     bra @loop_next_element
 
 @bail_out:
+    +plw s_ptr
     clc
     rts
 
@@ -3605,6 +3640,8 @@ check_swap_vars_with_short_names:
 ;   ' check to swap out variables with short names
 ;   ' - - - - - - - - - - - - - - - - - - - - - -
 ;   did_replace_flag = 0  ' did replace flag
+  phw s_ptr
+  +ASSIGN_U8V_EQ_IMM did_replace_flag, $00
 
     jsr check_type
 
@@ -3650,6 +3687,7 @@ check_swap_vars_with_short_names:
     bra @loop_next_element
 
 @bail_out:
+    +plw s_ptr
     rts
 
 
@@ -3697,6 +3735,7 @@ check_ignore_existing_vocab:
 ;   ' ignore existing vocabulary of functions/commands
 ;   ' - - - - - - - - - - - - - - - - - - - - - - - - 
 ;   tok_name$ = " " + cur_tok$ + " "
+    phw s_ptr
     jsr prepare_tok_name
 
     lda #$00
@@ -3719,6 +3758,7 @@ check_ignore_existing_vocab:
         +COPY_STR lc, cur_tok
 ;       gosub check_if_command_triggers_shitty_syntax
 ;       return
+        +plw s_ptr
         sec
         rts
 ;     bend
@@ -3728,6 +3768,7 @@ check_ignore_existing_vocab:
     bra @loop_next_ty
 
 @bail_out:
+    +plw s_ptr
     clc
     rts
 
@@ -4683,6 +4724,44 @@ instr_chr_quick:
 cur_scan_idx:
 !byte $00
 
+;---------
+streq_left:
+;---------
+; Z = cnt of chars on the left
+; C=0 if equal, C=1 if unequal
+  stx needle_ptr
+  sty needle_ptr+1
+  stz temp16
+
+  clc
+  ldy #$00
+@loop:
+  lda (needle_ptr),y
+  beq @bail_out_on_null_term
+  cpy temp16  ; = z(cnt of chars on left)
+  beq @bail_out_fail
+
+  cmp (s_ptr),y
+  bne @bail_out_fail
+
+  lda (s_ptr),y
+  beq @bail_out_fail
+
+  iny
+  bra @loop
+
+@bail_out_fail:
+  sec
+  rts
+
+@bail_out_on_null_term:
+  lda (s_ptr),y
+  bne @bail_out_fail
+
+@bail_out_success:
+  clc
+  rts
+
 ;----
 streq:
 ;----
@@ -4923,6 +5002,8 @@ check_for_creation_of_struct_object:
 ;             ENVTYPE envs(9) = [ {x5F}
 ;             [ "Piano",       0,  9,  0,  0,  2, 1536 ], {x5F}
 ; output:
+;   - *struct_obj_name = "envs(9)"
+;   - var_table (updated with "envs_name$", "envs_attack", "envs_decay", etc)
 ;   - ...
 
 ;   orig$ = s$
@@ -5300,9 +5381,11 @@ find_struct_type:
 ;   - found_idx
 ;     = $ff (if not found)
 ;     = all else (found at idx)
+
 ;   gosub read_next_token  ' read next token from cur_src_line$ into s$
     jsr read_next_token
 
+check_struct_names:   ; skip the read of token
     +ASSIGN_U8V_EQ_IMM ridx, $00
     +SET_TMP_PTR_TO_WORDARRAY_AT_WORDIDX_OF_U8V struct_name, ridx
 ;   for ridx = 0 to struct_cnt - 1

@@ -476,7 +476,7 @@ test__replace_vars_and_labels:
   // NOTE: This test relies on the prior "test__parse_declared_var:" adding the
   // define "FISHY=1" into the define-val table already
 
-  +SET_STRING f_str, "a$(FISHY)"
+  +SET_STRING cur_src_line, "a$(FISHY)"
   ; this will set s_ptr to point to it too
 
   jsr replace_vars_and_labels
@@ -486,7 +486,7 @@ test__replace_vars_and_labels:
 !pet "a$(1)",$00
 +:
 
-  +ASSIGN_U16V_EQ_ADDR s_ptr, f_str ; f_str is really s$
+  +ASSIGN_U16V_EQ_ADDR s_ptr, cur_src_line
   +STR_MATCH_TO_SPTR @expected
   bcc +
   +FAIL_REASON "s_ptr != 'a$(1)'"
@@ -1426,13 +1426,6 @@ test__check_compulsory_next_line_cases:
   rts
 
 
-;------------------------
-test__parse_standard_line:
-;------------------------
-  sec
-  rts
-
-
 ;---------------------------
 test__parse_no_brackets_case:
 ;---------------------------
@@ -1750,7 +1743,7 @@ test__check_for_creation_of_struct_object:
   +SET_STRING f_str, "ENVTYPE envs(9) = [ [ \"Piano\", 0, 9, 0 ] ]"
   +ASSIGN_U16V_EQ_ADDR s_ptr, f_str
 
-  ; jsr check_for_creation_of_struct_object
+  jsr check_for_creation_of_struct_object
 
   sec
   rts
@@ -1832,6 +1825,41 @@ test__find_struct_type:
 +:
 
   clc
+  rts
+
+
+;------------------------
+test__parse_standard_line:
+;------------------------
+  +ASSIGN_U8V_EQ_IMM delete_line_flag, $00
+
+  +SET_STRING cur_src_line, "ENVTYPE envs(9) = [ [ \"Piano\", 0, 9, 0 ] ]"
+
+  jsr parse_standard_line
+
+  +CMP_PSTR_TO_IMM struct_obj_name, "env_name$"
+
+
+  ; needed to assess replace_vars_and_labels
+  +SET_STRING cur_src_line, "a$(FISHY)"
+  ; this will set s_ptr to point to it too
+
+  jsr parse_standard_line
+
+  +ASSIGN_U16V_EQ_ADDR s_ptr, cur_src_line ; f_str is really s$
+  +CMP_S_PTR_TO_IMM "a$(1)"
+  bcc +
+    +FAIL_REASON "SCEN1: s_ptr != 'a$(1)'"
+  rts
++:
+
+  +CMP_STR_TO_IMM cur_dest_line+1, "a$(1)"
+  bcc +
+    +FAIL_REASON "SCEN1: cur_dest_line != 'a$(1)'"
+  rts
++:
+
+  sec
   rts
 
 
