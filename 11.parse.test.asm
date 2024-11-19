@@ -1740,8 +1740,8 @@ test__find_struct_obj_name_and_gen_struct_field_vars:
 ;----------------------------------------
 test__check_for_creation_of_struct_object:
 ;----------------------------------------
-  +SET_STRING f_str, "ENVTYPE envs(9) = [ [ \"Piano\", 0, 9, 0 ] ]"
-  +ASSIGN_U16V_EQ_ADDR s_ptr, f_str
+  +SET_STRING cur_src_line, "ENVTYPE envs(9) = [ [ \"Piano\", 0, 9, 0 ] ]"
+  +ASSIGN_U16V_EQ_ADDR s_ptr, cur_src_line
 
   jsr check_for_creation_of_struct_object
 
@@ -1783,6 +1783,25 @@ test__check_for_continue_onto_next_line:
   +CMP_STR_TO_IMM cur_dest_line+1, "line with no cont marker"
   bcc +
     +FAIL_REASON "SCEN4: dest-line not valid"
+    rts
++:
+
+  clc
+  rts
+
+
+;--------------------------------
+test__check_continue_on_next_line:
+;--------------------------------
+  bra +
+cont_marker_token:
+!pet $5f,$00
++:
+  +COPY_STR_FROM_STR cur_src_line, cont_marker_token
+
+  jsr check_continue_on_next_line
+  bcc +
+    +FAIL_REASON "expected C=0"
     rts
 +:
 

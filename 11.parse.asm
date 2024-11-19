@@ -918,6 +918,21 @@ basic_end:
     jsr streq
 }
 
+!macro CMP_S_PTR_TO_IMM_CHAR .chr {
+  ldy #$0
+  lda (s_ptr),y
+  cmp #.chr
+  bne + ; fail case
+  iny
+  lda (s_ptr),y
+  bne + ; fail case (didn't see null-term)
+  clc
+  bra ++
++:
+  sec
+++:
+}
+
 !macro CMP_STR_TO_IMM .var, .val {
   +ASSIGN_U16V_EQ_ADDR s_ptr, .var
   +CMP_S_PTR_TO_IMM .val
@@ -5057,6 +5072,7 @@ check_for_creation_of_struct_object:
       beq @bail_out
       
       jsr check_continue_on_next_line
+      bcc @cfcoso_skip
 ; 
       jsr check_sm0
 ; 
@@ -5126,11 +5142,28 @@ find_struct_obj_name_and_gen_struct_field_vars:
 ;--------------------------
 check_continue_on_next_line:
 ;--------------------------
+; input:
+;   - s_ptr
+; output:
+;   - C=0 (we found continue-char)
+;   - C=1 (no continue-char found)
+
+; todo: explain how this differs from check_for_continue_onto_next_line:
+;   this one seems specific to struct creation. Does it need to be?
+;   Could it use the other one instead?
+
 ;     if s$ = "{x5F}" then begin
+      +CMP_S_PTR_TO_IMM_CHAR $5f
+      bcs @skip
+
 ;       gosub read_next_line
         jsr read_next_line
 ;       goto cfcoso_skip  ' read next line
+        clc
+        rts
 ;     bend
+@skip:
+      sec
       rts
 
 
