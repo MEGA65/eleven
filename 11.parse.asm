@@ -169,7 +169,7 @@ basic_end:
 
 !macro SET_PARSER_ERROR_ON_LINE .text {
 ;     parser_error$ = "?declare parameter missing in line " + str$(cur_src_lineno)
-    +SET_STRING parser_error, "?declare parameter missing in line "
+    +SET_STRING parser_error, .text
     +APPEND_UINT_TO_S_PTR cur_src_lineno
 }
 
@@ -1345,6 +1345,8 @@ cut_tail_idx:
 
 ; #declare cur_line_len_minus_one, cur_linebuff_addr, chr
 ; #declare orig$, ridx, struct_obj_name$, bkt_open_idx, sz, sr, sm, zz$
+sm:   ; struct-parser state machine flag?
+!byte $00
 struct_was_created:   ; old zz$
 !byte $00
 field_count:   ; old sz
@@ -2775,6 +2777,9 @@ add_to_label_table:
 ;--------------------------
 return_to_editor_with_error:
 ;--------------------------
+!ifdef RUN_TESTS {
+  rts   ; bail back to test system
+}
 ;   bank 4  ' set error mailbox flag
     lda #$30
     sta FOURPTR
@@ -3552,12 +3557,8 @@ unresolved_cur_tok:
   +APPEND_UINT_TO_S_PTR cur_src_lineno
 
 ;   sleep 1
-!ifdef RUN_TESTS {
-    rts   ; bail back to test system
-} else {
 ;   goto return_to_editor_with_error
     jmp return_to_editor_with_error
-}
 
 
 ;---------------
@@ -5065,6 +5066,7 @@ check_for_creation_of_struct_object:
     +ASSIGN_U8V_EQ_IMM field_count, $00
 ;   sr=0
 ;   sm=0  ' read next token from cur_src_line$ into s$
+    +ASSIGN_U8V_EQ_IMM sm, $00
 ; 
 ;   do while s$ <> ""
 @loop_while:
@@ -5075,6 +5077,7 @@ check_for_creation_of_struct_object:
       bcc @cfcoso_skip
 ; 
       jsr check_sm0
+      bcc @cfcoso_skip
 ; 
       jsr check_sm1_before_sm2
 ; 
@@ -5170,16 +5173,39 @@ check_continue_on_next_line:
 ;--------
 check_sm0:
 ;--------
+; input:
+;   - s_ptr
+;   - sm (struct-parser state machine flag?)
+; output:
+;   - C=0 (we found continue-char)
+;   - C=1 (no continue-char found)
+;         (I may let it bail to a parser error in future for this?)
+
 ;     if sm = 0 and s$ <> "[" then begin
+      +CMP_U8V_TO_IMM sm, $00
+      bne @skip_check1
+      +CMP_S_PTR_TO_IMM_CHAR '['
+      bcc @skip_check1
 ;       print "error: expected ["
+        +SET_PARSER_ERROR_ON_LINE "?expected '[' on line "
 ;       sleep 1
 ;       stop
+        jmp return_to_editor_with_error
 ;     bend
+@skip_check1:
 ; 
 ;     if sm = 0 and s$ = "[" then begin
+      +CMP_U8V_TO_IMM sm, $00
+      bne @skip_check1
+      +CMP_S_PTR_TO_IMM_CHAR '['
+      bcs @skip_check1
 ;       sm = 1
+        +ASSIGN_U8V_EQ_IMM sm, $01
 ;       goto cfcoso_skip
+        clc
+        rts
 ;     bend
+      sec
       rts
 
 

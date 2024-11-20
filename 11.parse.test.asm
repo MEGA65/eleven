@@ -1809,6 +1809,41 @@ cont_marker_token:
   rts
 
 
+;--------------
+test__check_sm0:
+;--------------
+  +ASSIGN_U8V_EQ_IMM sm, $00
+  +SET_STRING cur_src_line, "z"
+  +ASSIGN_U16V_EQ_IMM cur_src_lineno, 123
+
+  jsr check_sm0
+
+  +ASSIGN_U16V_EQ_ADDR s_ptr, parser_error
+  +CMP_S_PTR_TO_IMM "?expected '[' on line 123"
+  beq + ; null-terminator?
+  +FAIL_REASON "SCEN1: parser error not as expected"
+  rts
++:
+
+  +SET_STRING cur_src_line, "["
+
+  jsr check_sm0
+
+  bcc +
+    +FAIL_REASON "SCEN2: c != 0"
+    rts
++:
+
+  +CMP_U8V_TO_IMM sm, $01
+  beq +
+    +FAIL_REASON "SCEN3: sm != 1"
+    rts
++:
+
+  clc
+  rts
+
+
 ;---------------------
 test__find_struct_type:
 ;---------------------
