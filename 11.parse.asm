@@ -5177,9 +5177,9 @@ check_sm0:
 ;   - s_ptr
 ;   - sm (struct-parser state machine flag?)
 ; output:
-;   - C=0 (we found continue-char)
-;   - C=1 (no continue-char found)
-;         (I may let it bail to a parser error in future for this?)
+;   - C=0 (we found '[' while sm=0)
+;   - C=1 (no '[' found)
+;         (If it was essential to find a '[', this will result in a parser error)
 
 ;     if sm = 0 and s$ <> "[" then begin
       +CMP_U8V_TO_IMM sm, $00
@@ -5212,6 +5212,14 @@ check_sm0:
 ;-------------------
 check_sm1_after_sm2:
 ;-------------------
+; input:
+;   - s_ptr
+;   - sm (struct-parser state machine flag?)
+; output:
+;   - C=0 (we found continue-char)
+;   - C=1 (no continue-char found)
+;         (I may let it bail to a parser error in future for this?)
+
 ;     if sm = 1 and s$ = "[" then begin
 ;       sm = 2
 ;       field_count = 0
@@ -5226,11 +5234,24 @@ check_sm1_after_sm2:
 ;-------------------
 check_sm1_before_sm2:
 ;-------------------
+; input:
+;   - s_ptr
+;   - sm (struct-parser state machine flag?)
+; output:
+;   If it was essential to find a '[' or ']', this will result in a parser error)
+
 ;     if sm = 1 and s$ <> "[" and s$ <> "]" then begin
+      +CMP_U8V_TO_IMM sm, $01
+      bne @skip
+      +CMP_S_PTR_TO_IMM_CHAR '['
+      beq @skip
+      +CMP_S_PTR_TO_IMM_CHAR ']'
+      beq @skip
 ;       print "error: expected [ or ]"
-;       sleep 1
-;       stop
+        +SET_PARSER_ERROR_ON_LINE "?expected '[' or ']' on line "
+        jmp return_to_editor_with_error
 ;     bend
+@skip:
       rts
 
 

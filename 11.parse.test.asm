@@ -1844,6 +1844,47 @@ test__check_sm0:
   rts
 
 
+;-------------------------
+test__check_sm1_before_sm2:
+;-------------------------
+  +ASSIGN_U8V_EQ_IMM sm, $00
+  +ASSIGN_U8V_EQ_IMM parser_error, $00  ; null-term
+  +ASSIGN_U16V_EQ_IMM cur_src_lineno, 123
+
+  jsr check_sm1_before_sm2
+
+  +CMP_U8V_TO_IMM parser_error, $00
+  beq +
+    +FAIL_REASON "SCEN1: parser error found, but not expected"
+    rts
++:
+
+  +ASSIGN_U8V_EQ_IMM sm, $01
+  +SET_STRING cur_src_line, "]"
+
+  jsr check_sm1_before_sm2
+
+  +CMP_U8V_TO_IMM parser_error, $00
+  beq +
+    +FAIL_REASON "SCEN2: parser error found, but not expected"
+    rts
++:
+
+  +SET_STRING cur_src_line, "z"
+
+  jsr check_sm1_before_sm2
+
+  +ASSIGN_U16V_EQ_ADDR s_ptr, parser_error
+  +CMP_S_PTR_TO_IMM "?expected '[' or ']' on line 123"
+  bcc +
+  +FAIL_REASON "SCEN3: parser error not as expected"
+  rts
++:
+
+  clc
+  rts
+
+
 ;---------------------
 test__find_struct_type:
 ;---------------------
