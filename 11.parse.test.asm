@@ -1145,7 +1145,7 @@ test__check_swap_vars_with_short_names:
 ; This isn't ideal, as I need to increment element counts in here (very dodgy)
 ; I can do things more cleanly later
 
-  ; dodgy increment of element_count for integer
+  ; dodgy increment of element_cnt for integer
   ldx #TYP_INT
   inc element_cnt,x
 
@@ -1272,7 +1272,7 @@ test__generate_dest_line_for_dimensioned_var:
 
   jsr generate_dest_line_for_dimensioned_var
 
-  +CMP_STR_TO_IMM next_line, "dim b%(10)"
+  +CMP_STR_TO_IMM next_line, "dim b%(10):"
   bcc +
     +FAIL_REASON "next_line not as expected"
     rts
@@ -1740,12 +1740,59 @@ test__find_struct_obj_name_and_gen_struct_field_vars:
 ;----------------------------------------
 test__check_for_creation_of_struct_object:
 ;----------------------------------------
+  +RESET_EL_COUNT
+  +SET_LSTRING cur_dest_line, ""
+  +SET_STRING next_line, ""
   +SET_STRING cur_src_line, "ENVTYPE envs(9) = [ [ \"Piano\", 0, 9, 0 ] ]"
   +ASSIGN_U16V_EQ_ADDR s_ptr, cur_src_line
 
   jsr check_for_creation_of_struct_object
 
-  sec
+  +CMP_PSTR_TO_IMM struct_obj_name, "envs(9)"
+  bcc +
+    +FAIL_REASON "SCEN1: struct_obj_name not as expected"
+    rts
++:
+
+  +ASSIGN_ZPV_TO_DEREF_VARTABLE_ELEMENT_AT_BACKIDX_IMM s_ptr, TYP_STR, 1
+
+  +CMP_S_PTR_TO_IMM "envs_name$"
+  bcc +
+  +FAIL_REASON "SCEN2: envs_name$ not found in var_table"
+  rts
++:
+
+  +ASSIGN_ZPV_TO_DEREF_VARTABLE_ELEMENT_AT_BACKIDX_IMM s_ptr, TYP_REAL, 3
+
+  +CMP_S_PTR_TO_IMM "envs_attack"
+  bcc +
+  +FAIL_REASON "SCEN3: envs_attack not found in var_table"
+  rts
++:
+
+  +ASSIGN_ZPV_TO_DEREF_VARTABLE_ELEMENT_AT_BACKIDX_IMM s_ptr, TYP_REAL, 2
+
+  +CMP_S_PTR_TO_IMM "envs_decay"
+  bcc +
+  +FAIL_REASON "SCEN4: envs_decay not found in var_table"
+  rts
++:
+
+  +ASSIGN_ZPV_TO_DEREF_VARTABLE_ELEMENT_AT_BACKIDX_IMM s_ptr, TYP_REAL, 1
+
+  +CMP_S_PTR_TO_IMM "envs_sustain"
+  bcc +
+  +FAIL_REASON "SCEN5: envs_sustain not found in var_table"
+  rts
++:
+
+  +CMP_STR_TO_IMM cur_dest_line+1, "dim a$(9):dim a(9):dim b(9):dim c(9):a$(.)=\"Piano\":a(.)=.:b(.)=9:c(.)=."
+  bcc +
+    +FAIL_REASON "SCEN6: dest-line not valid"
+    rts
++:
+
+  clc
   rts
 
 

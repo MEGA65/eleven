@@ -74,6 +74,15 @@ basic_end:
 ; ------
 ; MACROS
 ; ------
+!macro RESET_EL_COUNT {
+  lda #$00
+  sta element_cnt
+  sta element_cnt+1
+  sta element_cnt+2
+  sta element_cnt+3
+  sta element_cnt+4
+}
+
 !macro SET_S_PTR_TO_EMPTY {
           ldy #$0
           lda #$00
@@ -594,15 +603,16 @@ basic_end:
 +:
   phw s_ptr
   lda cur_line_len
-  clc
+  sec
   sbc #.backidx
+  clc
   adc s_ptr
   sta s_ptr
   lda #$00
   adc s_ptr+1
   sta s_ptr+1
 
-  +CMP_S_PTR_TO_PSTR -
+  +CMP_S_PTR_TO_STR -
   bcc +
 
   +plw s_ptr  ; not equal
@@ -1108,7 +1118,7 @@ SRCPTR = $1c   // $1C-$1F
 verbose = $20  // byte
 cur_src_lineno = $21  ; $21-$22
 HEAPPTR = $23 ; $23-$24  (pointer to free location of heap)
-             ; (I'll try start it at $b000 and grow it upwards)
+             ; (I'll try start it at $b200 and grow it upwards)
 TMPHEAPPTR = $25 ;  $25-$26
 TESTPTR = $27 ; $27-$28
 
@@ -1124,7 +1134,7 @@ initialise:
 
   +ASSIGN_U32V_EQ_IMM DESTPTR, $0005, $0000
   
-  +ASSIGN_U16V_EQ_IMM HEAPPTR, $b000
+  +ASSIGN_U16V_EQ_IMM HEAPPTR, $b200
 
   ; allocate label_name$(200)
   +ALLOC label_name, 200*2
@@ -1310,6 +1320,8 @@ define_flag:
 
 f_str:
 !fill 256, $00  ; string of max 256 bytes
+tmp_str:
+!fill 256, $00
 
 ; #declare var_name$
 var_name:
@@ -2395,7 +2407,7 @@ generate_dest_line_for_dimensioned_var:
         +APPEND_TYPE_CHAR_TO_S_PTR
         +APPEND_IMM_CHR_TO_S_PTR '('
         +APPEND_PSTR_TO_S_PTR dimension
-        +APPEND_IMM_CHR_TO_S_PTR ')'
+        +APPEND_INLINE_TO_S_PTR "):"
 ;     bend
 +:
 ;   bend
@@ -2430,7 +2442,7 @@ add_varname_to_vartable:
 ;  ty = the var type (string, int, byte, real, def)
 ;  var_name = "fishy$"
 ; output:
-;  var_table(ty, element_count(ty) = var_name
+;  var_table(ty, element_cnt(ty) = var_name
 ;  
 
     ; var_table(,) = ptr to memory for array (4*200*2 = 1600 bytes in size, $640)
@@ -5081,25 +5093,31 @@ check_for_creation_of_struct_object:
 ;   s$ = next_line$
     +ASSIGN_U16V_EQ_ADDR s_ptr, next_line
 ;   gosub safe_add_to_current_or_next_line
+    +ASSIGN_U16V_EQ_ADDR a_ptr, next_line
     jsr safe_add_to_current_or_next_line
 ;   next_line$ = ""  ' safe add cur_dest_line$+s$ to current dest_line$(dest_lineno)
     +ASSIGN_U8V_EQ_IMM next_line, $00
 ; 
 ;   gosub read_next_token
+    +ASSIGN_U16V_EQ_U16V s_ptr, orig_ptr
+    jsr get_s_ptr_length
     jsr read_next_token
 ; 
 ;   if s$ <> "=" then begin
-    +CMP_S_PTR_TO_IMM "="
+    +ASSIGN_U16V_EQ_U16V orig_ptr, s_ptr
+    +CMP_PSTR_TO_IMM a_ptr, "="
     beq +
 ;     cur_src_line$=""
       +ASSIGN_U8V_EQ_IMM cur_src_line, $00
-      ; todo: should this case be a parser error and return to editor?
       ; "?missing '=' in line "
+      +SET_PARSER_ERROR_ON_LINE "?missing '=' in line "
+      jmp return_to_editor_with_error
 ;     return
       rts
 ;   bend
 +:
 ;   gosub read_next_token
+    +ASSIGN_U16V_EQ_U16V s_ptr, orig_ptr
     jsr read_next_token
 ; 
 ;   field_count=0
@@ -5111,7 +5129,9 @@ check_for_creation_of_struct_object:
 
 ;   do while s$ <> ""
 @loop_while:
-      +CMP_S_PTR_TO_IMM $00
+      +ASSIGN_U16V_EQ_U16V orig_ptr, s_ptr
+      +ASSIGN_U16V_EQ_U16V s_ptr, a_ptr
+      +CMP_S_PTR_TO_IMM_CHAR $00
       beq @bail_out
       
       jsr check_continue_on_next_line
@@ -5128,6 +5148,8 @@ check_for_creation_of_struct_object:
 
 @cfcoso_skip:
 ;     gosub read_next_token  ' read next token from cur_src_line$ into s$
+      +ASSIGN_U16V_EQ_U16V s_ptr, orig_ptr
+      jsr get_s_ptr_length
       jsr read_next_token
 ;   loop
     bra @loop_while
@@ -5155,9 +5177,12 @@ find_struct_obj_name_and_gen_struct_field_vars:
 ;   - *struct_obj_name = "envs(9)"
 ;   - bkt_open_idx = 4
 ;   - var_table (updated with "envs_name$", "envs_attack", "envs_decay", etc)
+;   - next_line (updated with "dim g$(9):dim f(9):dim g(9):dim h(9)")
 
 ;   gosub read_next_token
     jsr read_next_token     
+
+    +ASSIGN_U16V_EQ_U16V orig_ptr, s_ptr
 
 ;   struct_obj_name$ = s$  ' get struct object name
     +ASSIGN_U16V_EQ_U16V struct_obj_name, a_ptr
@@ -5180,6 +5205,7 @@ find_struct_obj_name_and_gen_struct_field_vars:
     +ASSIGN_U8V_EQ_IMM field_count, $00
 
     jsr parse_args_of_struct
+    +ASSIGN_U16V_EQ_U16V s_ptr, orig_ptr
     clc
     rts
 
@@ -5237,15 +5263,16 @@ check_open_sqr_bkt:
 ; 
 ;     if sm = 0 and s$ = "[" then begin
       +CMP_U8V_TO_IMM struct_field_val_parser_state, SFVP_AWAIT_OPEN_SQR_BKT
-      bne @skip_check1
+      bne @skip_check2
       +CMP_S_PTR_TO_IMM_CHAR '['
-      bcs @skip_check1
+      bcs @skip_check2
 ;       sm = 1
         +ASSIGN_U8V_EQ_IMM struct_field_val_parser_state, SFVP_AWAIT_OPEN_OR_CLOSE_SQR_BKT
 ;       goto cfcoso_skip
         clc
         rts
 ;     bend
+@skip_check2:
       sec
       rts
 
@@ -5372,15 +5399,24 @@ check_field_values:
 ;       ' tr$ = whitespace$
 ;        +ASSIGN_U16V_EQ_ADDR tr_ptr, whitespace
 ;       ' stop
+;@skip_string_check:
 
 ;       if right$(s$, 1) = "," then begin
+        jsr get_s_ptr_length
+        +CMP_RIGHT_S_PTR_TO_IMM 1, ","
+        bcs @skip_trim_comma
 ;         s$ = left$(s$, len(s$) - 1)
+          dec cur_line_len
+          ldy cur_line_len
+          lda #$00
+          sta (s_ptr),y
 ;       bend
-;@skip_string_check:
+@skip_trim_comma:
 
 ;       s$ = struct_fields$(field_count) + "(" + str$(sr) + ")=" + s$
         +COPY_TO_STR_FROM_S_PTR a_str
         +ASSIGN_U16V_EQ_DEREF_U16V_WORDARRAY_AT_WORDIDX_OF_U8V is_ptr, struct_fields, field_count
+        +ASSIGN_U16V_EQ_ADDR s_ptr, tmp_str
         +COPY_PSTR_FROM_PPSTR s_ptr, is_ptr
         +APPEND_IMM_CHR_TO_S_PTR '('
         +APPEND_UINT_TO_S_PTR struct_array_idx
@@ -5747,7 +5783,7 @@ handle_on_this_line:
     sta (tmp_ptr),y   ; add null-term
 ; bend
 @skip_if:
-;     
+
 ; cur_dest_line$ = cur_dest_line$ + s$
   +APPEND_PSTR_TO_LSTR cur_dest_line, a_ptr
   rts
