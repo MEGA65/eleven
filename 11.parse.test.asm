@@ -1939,6 +1939,7 @@ test__check_field_values:
   +ASSIGN_U8V_EQ_IMM struct_field_val_parser_state, SFVP_AWAIT_FIELD_VALUES
   +ASSIGN_U8V_EQ_IMM struct_array_idx, $00
   +ASSIGN_U8V_EQ_IMM field_count, $03
+  +ASSIGN_U8V_EQ_IMM struct_was_created, $00
 
   jsr check_field_values
 
@@ -1962,9 +1963,9 @@ test__check_field_values:
 
   jsr check_field_values
 
-  +CMP_STR_TO_IMM cur_dest_line + 1, "d$(.)=\"Piano\""
+  +CMP_STR_TO_IMM cur_dest_line + 1, "a$(.)=\"Piano\""
   bcc +
-    +FAIL_REASON "envs_name$(0) != \"Piano\""
+    +FAIL_REASON "SCEN3: envs_name$(0) != \"Piano\""
     rts
 +:
 
