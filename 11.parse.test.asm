@@ -1925,6 +1925,34 @@ test__check_field_values:
   rts
 
 
+;-------------------------------------
+test__post_check_open_or_close_sqr_bkt:
+;-------------------------------------
+  +ASSIGN_U8V_EQ_IMM struct_field_val_parser_state, SFVP_AWAIT_OPEN_OR_CLOSE_SQR_BKT
+  +SET_STRING cur_src_line, "["
+
+  jsr post_check_open_or_close_sqr_bkt
+
+  +CMP_U8V_TO_IMM struct_field_val_parser_state, SFVP_AWAIT_FIELD_VALUES
+  beq +
+    +FAIL_REASON "SCEN1: state note as expected"
+    rts
++:
+
+  +ASSIGN_U8V_EQ_IMM struct_field_val_parser_state, SFVP_AWAIT_OPEN_OR_CLOSE_SQR_BKT
+  +SET_STRING cur_src_line, "]"
+
+  jsr post_check_open_or_close_sqr_bkt
+
+  +CMP_U8V_TO_IMM struct_field_val_parser_state, SFVP_AWAIT_OPEN_SQR_BKT
+  beq +
+    +FAIL_REASON "SCEN2: state note as expected"
+    rts
++:
+
+  clc
+  rts
+
 ;---------------------
 test__find_struct_type:
 ;---------------------

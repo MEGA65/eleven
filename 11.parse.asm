@@ -5262,13 +5262,26 @@ post_check_open_or_close_sqr_bkt:
 ;         (I may let it bail to a parser error in future for this?)
 
 ;     if sm = 1 and s$ = "[" then begin
+      +CMP_U8V_TO_IMM struct_field_val_parser_state, SFVP_AWAIT_OPEN_OR_CLOSE_SQR_BKT
+      bne @skip_open_sqr_bkt_check
+      +CMP_S_PTR_TO_IMM_CHAR '['
+      bne @skip_open_sqr_bkt_check
 ;       sm = 2
+        +ASSIGN_U8V_EQ_IMM struct_field_val_parser_state, SFVP_AWAIT_FIELD_VALUES
 ;       field_count = 0
+        +ASSIGN_U8V_EQ_IMM field_count, $00
 ;     bend
+@skip_open_sqr_bkt_check:
 ; 
 ;     if sm = 1 and s$ = "]" then begin
+      +CMP_U8V_TO_IMM struct_field_val_parser_state, SFVP_AWAIT_OPEN_OR_CLOSE_SQR_BKT
+      bne @skip_close_sqr_bkt_check
+      +CMP_S_PTR_TO_IMM_CHAR ']'
+      bne @skip_close_sqr_bkt_check
 ;       sm = 0
+        +ASSIGN_U8V_EQ_IMM struct_field_val_parser_state, SFVP_AWAIT_OPEN_SQR_BKT
 ;     bend
+@skip_close_sqr_bkt_check:
       rts
 
 
