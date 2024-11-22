@@ -74,6 +74,13 @@ basic_end:
 ; ------
 ; MACROS
 ; ------
+!macro SET_S_PTR_TO_EMPTY {
+          ldy #$0
+          lda #$00
+          sta (s_ptr),y
+          sta cur_line_len
+}
+
 !macro APPEND_PSTR_TO_LSTR .lstr, .ptr {
   +ASSIGN_U16V_EQ_ADDR tmp_ptr, .lstr
   +ASSIGN_U16V_EQ_U16V tmp2_ptr, .ptr
@@ -485,6 +492,11 @@ basic_end:
   jsr print_text
 }
 
+!macro PRINT_LSTR .lstr {
+  +ASSIGN_U16V_EQ_ADDR ret_ptr_lo, .lstr+1
+  jsr print_text
+}
+
 !macro PRINT_PPSTR .ptr {
   +ASSIGN_U16V_EQ_DEREF_U16V ret_ptr_lo, .ptr
   jsr print_text
@@ -563,6 +575,16 @@ basic_end:
     sta ret_ptr_hi
     ldz .leftlengthvar
     jsr append_left_text_to_str
+}
+
+!macro CMP_RIGHT_LSTR_TO_IMM .lstr, .backidx, .imm {
+  phw s_ptr
+
+  +ASSIGN_U16V_EQ_ADDR s_ptr, .lstr + 1
+
+  +CMP_RIGHT_S_PTR_TO_IMM .backidx, .imm
+
+  +plw s_ptr
 }
 
 !macro CMP_RIGHT_S_PTR_TO_IMM .backidx, .imm {
@@ -662,6 +684,11 @@ basic_end:
     lda .var2+1
     sta ret_ptr_hi
     jsr append_text_to_str
+}
+
+!macro COPY_PSTR_FROM_PPSTR .pstr, .ppstr {
+  +ASSIGN_U16V_EQ_DEREF_U16V tmp2_ptr, .ppstr
+  +COPY_PSTR_FROM_PSTR .pstr, tmp2_ptr
 }
 
 !macro COPY_STR_FROM_STR .var1, .var2 {
@@ -1156,6 +1183,10 @@ TYP_STR = 2
 TYP_BYTE = 3
 TYP_DEF = 4
 
+SFVP_AWAIT_OPEN_SQR_BKT = 0
+SFVP_AWAIT_OPEN_OR_CLOSE_SQR_BKT = 1
+SFVP_AWAIT_FIELD_VALUES = 2
+
 CHROUT = $ffd2
 CLOSE_ALL = $ff50
 GETLFS = $ff44
@@ -1345,8 +1376,15 @@ cut_tail_idx:
 
 ; #declare cur_line_len_minus_one, cur_linebuff_addr, chr
 ; #declare orig$, ridx, struct_obj_name$, bkt_open_idx, sz, sr, sm, zz$
-sm:   ; struct-parser state machine flag?
+struct_field_val_parser_state:   ; (old sm) struct-parser state machine flag?
+!byte $00   ; 0=awaiting '['
+            ; 1=awaiting either '[' or ']'
+            ; 2=awaiting field values for struct at current 'struct_array_idx'
+
+struct_array_idx:   ; (old sr) current idx of struct-array being initialised
 !byte $00
+quoted_string:  ; old ss$
+!fill 256, $00  ; length-encoded
 struct_was_created:   ; old zz$
 !byte $00
 field_count:   ; old sz
@@ -2992,7 +3030,8 @@ cur_arg_len:
 parse_arguments:
 ;--------------
 ; input:
-;   - f_str  (e.g. "  a=1  ,b=2  ,c = 3")
+;   - s_ptr  (e.g. "  a=1  ,b=2  ,c = 3")
+;       (typically, this points to somewhere within cur_src_line)
 ; output:
 ;   - args[0] = "a=1"
 ;   - args[1] = "b=2", etc...
@@ -4752,10 +4791,11 @@ streq_left:
   clc
   ldy #$00
 @loop:
+  cpy temp16  ; = z(cnt of chars on left)
+  beq @bail_out_success
+
   lda (needle_ptr),y
   beq @bail_out_on_null_term
-  cpy temp16  ; = z(cnt of chars on left)
-  beq @bail_out_fail
 
   cmp (s_ptr),y
   bne @bail_out_fail
@@ -5065,9 +5105,10 @@ check_for_creation_of_struct_object:
 ;   field_count=0
     +ASSIGN_U8V_EQ_IMM field_count, $00
 ;   sr=0
+    +ASSIGN_U8V_EQ_IMM struct_array_idx, $00
 ;   sm=0  ' read next token from cur_src_line$ into s$
-    +ASSIGN_U8V_EQ_IMM sm, $00
-; 
+    +ASSIGN_U8V_EQ_IMM struct_field_val_parser_state, SFVP_AWAIT_OPEN_SQR_BKT
+
 ;   do while s$ <> ""
 @loop_while:
       +CMP_S_PTR_TO_IMM $00
@@ -5075,16 +5116,16 @@ check_for_creation_of_struct_object:
       
       jsr check_continue_on_next_line
       bcc @cfcoso_skip
-; 
-      jsr check_sm0
+
+      jsr check_open_sqr_bkt
       bcc @cfcoso_skip
-; 
-      jsr check_sm1_before_sm2
-; 
-      jsr check_sm2
-; 
-      jsr check_sm1_after_sm2
-; 
+
+      jsr pre_check_open_or_close_sqr_bkt
+
+      jsr check_field_values
+
+      jsr post_check_open_or_close_sqr_bkt
+
 @cfcoso_skip:
 ;     gosub read_next_token  ' read next token from cur_src_line$ into s$
       jsr read_next_token
@@ -5170,19 +5211,19 @@ check_continue_on_next_line:
       rts
 
 
-;--------
-check_sm0:
-;--------
+;-----------------
+check_open_sqr_bkt:
+;-----------------
 ; input:
 ;   - s_ptr
-;   - sm (struct-parser state machine flag?)
+;   - struct_field_val_parser_state (struct-parser state machine flag?)
 ; output:
-;   - C=0 (we found '[' while sm=0)
+;   - C=0 (we found '[' while struct_field_val_parser_state=0)
 ;   - C=1 (no '[' found)
 ;         (If it was essential to find a '[', this will result in a parser error)
 
 ;     if sm = 0 and s$ <> "[" then begin
-      +CMP_U8V_TO_IMM sm, $00
+      +CMP_U8V_TO_IMM struct_field_val_parser_state, SFVP_AWAIT_OPEN_SQR_BKT
       bne @skip_check1
       +CMP_S_PTR_TO_IMM_CHAR '['
       bcc @skip_check1
@@ -5195,12 +5236,12 @@ check_sm0:
 @skip_check1:
 ; 
 ;     if sm = 0 and s$ = "[" then begin
-      +CMP_U8V_TO_IMM sm, $00
+      +CMP_U8V_TO_IMM struct_field_val_parser_state, SFVP_AWAIT_OPEN_SQR_BKT
       bne @skip_check1
       +CMP_S_PTR_TO_IMM_CHAR '['
       bcs @skip_check1
 ;       sm = 1
-        +ASSIGN_U8V_EQ_IMM sm, $01
+        +ASSIGN_U8V_EQ_IMM struct_field_val_parser_state, SFVP_AWAIT_OPEN_OR_CLOSE_SQR_BKT
 ;       goto cfcoso_skip
         clc
         rts
@@ -5209,12 +5250,12 @@ check_sm0:
       rts
 
 
-;-------------------
-check_sm1_after_sm2:
-;-------------------
+;-------------------------------
+post_check_open_or_close_sqr_bkt:
+;-------------------------------
 ; input:
 ;   - s_ptr
-;   - sm (struct-parser state machine flag?)
+;   - struct_field_val_parser_state (struct-parser state machine flag?)
 ; output:
 ;   - C=0 (we found continue-char)
 ;   - C=1 (no continue-char found)
@@ -5231,17 +5272,17 @@ check_sm1_after_sm2:
       rts
 
 
-;-------------------
-check_sm1_before_sm2:
-;-------------------
+;------------------------------
+pre_check_open_or_close_sqr_bkt:
+;------------------------------
 ; input:
 ;   - s_ptr
-;   - sm (struct-parser state machine flag?)
+;   - struct_field_val_parser_state (struct-parser state machine flag?)
 ; output:
 ;   If it was essential to find a '[' or ']', this will result in a parser error)
 
 ;     if sm = 1 and s$ <> "[" and s$ <> "]" then begin
-      +CMP_U8V_TO_IMM sm, $01
+      +CMP_U8V_TO_IMM struct_field_val_parser_state, SFVP_AWAIT_OPEN_OR_CLOSE_SQR_BKT
       bne @skip
       +CMP_S_PTR_TO_IMM_CHAR '['
       beq @skip
@@ -5255,42 +5296,97 @@ check_sm1_before_sm2:
       rts
 
 
-;--------
-check_sm2:
-;--------
+;-----------------
+check_field_values:
+;-----------------
+; input:
+;   - s_ptr (current token being assessed?)
+;   - struct_field_val_parser_state (struct-parser state machine flag?)
+;   - struct_array_idx (the current array-idx being parsed)
+;   - field_count (the current field idx of the struct we are parsing)
+; output:
+;   - cur_dest_line
+;   - struct_array_idx (is incremented on ']', all fields initiased for this idx)
+;   - field_count (may get incremented to next field,
+;                   or reset to zero upon completion of set of fields)
+
 ;     if sm = 2 then begin
+      +CMP_U8V_TO_IMM struct_field_val_parser_state, SFVP_AWAIT_FIELD_VALUES
+      lbne @bail_out
 ;       if left$(s$, 1) = "]" then begin
+        +CMP_LEFT_S_PTR_TO_IMM 1, "]"
+        bcs @skip_left_close_bkt
 ;         sr = sr + 1
+          inc struct_array_idx
 ;         field_count = 0
+          +ASSIGN_U8V_EQ_IMM field_count, $00
 ;         sm = 1
+          +ASSIGN_U8V_EQ_IMM struct_field_val_parser_state, SFVP_AWAIT_OPEN_OR_CLOSE_SQR_BKT
 ;         s$ = ""
+          +SET_S_PTR_TO_EMPTY
 ;         goto cfcoso_nextrow  ' next row
+          lbra @bail_out
 ;       bend
-; 
+@skip_left_close_bkt:
+
+; todo: This part has been intentionally commented out.
+;       Is it worth revisiting? Repairing?      
+
 ;       ' if left$(s$, 1) = dbl_quote$ then begin
+;        +CMP_LEFT_S_PTR_TO_IMM 1, "\""
+;        bcs @skip_string_check
 ;       ' ss$ = s$
+;          +COPY_TO_LSTR_FROM_PSTR quoted_string, s_ptr
 ;       ' tr$ = ""
+;          +ASSIGN_STRING_PTR_TO_IMM tr_ptr, ""
+;@loop_end_quote_check:
 ;       ' do while right$(ss$, 2) <> (dbl_quote$ + ",")
+;          +CMP_RIGHT_LSTR_TO_IMM quoted_string, "\","
+;          bcc @bail_out_end_quote_check
+;
 ;       '   gosub read_next_token
+;            jsr read_next_token
 ;       '   ss$ = ss$ + s$
+;            +APPEND_TO_LSTR_FROM_PSTR quoted_string, s_ptr
 ;       '   print ss$
+;            +PRINT_LSTR quoted_string
 ;       ' loop
+;          bra @loop_end_quote_check
+;@bail_out_end_quote_check:
+;
 ;       ' s$ = ss$
+;        +COPY_PSTR_FROM_STR s_ptr, quoted_string + 1
 ;       ' tr$ = whitespace$
+;        +ASSIGN_U16V_EQ_ADDR tr_ptr, whitespace
 ;       ' stop
+
 ;       if right$(s$, 1) = "," then begin
 ;         s$ = left$(s$, len(s$) - 1)
 ;       bend
+;@skip_string_check:
+
 ;       s$ = struct_fields$(field_count) + "(" + str$(sr) + ")=" + s$
+        +COPY_TO_STR_FROM_S_PTR a_str
+        +ASSIGN_U16V_EQ_DEREF_U16V_WORDARRAY_AT_WORDIDX_OF_U8V is_ptr, struct_fields, field_count
+        +COPY_PSTR_FROM_PPSTR s_ptr, is_ptr
+        +APPEND_IMM_CHR_TO_S_PTR '('
+        +APPEND_UINT_TO_S_PTR struct_array_idx
+        +APPEND_INLINE_TO_S_PTR ")="
+        +APPEND_STR_TO_S_PTR a_str
+
 ;       gosub replace_vars_and_labels
         jsr replace_vars_and_labels
 ;       gosub safe_add_to_current_or_next_line
+        +ASSIGN_U16V_EQ_U16V a_ptr, s_ptr
         jsr safe_add_to_current_or_next_line
 ;       s$ = ""
+        +SET_S_PTR_TO_EMPTY
 ;       field_count = field_count + 1  ' safe add to dest_line$(dest_lineno)
+        inc field_count
 ; 
 ; .cfcoso_nextrow
 ;     bend
+@bail_out:
     rts
 
 

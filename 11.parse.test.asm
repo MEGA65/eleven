@@ -1809,14 +1809,14 @@ cont_marker_token:
   rts
 
 
-;--------------
-test__check_sm0:
-;--------------
-  +ASSIGN_U8V_EQ_IMM sm, $00
+;-----------------------
+test__check_open_sqr_bkt:
+;-----------------------
+  +ASSIGN_U8V_EQ_IMM struct_field_val_parser_state, SFVP_AWAIT_OPEN_SQR_BKT
   +SET_STRING cur_src_line, "z"
   +ASSIGN_U16V_EQ_IMM cur_src_lineno, 123
 
-  jsr check_sm0
+  jsr check_open_sqr_bkt
 
   +ASSIGN_U16V_EQ_ADDR s_ptr, parser_error
   +CMP_S_PTR_TO_IMM "?expected '[' on line 123"
@@ -1827,16 +1827,16 @@ test__check_sm0:
 
   +SET_STRING cur_src_line, "["
 
-  jsr check_sm0
+  jsr check_open_sqr_bkt
 
   bcc +
     +FAIL_REASON "SCEN2: c != 0"
     rts
 +:
 
-  +CMP_U8V_TO_IMM sm, $01
+  +CMP_U8V_TO_IMM struct_field_val_parser_state, SFVP_AWAIT_OPEN_OR_CLOSE_SQR_BKT
   beq +
-    +FAIL_REASON "SCEN3: sm != 1"
+    +FAIL_REASON "SCEN3: struct_field_val_parser_state != 1"
     rts
 +:
 
@@ -1844,14 +1844,14 @@ test__check_sm0:
   rts
 
 
-;-------------------------
-test__check_sm1_before_sm2:
-;-------------------------
-  +ASSIGN_U8V_EQ_IMM sm, $00
+;------------------------------------
+test__pre_check_open_or_close_sqr_bkt:
+;------------------------------------
+  +ASSIGN_U8V_EQ_IMM struct_field_val_parser_state, SFVP_AWAIT_OPEN_SQR_BKT
   +ASSIGN_U8V_EQ_IMM parser_error, $00  ; null-term
   +ASSIGN_U16V_EQ_IMM cur_src_lineno, 123
 
-  jsr check_sm1_before_sm2
+  jsr pre_check_open_or_close_sqr_bkt
 
   +CMP_U8V_TO_IMM parser_error, $00
   beq +
@@ -1859,10 +1859,10 @@ test__check_sm1_before_sm2:
     rts
 +:
 
-  +ASSIGN_U8V_EQ_IMM sm, $01
+  +ASSIGN_U8V_EQ_IMM struct_field_val_parser_state, SFVP_AWAIT_OPEN_OR_CLOSE_SQR_BKT
   +SET_STRING cur_src_line, "]"
 
-  jsr check_sm1_before_sm2
+  jsr pre_check_open_or_close_sqr_bkt
 
   +CMP_U8V_TO_IMM parser_error, $00
   beq +
@@ -1872,13 +1872,53 @@ test__check_sm1_before_sm2:
 
   +SET_STRING cur_src_line, "z"
 
-  jsr check_sm1_before_sm2
+  jsr pre_check_open_or_close_sqr_bkt
 
   +ASSIGN_U16V_EQ_ADDR s_ptr, parser_error
   +CMP_S_PTR_TO_IMM "?expected '[' or ']' on line 123"
   bcc +
   +FAIL_REASON "SCEN3: parser error not as expected"
   rts
++:
+
+  clc
+  rts
+
+
+;-----------------------
+test__check_field_values:
+;-----------------------
+  +SET_STRING cur_src_line, "],"
+  +ASSIGN_U8V_EQ_IMM struct_field_val_parser_state, SFVP_AWAIT_FIELD_VALUES
+  +ASSIGN_U8V_EQ_IMM struct_array_idx, $00
+  +ASSIGN_U8V_EQ_IMM field_count, $03
+
+  jsr check_field_values
+
+  +CMP_U8V_TO_IMM struct_array_idx, $01
+  beq +
+    +FAIL_REASON "SCEN1: struct_array_idx != 1"
+    rts
++:
+
+  +CMP_U8V_TO_IMM field_count, $00
+  beq +
+    +FAIL_REASON "SCEN2: field_count != 0"
+    rts
++:
+
+  +SET_LSTRING cur_dest_line, ""
+  +SET_STRING cur_src_line, "\"Piano\""
+  +ASSIGN_U8V_EQ_IMM struct_field_val_parser_state, SFVP_AWAIT_FIELD_VALUES
+  +ASSIGN_U8V_EQ_IMM struct_array_idx, $00
+  +ASSIGN_U8V_EQ_IMM field_count, $00
+
+  jsr check_field_values
+
+  +CMP_STR_TO_IMM cur_dest_line + 1, "d$(.)=\"Piano\""
+  bcc +
+    +FAIL_REASON "envs_name$(0) != \"Piano\""
+    rts
 +:
 
   clc
