@@ -1,7 +1,6 @@
 autowatch
 autocls
 # ww ret_ptr_lo
-scope 15
 ws cur_src_line
 ww cur_src_lineno
 # wd MULTINA
@@ -14,3 +13,5 @@ ww cur_src_lineno
 ww s_ptr
 ws *s_ptr
 wb /d cur_line_len
+
+scope 15

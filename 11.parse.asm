@@ -74,6 +74,23 @@ basic_end:
 ; ------
 ; MACROS
 ; ------
+!macro SET_MAP .mapl, .maph {
+  lda #<.mapl
+  ldx #>.mapl
+  ldy #<.maph
+  ldz #>.maph
+  map
+  eom
+}
+
+!macro MAP_KERNAL_IN {
+  +SET_MAP $e000, $8300
+}
+
+!macro MAP_KERNAL_OUT {
+  +SET_MAP $e000, $0300
+}
+
 !macro RESET_EL_COUNT {
   lda #$00
   sta element_cnt
@@ -492,8 +509,10 @@ basic_end:
 }
 
 !macro PRINT_CHR .val {
+  +MAP_KERNAL_IN
   lda #.val
   jsr CHROUT
+  +MAP_KERNAL_OUT
 }
 
 !macro PRINT_PSTR .ptr {
@@ -959,15 +978,18 @@ basic_end:
   ldy #$0
   lda (s_ptr),y
   cmp #.chr
-  bne + ; fail case
+  bne ++ ; jump to fail case
+  lda #.chr
+  beq + ; jump to success case
   iny
   lda (s_ptr),y
-  bne + ; fail case (didn't see null-term)
-  clc
-  bra ++
+  bne ++ ; jump to fail case (didn't see null-term)
 +:
-  sec
+  clc
+  bra +++
 ++:
+  sec
++++:
 }
 
 !macro CMP_STR_TO_IMM .var, .val {
@@ -1118,7 +1140,7 @@ SRCPTR = $1c   // $1C-$1F
 verbose = $20  // byte
 cur_src_lineno = $21  ; $21-$22
 HEAPPTR = $23 ; $23-$24  (pointer to free location of heap)
-             ; (I'll try start it at $b200 and grow it upwards)
+             ; (I'll try start it at $e000 and grow it upwards)
 TMPHEAPPTR = $25 ;  $25-$26
 TESTPTR = $27 ; $27-$28
 
@@ -1134,7 +1156,7 @@ initialise:
 
   +ASSIGN_U32V_EQ_IMM DESTPTR, $0005, $0000
   
-  +ASSIGN_U16V_EQ_IMM HEAPPTR, $b200
+  +ASSIGN_U16V_EQ_IMM HEAPPTR, $e000
 
   ; allocate label_name$(200)
   +ALLOC label_name, 200*2
@@ -1488,7 +1510,7 @@ append_inline_text_to_str:
   lda ret_ptr_hi
   sta $0100,x
 
-   rts
+  rts
 
 
 ; todo: quite similar to print_str, decide which one is better to keep
@@ -1496,17 +1518,21 @@ append_inline_text_to_str:
 ;---------
 print_text:
 ;---------
+  +MAP_KERNAL_IN
+
+@loop:
   ldx #$00
   lda (ret_ptr_lo,x)
   beq @found_null
 
   jsr CHROUT
   inc ret_ptr_lo
-  bne print_text
+  bne @loop
   inc ret_ptr_hi
-  bne print_text
+  bne @loop
 
 @found_null:
+  +MAP_KERNAL_OUT
   rts
 
 
@@ -1720,6 +1746,7 @@ get_column_value:
 ;---------
 print_uint:
 ;---------
+  +MAP_KERNAL_IN
 ; num_digits = abs( log10(val) + 1)
   jsr log10
   taz
@@ -1782,12 +1809,15 @@ print_uint:
 ; while num_digits != 0
     bpl @loop_next_digit
 
+  +MAP_KERNAL_OUT
   rts
 
 
 ;--------
 print_str:
 ;--------
+  +MAP_KERNAL_IN
+
   ldy #$00
 @loop_next_char:
   lda (s_ptr),y
@@ -1797,6 +1827,7 @@ print_str:
   jmp @loop_next_char
 
 @bail_out:
+  +MAP_KERNAL_OUT
   rts
 
 
@@ -1837,8 +1868,7 @@ main:
 !pet $12, "ELEVEN preprocessor v0.6.1", $92, $0d, $00
 
 ;   print
-  lda #$0d
-  jsr CHROUT
+  +PRINT_CHR $0d
 
 ;   key 7, "scratch" + dbl_quote$ + parser_file$ + dbl_quote$ + ":dsave" + dbl_quote$ + parser_file$ + dbl_quote$ + ":dverify" + dbl_quote$+parser_file$
 ; 
@@ -1873,8 +1903,7 @@ pass_1:
   jsr print_inline_text
 !pet "pass 1 ", $00
 
-  lda #$0d
-  jsr CHROUT
+  +PRINT_CHR $0d
  
 ;   cur_src_lineno=0
   lda #$00
@@ -2128,8 +2157,6 @@ parse_standard_line:
 ;   s$ = cur_src_line$
 ;   gosub replace_vars_and_labels
     jsr replace_vars_and_labels
-;   gosub check_for_creation_of_struct_object
-    jsr check_for_creation_of_struct_object
 ;   gosub check_for_continue_onto_next_line
     jsr check_for_continue_onto_next_line
 ;   ' safe add cur_dest_line$+s$ to current or next dest_line$(dest_lineno)
@@ -2294,8 +2321,7 @@ verbose_print_varname_and_el_cnt:
       ldy #$00
       jsr print_uint
 
-      lda #$0d
-      jsr CHROUT
+      +PRINT_CHR $0d
 ;   bend
 +:
     rts
@@ -2748,8 +2774,7 @@ add_to_label_table:
       ldy dest_lineno+1
       jsr print_uint
 
-      lda #$0d
-      jsr CHROUT
+      +PRINT_CHR $0d
 ;   bend
 @skip_verbose:
 ; 
@@ -2870,6 +2895,7 @@ return_to_editor_with_error:
     sta [FOURPTR],z
 
 ;   dclose
+  +MAP_KERNAL_IN
     jsr GETLFS
     txa
     jsr CLOSE_ALL
@@ -3590,6 +3616,7 @@ check_token_for_subbing:
     jsr check_struct_names
     bcs + ; if we found a struct name, bail out early
       +ASSIGN_U16V_EQ_U16V s_ptr, orig_sptr
+      jsr get_s_ptr_length
       jsr check_for_creation_of_struct_object
     rts
 +:
@@ -4379,12 +4406,10 @@ get_filename:
     lda #>f_str
     sta ret_ptr_hi
     jsr print_text
-    lda #$0d
-    jsr CHROUT
+    +PRINT_CHR $0d
 
 ;     print "{x91}"; (up arrow)
-    ; lda #$91
-    ; jsr CHROUT
+    ; +PRINT_CHR $91
 
 ;   bend
 @skip_print_fname:

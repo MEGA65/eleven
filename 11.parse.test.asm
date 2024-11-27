@@ -2,16 +2,20 @@
 ; MACROS
 ; ------
 !macro SET_CURSOR_POS .col, .row {
+  +MAP_KERNAL_IN
   clc
   ldy #.col
   ldx #.row
   jsr $fff0
+  +MAP_KERNAL_OUT
 }
 
 !macro PRESS_ANY_KEY {
+  +MAP_KERNAL_IN
 -:
   jsr $ffe4
   beq -
+  +MAP_KERNAL_OUT
 }
 
 !macro FORCE_ADD_VAR_TO_VARTABLE .name, .type {
@@ -2042,14 +2046,57 @@ test__find_struct_type:
 ;------------------------
 test__parse_standard_line:
 ;------------------------
+  +RESET_EL_COUNT
+  +SET_LSTRING cur_dest_line, ""
   +ASSIGN_U8V_EQ_IMM delete_line_flag, $00
 
   +SET_STRING cur_src_line, "ENVTYPE envs(9) = [ [ \"Piano\", 0, 9, 0 ] ]"
 
   jsr parse_standard_line
 
-  +CMP_PSTR_TO_IMM struct_obj_name, "env_name$"
+  +CMP_PSTR_TO_IMM struct_obj_name, "envs(9)"
+  bcc +
+    +FAIL_REASON "SCEN1: struct_obj_name not as expected"
+    rts
++:
 
+  +ASSIGN_ZPV_TO_DEREF_VARTABLE_ELEMENT_AT_BACKIDX_IMM s_ptr, TYP_STR, 1
+
+  +CMP_S_PTR_TO_IMM "envs_name$"
+  bcc +
+  +FAIL_REASON "SCEN2: envs_name$ not found in var_table"
+  rts
++:
+
+  +ASSIGN_ZPV_TO_DEREF_VARTABLE_ELEMENT_AT_BACKIDX_IMM s_ptr, TYP_REAL, 3
+
+  +CMP_S_PTR_TO_IMM "envs_attack"
+  bcc +
+  +FAIL_REASON "SCEN3: envs_attack not found in var_table"
+  rts
++:
+
+  +ASSIGN_ZPV_TO_DEREF_VARTABLE_ELEMENT_AT_BACKIDX_IMM s_ptr, TYP_REAL, 2
+
+  +CMP_S_PTR_TO_IMM "envs_decay"
+  bcc +
+  +FAIL_REASON "SCEN4: envs_decay not found in var_table"
+  rts
++:
+
+  +ASSIGN_ZPV_TO_DEREF_VARTABLE_ELEMENT_AT_BACKIDX_IMM s_ptr, TYP_REAL, 1
+
+  +CMP_S_PTR_TO_IMM "envs_sustain"
+  bcc +
+  +FAIL_REASON "SCEN5: envs_sustain not found in var_table"
+  rts
++:
+
+  +CMP_STR_TO_IMM cur_dest_line+1, "dim a$(9):dim a(9):dim b(9):dim c(9):a$(.)=\"Piano\":a(.)=.:b(.)=9:c(.)=."
+  bcc +
+    +FAIL_REASON "SCEN6: dest-line not valid"
+    rts
++:
 
   ; needed to assess replace_vars_and_labels
   +SET_STRING cur_src_line, "a$(FISHY)"

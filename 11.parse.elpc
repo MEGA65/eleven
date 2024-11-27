@@ -203,7 +203,8 @@ tokens$(0)=" print input if then else do loop while until gosub goto open close 
         if verbose = 0 then print ".";
         s$ = cur_src_line$
         gosub replace_vars_and_labels
-        gosub check_for_creation_of_struct_object
+        ' gosub check_for_creation_of_struct_object
+        '   (can't be done here, it is done inside replace_vars_and_labels: instead)
         gosub check_for_continue_onto_next_line
         ' safe add cur_dest_line$+s$ to current or next dest_line$(dest_lineno)
         gosub safe_add_to_current_or_next_line
