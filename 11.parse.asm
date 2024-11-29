@@ -84,11 +84,27 @@ basic_end:
 }
 
 !macro MAP_KERNAL_IN {
+  pha
+  phx
+  phy
+  phz
   +SET_MAP $e000, $8300
+  plz
+  ply
+  plx
+  pla
 }
 
 !macro MAP_KERNAL_OUT {
+  pha
+  phx
+  phy
+  phz
   +SET_MAP $e000, $0300
+  plz
+  ply
+  plx
+  pla
 }
 
 !macro RESET_EL_COUNT {
@@ -1152,6 +1168,18 @@ initialise:
 ;---------
   sei
 
+  +MAP_KERNAL_OUT
+
+  lda #<my_nmi
+  sta $fffa
+  lda #>my_nmi
+  sta $fffb
+
+  lda #<my_nmi
+  sta $fffe
+  lda #>my_nmi
+  sta $ffff
+
   +ASSIGN_U32V_EQ_IMM FOURPTR, $0004, $0000
 
   +ASSIGN_U32V_EQ_IMM DESTPTR, $0005, $0000
@@ -1205,6 +1233,13 @@ bailout_stack_pos:
 !ifdef RUN_TESTS {
 !source "11.parse.test.asm"
 }
+
+
+;-----
+my_nmi:
+;-----
+  rti
+
 
 ; '-------
 ; DEFINES
@@ -2098,7 +2133,7 @@ verbose_dest_to_src_mapping:
 ;--------------------------
 ;       if verbose then print ">> DEST:" dest_lineno;", SRC: "; cur_src_lineno;": "; cur_src_line$
         lda verbose
-        beq @skip_verbose
+        lbeq @skip_verbose
 
           +PRINT_INLINE ">> DEST: "
           +PRINT_U16V dest_lineno
@@ -2736,7 +2771,7 @@ set_output_file:
 ; 
 ;   if verbose then begin
     +CMP_U8V_TO_IMM verbose, $01
-    bne @skip_verbose
+    lbne @skip_verbose
 ;     print "setting output file to {x12}" + s$ + "{x92}"
     +PRINT_INLINE "setting output file to "
     +PRINT_CHR $12
@@ -3245,6 +3280,7 @@ replace_vars_and_labels:
 ;   - s_ptr (pointing to f_str)
 ; output:
 ;   - s_ptr
+;   - a_ptr (points to a_str?)
 
 ;   ' -- replace vars & labels in source string --
 ;   '    in:   s$ = source string (which is really f_str)
@@ -3348,6 +3384,7 @@ replace_vars_and_labels:
     jsr add_subbed_curtok_to_astr
 
     +COPY_PSTR_FROM_STR orig_sptr, a_str+1
+    +ASSIGN_U16V_EQ_ADDR a_ptr, a_str+1
 ;   return
     rts
 

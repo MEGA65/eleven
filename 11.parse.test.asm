@@ -2099,6 +2099,8 @@ test__parse_standard_line:
 +:
 
   ; needed to assess replace_vars_and_labels
+  inc element_cnt+4   ; bring back FISHY def
+  +SET_LSTRING cur_dest_line, ""
   +SET_STRING cur_src_line, "a$(FISHY)"
   ; this will set s_ptr to point to it too
 
@@ -2107,17 +2109,17 @@ test__parse_standard_line:
   +ASSIGN_U16V_EQ_ADDR s_ptr, cur_src_line ; f_str is really s$
   +CMP_S_PTR_TO_IMM "a$(1)"
   bcc +
-    +FAIL_REASON "SCEN1: s_ptr != 'a$(1)'"
+    +FAIL_REASON "SCEN7: s_ptr != 'a$(1)'"
   rts
 +:
 
   +CMP_STR_TO_IMM cur_dest_line+1, "a$(1)"
   bcc +
-    +FAIL_REASON "SCEN1: cur_dest_line != 'a$(1)'"
+    +FAIL_REASON "SCEN8: cur_dest_line != 'a$(1)'"
   rts
 +:
 
-  sec
+  clc
   rts
 
 
