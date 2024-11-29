@@ -2179,7 +2179,8 @@ parse_standard_line:
 ;  - delete_line_flag
 ;  - s_ptr (pointing to cur_src_line) = current line to parse
 ; output:
-;  - 
+;  - cur_dest_line
+;  
 
 ; if delete_line_flag = 0 then begin
   +CMP_U8V_TO_IMM delete_line_flag, $00
@@ -2200,6 +2201,8 @@ parse_standard_line:
 
 ;   if right$(s$, 4) = "bend" or right$(s$, 6) = "return" {x5F}
 ;       or left$(s$, 2) = "if" then begin
+    +ASSIGN_U16V_EQ_U16V s_ptr, a_ptr
+    jsr get_s_ptr_length
     +CMP_RIGHT_S_PTR_TO_IMM 4, "bend"
     bcc @do_next_line_flag
     +CMP_RIGHT_S_PTR_TO_IMM 6, "return"
@@ -5877,7 +5880,7 @@ safe_add_to_current_or_next_line:
     +CMP_U8V_TO_IMM struct_was_created, $01
     bne @skip_struct_was_created_check
 ;     s$ = ""
-      +ASSIGN_U16V_EQ_IMM a_ptr, $0000  ; null pointer is ok?
+      +SET_STRING_PTR a_ptr, ""
 ;     zz$ = ""
       +ASSIGN_U8V_EQ_IMM struct_was_created, $00
 ;     return  ' force s$ to empty

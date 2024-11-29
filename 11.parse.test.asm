@@ -2119,6 +2119,44 @@ test__parse_standard_line:
   rts
 +:
 
+try1:
+  +ASSIGN_U8V_EQ_IMM next_line_flag, $00
+  +SET_LSTRING cur_dest_line, ""
+  +SET_STRING cur_src_line, "begin blah bend"
+
+  jsr parse_standard_line
+
+  +CMP_U8V_TO_IMM next_line_flag, $01
+  beq +
+    +FAIL_REASON "SCEN9: next_line_flag != 1"
+    rts
++:
+
+  +ASSIGN_U8V_EQ_IMM next_line_flag, $00
+  +SET_LSTRING cur_dest_line, ""
+  +SET_STRING cur_src_line, "blah blah : return"
+
+  jsr parse_standard_line
+
+  +CMP_U8V_TO_IMM next_line_flag, $01
+  beq +
+    +FAIL_REASON "SCEN10: next_line_flag != 1"
+    rts
++:
+
+  +ASSIGN_U8V_EQ_IMM next_line_flag, $00
+  +SET_LSTRING cur_dest_line, ""
+  +SET_STRING cur_src_line, "if a$=1 then zzz"
+
+  jsr parse_standard_line
+
+  +CMP_U8V_TO_IMM next_line_flag, $01
+  beq +
+    +FAIL_REASON "SCEN11: next_line_flag != 1"
+    rts
++:
+
+
   clc
   rts
 
