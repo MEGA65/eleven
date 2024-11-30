@@ -3666,6 +3666,9 @@ check_token_for_subbing:
 
     jsr check_expect_label_next
     jsr check_hex_and_binary_value
+    bcs +
+    rts
++:
 
     jsr check_ignore_existing_vocab
     bcc +
@@ -3943,6 +3946,8 @@ check_hex_and_binary_value:
 ; input: cur_tok
 ; output:
 ;   - none (potentially trigger trap to illegal_hex_handler: if invalid number)
+;  - C=0 we found a hex or binary value here
+;    C=1 we didn't find a hex or binary value here
 
 ;   ' check hex value
 ;   ' - - - - - - - -
@@ -3959,6 +3964,7 @@ check_hex_and_binary_value:
 ;     gosub check_hex
       jsr check_hex
 ;     return
+      clc
       rts
 ;    bend
 +:
@@ -3979,9 +3985,11 @@ check_hex_and_binary_value:
 ;     gosub check_binary
       jsr check_binary
 ;     return
+      clc
       rts
 ;   bend
 +:
+    sec
     rts
 
 ;----------------------
