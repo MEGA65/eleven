@@ -3653,6 +3653,9 @@ check_token_for_subbing:
 +:
     
     jsr check_mark_expected_label
+    bcs +
+    rts
++:
 
 ;   if cur_tok$ = "goto" then next_line_flag = 1
     +ASSIGN_U16V_EQ_ADDR s_ptr, cur_tok+1
@@ -4017,6 +4020,8 @@ check_mark_expected_label:
 ;  - expecting_label
 ;  - cur_tok (may have '@pi' markers added to front and end of it)
 ;      (the mk$ markers are used later in pass2 to sub out labels for line-no's)
+;  - C=0 we were expecting a label here
+;    C=1 we weren't expecting a label here
 
 ;   ' check if we should mark this expected label
 ;   ' - - - - - - - - - - - - - - - - - - - - - -
@@ -4030,9 +4035,11 @@ check_mark_expected_label:
 ;     expecting_label = 0
       +ASSIGN_U8V_EQ_IMM expecting_label, $00
 ;     return  ' replace label
+      clc
       rts
 ;   bend
 +:
+    sec
     rts
 
 u16result:
@@ -4647,6 +4654,7 @@ read_in_struct_details:
     +HEAP_COPY_PSTR_EQ_PSTR tmp_ptr, a_ptr
 
 ;   struct_vars$(struct_cnt) = cur_src_line$
+    lda struct_cnt
     +SET_TMP_PTR_TO_WORDARRAY_AT_WORDIDX_OF_A struct_vars
     +HEAP_COPY_PSTR_EQ_PSTR tmp_ptr, sr_ptr
 
