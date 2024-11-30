@@ -10,14 +10,6 @@
   +MAP_KERNAL_OUT
 }
 
-!macro PRESS_ANY_KEY {
-  +MAP_KERNAL_IN
--:
-  jsr $ffe4
-  beq -
-  +MAP_KERNAL_OUT
-}
-
 !macro FORCE_ADD_VAR_TO_VARTABLE .name, .type {
   +FORCE_ADD_VAR_TO_VARTABLE_NO_INC .name, .type
   +INCREMENT_ELCNT_OF_TY
@@ -1426,7 +1418,29 @@ test__is_s_ptr_defined:
 ;-------------------------------------
 test__check_compulsory_next_line_cases:
 ;-------------------------------------
-  sec
+  +ASSIGN_U8V_EQ_IMM next_line_flag, $00
+  +SET_STRING cur_src_line, "data blah blah"  ; will set s_ptr also
+
+  jsr check_compulsory_next_line_cases
+
+  +CMP_U8V_TO_IMM next_line_flag, $01
+  beq +
+    +FAIL_REASON "SCEN1: next_line_flag != 1"
+    rts
++:
+
+  +ASSIGN_U8V_EQ_IMM next_line_flag, $00
+  +SET_STRING cur_src_line, "blah blah begin"  ; will set s_ptr also
+
+  jsr check_compulsory_next_line_cases
+
+  +CMP_U8V_TO_IMM next_line_flag, $01
+  beq +
+    +FAIL_REASON "SCEN1: next_line_flag != 1"
+    rts
++:
+  
+  clc
   rts
 
 

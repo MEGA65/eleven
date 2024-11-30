@@ -74,6 +74,14 @@ basic_end:
 ; ------
 ; MACROS
 ; ------
+!macro PRESS_ANY_KEY {
+  +MAP_KERNAL_IN
+-:
+  jsr $ffe4
+  beq -
+  +MAP_KERNAL_OUT
+}
+
 !macro SET_MAP .mapl, .maph {
   lda #<.mapl
   ldx #>.mapl
@@ -2018,9 +2026,12 @@ pass_1:
 @skip_line_parse:
 ; 
 @parser_loop_skip:
+      ; NOTE: This is no longer needed, as I've combined the old vars of
+      ; 'cur_src_lineno' and 'src_lineno' into the former, which is incremented
+      ; on every call to 'read_next_line'
 ;     ' increase source code line (for error msgs...)
 ;     cur_src_lineno = cur_src_lineno + 1
-      inw cur_src_lineno
+      ; inw cur_src_lineno
 
       jsr verbose_src_line_info
 ;   loop
@@ -2155,9 +2166,10 @@ verbose_src_line_info:
       bne @skip_verbose2
 ;       print "cur_src_lineno="; cur_src_lineno
         +PRINT_INLINE "cur_src_lineno="
-        +PRINT_U16V cur_src_line
+        +PRINT_U16V cur_src_lineno
         +PRINT_CHR $0d
 ;       get key z$
+        +PRESS_ANY_KEY
 ;     bend
 @skip_verbose2:
   rts
@@ -2166,9 +2178,22 @@ verbose_src_line_info:
 ;-------------------------------
 check_compulsory_next_line_cases:
 ;-------------------------------
+; input:
+;   - s_ptr (cur_src_line?)
+; output:
+;   - next_line_flag
+
 ;       if left$(cur_src_line$, 4) = "data" or right$(cur_src_line$, 5) = "begin" then begin
+  +CMP_LEFT_S_PTR_TO_IMM 4, "data"
+  bcc @dont_skip
+  +CMP_RIGHT_S_PTR_TO_IMM 5, "begin"
+  bcc @dont_skip
+  bra @skip
+@dont_skip:
 ;         next_line_flag = 1
+    +ASSIGN_U8V_EQ_IMM next_line_flag, $01
 ;       bend
+@skip:
   rts
 
 
