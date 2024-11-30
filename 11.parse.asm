@@ -3307,7 +3307,7 @@ replace_vars_and_labels:
 ; input:
 ;   - s_ptr (pointing to f_str)
 ; output:
-;   - s_ptr
+;   - s_ptr (substituted result)
 ;   - a_ptr (points to a_str?)
 
 ;   ' -- replace vars & labels in source string --
@@ -3363,7 +3363,7 @@ replace_vars_and_labels:
 @loop_next_char:
       ldy rv_idx
       cpy cur_line_len
-      lbeq @bail_for_loop
+      lbcs @bail_for_loop  ; there's a chance s_ptr gets reset to zero midway (due to struct)
 
 ;     cur_ch$ = mid$(s$, rv_idx, 1)
       lda (s_ptr),y
@@ -3482,6 +3482,8 @@ add_subbed_curtok_to_astr:
   sta cur_line_len
   pla
   sta cur_char
+
+  jsr get_s_ptr_length
   rts
 
 ;--------------
@@ -5060,6 +5062,11 @@ single_quote_comment_trim:
 ;---------------------------
 parse_preprocessor_directive:
 ;---------------------------
+; input:
+;   - s_ptr
+; output:
+;   - ?
+
 ;   if instr(cur_src_line$, "ifdef") = 2 then begin
     +INSTR_S_PTR_TO_IMM "ifdef"
     bcs +
@@ -5286,6 +5293,7 @@ find_struct_obj_name_and_gen_struct_field_vars:
     +SET_TMP_PTR_TO_WORDARRAY_AT_WORDIDX_OF_U8V struct_vars, found_idx
     +ASSIGN_U16V_EQ_U16V tmp2_ptr, s_ptr
     +ASSIGN_U16V_EQ_DEREF_U16V  s_ptr, tmp_ptr
+    jsr get_s_ptr_length
 
 ;   gosub parse_arguments  ' parse args into args$(), arg_cnt
     jsr parse_arguments   ; e.g. in: s_ptr="name$, attack, decay, sustain"
@@ -5318,6 +5326,7 @@ check_continue_on_next_line:
 
 ;       gosub read_next_line
         jsr read_next_line
+        +ASSIGN_U16V_EQ_U16V orig_ptr, s_ptr
 ;       goto cfcoso_skip  ' read next line
         clc
         rts
@@ -5926,12 +5935,13 @@ safe_add_to_current_or_next_line:
 ; 
 ;   if verbose then print "<<" dest_lineno; s$
     +CMP_U8V_TO_IMM verbose, $01
-    bne @skip_verbose
+    lbne @skip_verbose
       +PRINT_INLINE "<<"
       +PRINT_CHR ' '
       +PRINT_U16V dest_lineno
       +PRINT_CHR ' '
-      +PRINT_PSTR s_ptr
+      +PRINT_PSTR a_ptr
+      +PRINT_CHR $0d
 @skip_verbose:
 
 ;   return

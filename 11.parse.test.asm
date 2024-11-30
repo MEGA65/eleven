@@ -1436,7 +1436,7 @@ test__check_compulsory_next_line_cases:
 
   +CMP_U8V_TO_IMM next_line_flag, $01
   beq +
-    +FAIL_REASON "SCEN1: next_line_flag != 1"
+    +FAIL_REASON "SCEN2: next_line_flag != 1"
     rts
 +:
   
