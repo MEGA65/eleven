@@ -754,8 +754,6 @@ tokens$(0)=" print input if then else do loop while until gosub goto open close 
 
   ' check for dumb commands
   ' - - - - - - - - - - - -
-  ' NOTE: I think lc$ below should be replaced with tok_name$
-  ' ----
   if instr(dumb_cmds$, lc$) <> 0 and {x5F}
     (cur_tok$ = "r" or cur_tok$ = "p" 
      or cur_tok$ = "u8" or cur_tok$ = "w") then begin

@@ -1379,7 +1379,7 @@ dest_lineno:
 !word $0000
 ; #declare cur_dest_lineno, s1, s2, cur_tok$, r, f$, delim$
 cur_tok:
-!fill 256, $00  ; length-encoded string of max 255 bytes
+!fill 128, $00  ; length-encoded string of max 127 bytes
 define_flag:
 !byte 00
 
@@ -1432,7 +1432,7 @@ expecting_label:
 a_str:
 !fill 256, $00  ; length-encoded string of max 255 bytes
 ; #declare t, found_struct_idx, br, b, bc$, vl
-lc:
+cur_cmd:   ; old lc$
 !fill 16, $00
 ; #declare n1, n2, ba, a, ad, tf$, found_idx, k, sf$, sf
 found_idx:
@@ -3699,11 +3699,14 @@ check_token_for_subbing:
 ;   if asc(cur_tok$) = 222 then return
 
     jsr check_dumb_commands
+    bcs +
+      rts
++:
 
 unresolved_cur_tok:
 ;   parser_error$ = "?unresolved identifier: '" + cur_tok$ + "' in line " + str$(cur_src_lineno)
   +SET_STRING parser_error, "?unresolved identifier: '"
-  +APPEND_STR_TO_S_PTR cur_tok
+  +APPEND_STR_TO_S_PTR cur_tok+1
   +APPEND_INLINE_TO_S_PTR "' in line "
   +APPEND_UINT_TO_S_PTR cur_src_lineno
 
@@ -3724,17 +3727,38 @@ prepare_tok_name:
 ;------------------
 check_dumb_commands:
 ;------------------
+; inputs:
+;  - tok_name
+;  - cur_tok
+; outputs:
+;  - C=0 ignore shitty 'cur_tok' term in dumb command
+;  - C=1 don't ignore current 'cur_tok' term in dumb command
+
 ;   ' check for dumb commands
 ;   ' - - - - - - - - - - - -
-;   ' NOTE: I think lc$ below should be replaced with tok_name$
-;   ' ----
 ;   if instr(dumb_cmds$, lc$) <> 0 and {x5F}
+    +ASSIGN_U16V_EQ_ADDR s_ptr, dumb_cmds
+    +INSTR_S_PTR_TO_STR cur_cmd+1
+    bcs @skip
 ;     (cur_tok$ = "r" or cur_tok$ = "p" 
+    +CMP_STR_TO_IMM cur_tok+1, "r"
+    bcc @dont_skip
+    +CMP_STR_TO_IMM cur_tok+1, "p"
+    bcc @dont_skip
 ;      or cur_tok$ = "u8" or cur_tok$ = "w") then begin
-; 
+    +CMP_STR_TO_IMM cur_tok+1, "u8"
+    bcc @dont_skip
+    +CMP_STR_TO_IMM cur_tok+1, "w"
+    bcc @dont_skip
+    bra @skip
+
 ;     return
+@dont_skip:
+      clc
+      rts
 ;   bend
-    clc
+@skip:
+    sec
     rts
 
 
@@ -3922,7 +3946,7 @@ check_ignore_existing_vocab:
       +INSTR_S_PTR_TO_STR tok_name
       bcs +
 ;       lc$ = cur_tok$
-        +COPY_STR lc, cur_tok
+        +COPY_STR cur_cmd, cur_tok
 ;       gosub check_if_command_triggers_shitty_syntax
 ;       return
         +plw s_ptr
@@ -5647,7 +5671,7 @@ gen_dimensioned_struct_field_name:
   dez
   +ASSIGN_U8V_EQ_IMM cur_line_len, $00
   +APPEND_LEFTZ_PSTR_TO_S_PTR struct_obj_name, bkt_open_idx
-  +APPEND_IMM_CHR_TO_S_PTR '_'
+  +APPEND_IMM_CHR_TO_S_PTR $af  ; {cbm-p}
   +ASSIGN_U16V_EQ_DEREF_U16V_WORDARRAY_AT_WORDIDX_OF_U8V is_ptr, args, ridx
   +ASSIGN_U16V_EQ_DEREF_U16V tmp2_ptr, is_ptr
   +APPEND_PSTR_TO_S_PTR tmp2_ptr
@@ -5688,7 +5712,7 @@ parse_no_brackets_case:
         lbne @skip_parse_no_brackets
 ;         s$ = struct_obj_name$ + "_" + args$(ridx)
           +COPY_PSTR_FROM_PSTR s_ptr, struct_obj_name
-          +APPEND_IMM_CHR_TO_S_PTR "_"
+          +APPEND_IMM_CHR_TO_S_PTR $af  ; {cbm-p}
           +ASSIGN_U16V_EQ_DEREF_U16V_WORDARRAY_AT_WORDIDX_OF_U8V is_ptr, args, ridx
           +ASSIGN_U16V_EQ_DEREF_U16V sr_ptr, is_ptr
           +APPEND_PSTR_TO_S_PTR sr_ptr
