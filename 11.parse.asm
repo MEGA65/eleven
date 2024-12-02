@@ -1021,9 +1021,19 @@ basic_end:
   +CMP_S_PTR_TO_IMM .val
 }
 
+!macro CMP_STR_TO_STR .var1, .var2 {
+  +ASSIGN_U16V_EQ_ADDR s_ptr, .var1
+  +CMP_S_PTR_TO_STR .var2
+}
+
 !macro CMP_PSTR_TO_IMM .ptr, .val {
   +ASSIGN_U16V_EQ_U16V s_ptr, .ptr
   +CMP_S_PTR_TO_IMM .val
+}
+
+!macro CMP_PSTR_TO_STR .ptr, .var {
+  +ASSIGN_U16V_EQ_U16V s_ptr, .ptr
+  +CMP_S_PTR_TO_STR .var
 }
 
 !macro CMP_PPSTR_TO_PSTR .pptr, .ptr {
@@ -3728,11 +3738,11 @@ prepare_tok_name:
 check_dumb_commands:
 ;------------------
 ; inputs:
-;  - tok_name
+;  - cur_cmd
 ;  - cur_tok
 ; outputs:
-;  - C=0 ignore shitty 'cur_tok' term in dumb command
-;  - C=1 don't ignore current 'cur_tok' term in dumb command
+;  - C=0 ignore shitty 'cur_cmd' term in dumb command
+;  - C=1 don't ignore current 'cur_cmd' term in dumb command
 
 ;   ' check for dumb commands
 ;   ' - - - - - - - - - - - -

@@ -1455,7 +1455,12 @@ test__parse_no_brackets_case:
 
   jsr parse_no_brackets_case
 
-  +CMP_PSTR_TO_IMM struct_obj_name, "env_name$"
+  bra +
+exp_struct_name:
+!pet "env", $af, "name$", $00
++:
+
+  +CMP_PSTR_TO_STR struct_obj_name, exp_struct_name
   bcc +
   +FAIL_REASON "SCEN1: struct field name not correct"
   rts
@@ -1463,7 +1468,7 @@ test__parse_no_brackets_case:
 
   +ASSIGN_ZPV_TO_DEREF_LATEST_VARTABLE_ELEMENT_OF_TYPE s_ptr, TYP_STR
 
-  +CMP_S_PTR_TO_IMM "env_name$"
+  +CMP_S_PTR_TO_STR exp_struct_name
   bcc +
   +FAIL_REASON "SCEN2: struct field not found in var table"
   rts
@@ -1483,7 +1488,12 @@ test__gen_dimensioned_struct_field_name:
 
   jsr gen_dimensioned_struct_field_name
 
-  +CMP_STR_TO_IMM f_str, "envs_name$(9)"
+  bra +
+exp_struct_field_name:
+!pet "envs", $af, "name$(9)", $00
++:
+
+  +CMP_STR_TO_STR f_str, exp_struct_field_name
   bcc +
   +FAIL_REASON "generated field name not right"
   rts
@@ -1503,8 +1513,13 @@ test__parse_brackets_case:
 
   jsr parse_brackets_case
 
+  bra +
+exp_dimmed_struct_name:
+!pet "envs", $af, "name$", $00
++:
+
   +ASSIGN_ZPV_TO_DEREF_LATEST_VARTABLE_ELEMENT_OF_TYPE s_ptr, TYP_STR
-  +CMP_S_PTR_TO_IMM "envs_name$"
+  +CMP_S_PTR_TO_STR exp_dimmed_struct_name
   bcc +
   +FAIL_REASON "SCEN1: struct field not found in var table"
   rts
@@ -1512,7 +1527,7 @@ test__parse_brackets_case:
 
   ; s_ptr = struct_fields[0]
   +ASSIGN_ZPV_TO_DEREF_WORDARRAY_ELEMENT_AT_IDX_IMM s_ptr, struct_fields, $00
-  +CMP_S_PTR_TO_IMM "envs_name$"
+  +CMP_S_PTR_TO_STR exp_dimmed_struct_name
   bcc +
   +FAIL_REASON "SCEN2: struct field not found in struct_fields"
   rts
@@ -1545,7 +1560,7 @@ test__parse_args_of_struct:
 
   +ASSIGN_ZPV_TO_DEREF_VARTABLE_ELEMENT_AT_BACKIDX_IMM s_ptr, TYP_STR, 1
 
-  +CMP_S_PTR_TO_IMM "envs_name$"
+  +CMP_S_PTR_TO_STR exp_dimmed_struct_name
   bcc +
   +FAIL_REASON "SCEN1: envs_name$ not found in var_table"
   rts
@@ -1553,7 +1568,12 @@ test__parse_args_of_struct:
 
   +ASSIGN_ZPV_TO_DEREF_VARTABLE_ELEMENT_AT_BACKIDX_IMM s_ptr, TYP_REAL, 1
 
-  +CMP_S_PTR_TO_IMM "envs_attack"
+  bra +
+exp_dimmed_struct_attack:
+!pet "envs", $af, "attack", $00
++:
+
+  +CMP_S_PTR_TO_STR exp_dimmed_struct_attack
   bcc +
   +FAIL_REASON "SCEN2: envs_attack not found in var_table"
   rts
@@ -1721,7 +1741,7 @@ test__find_struct_obj_name_and_gen_struct_field_vars:
 +:
 
   +ASSIGN_ZPV_TO_DEREF_VARTABLE_ELEMENT_AT_BACKIDX_IMM s_ptr, TYP_STR, 1
-  +CMP_S_PTR_TO_IMM "envs_name$"
+  +CMP_S_PTR_TO_STR exp_dimmed_struct_name
   bcc +
   +FAIL_REASON "SCEN3: envs_name$ not found in var_table"
   rts
@@ -1729,23 +1749,33 @@ test__find_struct_obj_name_and_gen_struct_field_vars:
 
   +ASSIGN_ZPV_TO_DEREF_VARTABLE_ELEMENT_AT_BACKIDX_IMM s_ptr, TYP_REAL, 3
 
-  +CMP_S_PTR_TO_IMM "envs_attack"
+  +CMP_S_PTR_TO_STR exp_dimmed_struct_attack
   bcc +
   +FAIL_REASON "SCEN4: envs_attack not found in var_table"
   rts
 +:
 
+  bra +
+exp_dimmed_struct_decay:
+!pet "envs", $af, "decay", $00
++:
+
   +ASSIGN_ZPV_TO_DEREF_VARTABLE_ELEMENT_AT_BACKIDX_IMM s_ptr, TYP_REAL, 2
 
-  +CMP_S_PTR_TO_IMM "envs_decay"
+  +CMP_S_PTR_TO_STR exp_dimmed_struct_decay
   bcc +
   +FAIL_REASON "SCEN4: envs_decay not found in var_table"
   rts
 +:
 
+  bra +
+exp_dimmed_struct_sustain:
+!pet "envs", $af, "sustain", $00
++:
+
   +ASSIGN_ZPV_TO_DEREF_VARTABLE_ELEMENT_AT_BACKIDX_IMM s_ptr, TYP_REAL, 1
 
-  +CMP_S_PTR_TO_IMM "envs_sustain"
+  +CMP_S_PTR_TO_STR exp_dimmed_struct_sustain
   bcc +
   +FAIL_REASON "SCEN4: envs_sustain not found in var_table"
   rts
@@ -1774,7 +1804,7 @@ test__check_for_creation_of_struct_object:
 
   +ASSIGN_ZPV_TO_DEREF_VARTABLE_ELEMENT_AT_BACKIDX_IMM s_ptr, TYP_STR, 1
 
-  +CMP_S_PTR_TO_IMM "envs_name$"
+  +CMP_S_PTR_TO_STR exp_dimmed_struct_name
   bcc +
   +FAIL_REASON "SCEN2: envs_name$ not found in var_table"
   rts
@@ -1782,7 +1812,7 @@ test__check_for_creation_of_struct_object:
 
   +ASSIGN_ZPV_TO_DEREF_VARTABLE_ELEMENT_AT_BACKIDX_IMM s_ptr, TYP_REAL, 3
 
-  +CMP_S_PTR_TO_IMM "envs_attack"
+  +CMP_S_PTR_TO_STR exp_dimmed_struct_attack
   bcc +
   +FAIL_REASON "SCEN3: envs_attack not found in var_table"
   rts
@@ -1790,7 +1820,7 @@ test__check_for_creation_of_struct_object:
 
   +ASSIGN_ZPV_TO_DEREF_VARTABLE_ELEMENT_AT_BACKIDX_IMM s_ptr, TYP_REAL, 2
 
-  +CMP_S_PTR_TO_IMM "envs_decay"
+  +CMP_S_PTR_TO_STR exp_dimmed_struct_decay
   bcc +
   +FAIL_REASON "SCEN4: envs_decay not found in var_table"
   rts
@@ -1798,7 +1828,7 @@ test__check_for_creation_of_struct_object:
 
   +ASSIGN_ZPV_TO_DEREF_VARTABLE_ELEMENT_AT_BACKIDX_IMM s_ptr, TYP_REAL, 1
 
-  +CMP_S_PTR_TO_IMM "envs_sustain"
+  +CMP_S_PTR_TO_STR exp_dimmed_struct_sustain
   bcc +
   +FAIL_REASON "SCEN5: envs_sustain not found in var_table"
   rts
@@ -2076,7 +2106,7 @@ test__parse_standard_line:
 
   +ASSIGN_ZPV_TO_DEREF_VARTABLE_ELEMENT_AT_BACKIDX_IMM s_ptr, TYP_STR, 1
 
-  +CMP_S_PTR_TO_IMM "envs_name$"
+  +CMP_S_PTR_TO_STR exp_dimmed_struct_name
   bcc +
   +FAIL_REASON "SCEN2: envs_name$ not found in var_table"
   rts
@@ -2084,7 +2114,7 @@ test__parse_standard_line:
 
   +ASSIGN_ZPV_TO_DEREF_VARTABLE_ELEMENT_AT_BACKIDX_IMM s_ptr, TYP_REAL, 3
 
-  +CMP_S_PTR_TO_IMM "envs_attack"
+  +CMP_S_PTR_TO_STR exp_dimmed_struct_attack
   bcc +
   +FAIL_REASON "SCEN3: envs_attack not found in var_table"
   rts
@@ -2092,7 +2122,7 @@ test__parse_standard_line:
 
   +ASSIGN_ZPV_TO_DEREF_VARTABLE_ELEMENT_AT_BACKIDX_IMM s_ptr, TYP_REAL, 2
 
-  +CMP_S_PTR_TO_IMM "envs_decay"
+  +CMP_S_PTR_TO_STR exp_dimmed_struct_decay
   bcc +
   +FAIL_REASON "SCEN4: envs_decay not found in var_table"
   rts
@@ -2100,7 +2130,7 @@ test__parse_standard_line:
 
   +ASSIGN_ZPV_TO_DEREF_VARTABLE_ELEMENT_AT_BACKIDX_IMM s_ptr, TYP_REAL, 1
 
-  +CMP_S_PTR_TO_IMM "envs_sustain"
+  +CMP_S_PTR_TO_STR exp_dimmed_struct_sustain
   bcc +
   +FAIL_REASON "SCEN5: envs_sustain not found in var_table"
   rts
@@ -2171,6 +2201,32 @@ try1:
 +:
 
 
+  clc
+  rts
+
+
+;------------------------
+test__check_dumb_commands:
+;------------------------
+  +SET_LSTRING cur_cmd, "dopen"
+  +SET_LSTRING cur_tok, "p"
+
+  jsr check_dumb_commands
+
+  bcc +
+    +FAIL_REASON "SCEN1: dopen p should have c=0"
+    rts
++:
+
+  +SET_LSTRING cur_tok, "fishy"
+
+  jsr check_dumb_commands
+
+  bcs +
+    +FAIL_REASON "SCEN1: dopen fishy should have c=1"
+    rts
++:
+  
   clc
   rts
 
