@@ -1188,6 +1188,9 @@ initialise:
 
   +MAP_KERNAL_OUT
 
+  lda #%00100000
+  trb $d030       ; turn off ROMC ($C000-CFFF) character rom?
+
   lda #<my_nmi
   sta $fffa
   lda #>my_nmi
@@ -1241,6 +1244,9 @@ initialise:
 bail_out_early:
   ldx bailout_stack_pos
   txs
+
+  lda #%00100000
+  tsb $d030       ; turn on ROMC ($C000-CFFF) character rom?
 
   cli
   rts
@@ -2264,7 +2270,7 @@ declare_s_ptr_var:  ; declare_s$_var
 ;         (if the former, define_flag=1. Latter is =0)
 ;  output:
 ;    - var_table gets populated
-;    - define_vals get populated (if define_flag == 1)
+;    - define_val get populated (if define_flag == 1)
 ;    - next_line (if variable is assigned or dimensioned)
 
 ;   s$ = mid$(cur_src_line$, 10 - define_flag)
@@ -5113,9 +5119,34 @@ single_quote_comment_trim:
 parse_preprocessor_directive:
 ;---------------------------
 ; input:
-;   - s_ptr
+;   - s_ptr  (cur_src_line?)
 ; output:
-;   - ?
+;   #ifdef:
+;     - inside_ifdef = 1 (if it's defined)
+;     - delete_line_flag = 1
+;   #endif
+;     - inside_ifdef = 0
+;     - delete_line_flag = 1
+;   #define
+;     - var_table gets populated
+;     - define_val get populated (if define_flag == 1)
+;     - delete_line_flag = 1
+;   #declare
+;     - var_table gets populated
+;     - next_line (if variable is assigned or dimensioned)
+;     - delete_line_flag = 1
+;   #output
+;     - outfile = "myprog"
+;     - delete_line_flag = 1
+;   #struct
+;     - struct_name(struct_cnt) = struct name
+;         (e.g. "ENVTYPE")
+;
+;     - struct_vars(struct_cnt) = struct vars
+;             (e.g. "name$, attack, decay, sustain")
+;
+;     - struct_cnt++
+;     - delete_line_flag = 1
 
 ;   if instr(cur_src_line$, "ifdef") = 2 then begin
     +INSTR_S_PTR_TO_IMM "ifdef"

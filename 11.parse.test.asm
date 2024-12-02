@@ -442,7 +442,6 @@ test__parse_declared_var:
 
   ; SCEN1: check define var added
   ; - - - - - -
-  ; +ASSIGN_U8V_EQ_IMM define_flag, $00
   +SET_IS_PTR_TO_LAST_VARTABLE_ELEMENT_OF_TYPE TYP_DEF
   +ASSIGN_U16V_EQ_DEREF_U16V s_ptr, is_ptr
 
@@ -1303,7 +1302,104 @@ test__generate_dest_line_for_assigned_var:
 ;---------------------------------
 test__parse_preprocessor_directive:
 ;---------------------------------
-  sec
+
+  ; - - - #ifdef - - -
+
+  +ASSIGN_U8V_EQ_IMM inside_ifdef, $ff
+  +ASSIGN_U8V_EQ_IMM delete_line_flag, $00
+  +SET_STRING cur_src_line, "#ifdef FISHY"
+
+  jsr parse_preprocessor_directive
+
+  +CMP_U8V_TO_IMM inside_ifdef, $00   ; 0 = exists
+  beq +
+    +FAIL_REASON "SCEN1: expected 'FISHY' to be defined already"
+    rts
++:
+
+  +CMP_U8V_TO_IMM delete_line_flag, $01   ; 0 = exists
+  beq +
+    +FAIL_REASON "SCEN2: delete_line_flag != 1"
+    rts
++:
+
+  +ASSIGN_U8V_EQ_IMM inside_ifdef, $00
+  +ASSIGN_U8V_EQ_IMM delete_line_flag, $00
+  +SET_STRING cur_src_line, "#ifdef ZZZ"
+
+  jsr parse_preprocessor_directive
+
+  +CMP_U8V_TO_IMM inside_ifdef, $01   ; 1 = doesn't exist
+  beq +
+    +FAIL_REASON "SCEN3: expected 'ZZZ' to not be defined already"
+    rts
++:
+
+  +CMP_U8V_TO_IMM delete_line_flag, $01   ; 0 = exists
+  beq +
+    +FAIL_REASON "SCEN4: delete_line_flag != 1"
+    rts
++:
+
+  ; - - - #endif - - -
+
+  +ASSIGN_U8V_EQ_IMM inside_ifdef, $01
+  +SET_STRING cur_src_line, "#endif"
+  +ASSIGN_U8V_EQ_IMM delete_line_flag, $00
+
+  jsr parse_preprocessor_directive
+
+  +CMP_U8V_TO_IMM inside_ifdef, $00
+  beq +
+    +FAIL_REASON "SCEN5: inside_ifdef != 0"
+    rts
++:
+
+  ; - - - #define - - -
+
+  +ASSIGN_U8V_EQ_IMM delete_line_flag, $00
+  +SET_STRING cur_src_line, "#define ABC = 123"
+
+  jsr parse_preprocessor_directive
+
+  +SET_IS_PTR_TO_LAST_VARTABLE_ELEMENT_OF_TYPE TYP_DEF
+
+  +CMP_PPSTR_TO_IMM is_ptr, "ABC"
+  bcc +
+  +FAIL_REASON "SCEN6: define var not found in var table"
+  rts
++:
+
+  ldy #TYP_DEF
+  lda element_cnt,y
+  dec   ; i.e., decrement a
+  +SET_TMP_PTR_TO_WORDARRAY_AT_WORDIDX_OF_A define_val
+
+  +CMP_PPSTR_TO_IMM tmp_ptr, "123"
+  bcc +
+  +FAIL_REASON "SCEN7: define_val of '123' not found"
+  rts
++:
+
+  +CMP_U8V_TO_IMM delete_line_flag, $01   ; 0 = exists
+  beq +
+    +FAIL_REASON "SCEN8: delete_line_flag != 1"
+    rts
++:
+
+  ; - - - #declare - - -
+
+  ; todo:
+
+  ; - - - #output - - -
+
+  ; todo:
+
+  ; - - - #struct - - -
+
+  ; todo:
+
+  clc
   rts
 
 
