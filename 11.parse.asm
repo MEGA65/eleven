@@ -1180,6 +1180,7 @@ TESTPTR = $27 ; $27-$28
 
 tmp2_ptr = $29 ; $29-$2a
 DESTPTR = $2b ; $2b-2e
+TMPPTR =$2f ; $2f-32
 
 ;---------
 initialise:
@@ -1953,6 +1954,12 @@ main:
 ;-----
 pass_1:
 ;-----
+; inputs:
+;   - eleven source at $803,0000
+;
+; output:
+;   - DESTPTR at $5,0000 contains compiled contents
+
 ;   next_line_flag = 0
   lda #$00
   sta next_line_flag
@@ -2467,6 +2474,7 @@ generate_dest_line_for_assigned_var:
       jsr generate_varname
 ;     if define_flag=0 then begin
       +CMP_U8V_TO_IMM define_flag, $00
+      bne +
 ;       next_line$ = next_line$ + gen_varname$ + t$ + "=" + value$ + ":"
         +ASSIGN_U16V_EQ_ADDR s_ptr, next_line
         jsr get_s_ptr_length

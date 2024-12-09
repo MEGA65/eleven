@@ -1,6 +1,24 @@
 ; ------
 ; MACROS
 ; ------
+!macro ADD_SRC_LINE .txt {
+  ; increment line count
+  +ASSIGN_U32V_EQ_IMM TMPPTR,  $0803, $0000
+  ldz #$00
+  lda [TMPPTR],z
+  inc
+  tay
+  sta [TMPPTR],z
+
+  inz
+  lda [TMPPTR],z
+  cpy #$00
+  bne +
+  inc
++:
+  sta [TMPPTR],z
+}
+
 !macro SET_CURSOR_POS .col, .row {
   +MAP_KERNAL_IN
   clc
@@ -1257,7 +1275,7 @@ test__generate_dest_line_for_dimensioned_var:
 
   +CMP_U8V_TO_IMM next_line, $00
   beq +
-    +FAIL_REASON "next_line wasn't empty"
+    +FAIL_REASON "SCEN1: next_line wasn't empty"
     rts
 +:
 
@@ -1269,7 +1287,7 @@ test__generate_dest_line_for_dimensioned_var:
 
   +CMP_STR_TO_IMM next_line, "dim b%(10):"
   bcc +
-    +FAIL_REASON "next_line not as expected"
+    +FAIL_REASON "SCEN2: next_line not as expected"
     rts
 +:
 
@@ -1286,9 +1304,22 @@ test__generate_dest_line_for_assigned_var:
   +ASSIGN_U8V_EQ_IMM define_flag, $01
   +ASSIGN_U8V_EQ_IMM next_line, $00  ; null-term
 
+  ; SCEN1: do nothing if define_flag is on
+  ; - - - - - - -
   jsr generate_dest_line_for_assigned_var
 
+  +CMP_U8V_TO_IMM next_line, $00
+  beq +
+    +FAIL_REASON "SCEN1: next_line wasn't empty"
+    rts
++:
+
+  ; SCEN2: prepare next_line if define_flag is off
+  ; - - - - - - -
   +ASSIGN_U8V_EQ_IMM define_flag, $00   ; so it doesn't surprise following tests
+
+  jsr generate_dest_line_for_assigned_var
+
   +CMP_STR_TO_IMM next_line, "a&=10:"
   bcc +
     +FAIL_REASON "next_line not as expected"
@@ -2326,10 +2357,40 @@ test__check_dumb_commands:
   clc
   rts
 
+;---------
+test_pass1:
+;---------
+  jsr reset_src_and_dest_pointers
+
+  +ADD_SRC_LINE "#declare hello=123"
+
+  jsr pass_1
+
+  ; +CHECK_CUR_DEST_LINE_EQ_IMM
+
+  sec
+  rts
+
 
 ; -------
 ; HELPERS
 ; -------
+
+;--------------------------
+reset_src_and_dest_pointers:
+;--------------------------
+  +ASSIGN_U32V_EQ_IMM SRCPTR,  $0803, $0000
+  +ASSIGN_U32V_EQ_IMM DESTPTR, $0005, $0000
+  ldz #$00
+  lda #$00
+  sta [SRCPTR],z
+  inz
+  sta [SRCPTR],z
+
+  inc SRCPTR
+  inc SRCPTR
+  rts
+
 
 get_label_name_item_at_idx:
   ldx #$00
