@@ -2,21 +2,44 @@
 ; MACROS
 ; ------
 !macro ADD_SRC_LINE .txt {
+bra +
+-:
+!pet .txt, $00
+
++:
   ; increment line count
   +ASSIGN_U32V_EQ_IMM TMPPTR,  $0803, $0000
   ldz #$00
   lda [TMPPTR],z
   inc
-  tay
   sta [TMPPTR],z
+
+  cmp #$00
+  bne +
 
   inz
   lda [TMPPTR],z
-  cpy #$00
-  bne +
   inc
-+:
   sta [TMPPTR],z
++:
+
+  +ASSIGN_U16V_EQ_ADDR s_ptr, -
+  jsr get_s_ptr_length
+  ldz #$00
+  lda cur_line_len
+  sta [SRCPTR],z
+  inw SRCPTR
+
+  ldy #$00
+-:
+  cpy cur_line_len
+  beq +
+  lda (s_ptr),y
+  sta [SRCPTR],z
+  iny
+  inw SRCPTR
+  bra -
++:
 }
 
 !macro SET_CURSOR_POS .col, .row {
@@ -2358,7 +2381,7 @@ test__check_dumb_commands:
   rts
 
 ;---------
-test_pass1:
+test__pass1:
 ;---------
   jsr reset_src_and_dest_pointers
 
@@ -2366,7 +2389,7 @@ test_pass1:
 
   jsr pass_1
 
-  ; +CHECK_CUR_DEST_LINE_EQ_IMM
+  ; +CHECK_NEXT_LINE_EQ_IMM "d=123:"
 
   sec
   rts
