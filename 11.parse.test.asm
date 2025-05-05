@@ -2386,12 +2386,18 @@ test__pass1:
   jsr reset_src_and_dest_pointers
 
   +ADD_SRC_LINE "#declare hello=123"
+  +ADD_SRC_LINE "#declare moocow%=456"
 
   jsr pass_1
 
-  ; +CHECK_NEXT_LINE_EQ_IMM "d=123:"
+  ; NOTE: Should compare against contents within DESTPTR instead
+  +CMP_STR_TO_IMM next_line, "d=123:e%=456"
+  bcc +
+  +FAIL_REASON "SCEN1: next_line string not correct"
+  rts
++:
 
-  sec
+  clc
   rts
 
 
