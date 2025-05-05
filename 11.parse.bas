@@ -270,7 +270,7 @@
  4076   if c$=sn$(id) then gosub 9600:ci=id:id=ss-1:rem create new struct object
  4077 next id
  4078 if ci<>-1 then return:else if asc(c$)=222 then return:rem pi
- 4079 if instr(dc$, lc$)<>0 and (c$="r" or c$="p" or c$="u8" or c$="w") then return
+ 4079 if instr(dc$, lc$)<>0 and (c$="r" or c$="p" or c$="u8" or c$="w" or c$="l") then return
  4080 pe$="?unresolved identifier: '"+c$+"' in line "+str$(sl):sleep 1:goto 1800
  4090 return
  4091 :
