@@ -9,10 +9,10 @@
    30 rw$(1)=" background set abs sin cos tan log fre cursor pixel window rwindow line box circle ellipse palette restore data err$ er el cursor on off"
    35 rw$(1)=rw$(1)+" val scratch return rnd stop bank ti do or st if el er on to pen get end int not ds run using dot "
    70 rw$(2)=" append atn auto backup bload boot bsave bump bverify catalog change char cmd collision color concat cont copy wpoke wpeek setbit clrbit "
-   71 rw$(3)=" dclear deffn delete fn dir disk dload dma dmode dpat dsave dverify edma envelope erase exit exp fast filter find go64 header help highlight "
-   72 rw$(4)=" joy list load locate lpen mod monitor mouse movspr new paint play pointer polygon pos pot pudef "
-   73 rw$(5)=" rcolor rdot read record rem rename resume rgr rmouse rplay rreg rspcolor rsppos rsprite save scnclr sleep slow sound spc sprcolor "
-   75 rw$(6)=" sprite sprsav sys tab tempo troff tron type usr verify vol xor key vsync rcursor t@& c@& rgraphic fread pointer "
+   71 rw$(3)=" dclear deffn delete fn dir disk dload dma dmode dpat dsave dverify edma envelope erase exit exp fast filter find go go64 header help highlight "
+   72 rw$(4)=" hasbit joy let list load locate log10 log2 lpen mod monitor mouse movspr new paint play pointer polygon pos pot pudef "
+   73 rw$(5)=" rcolor rdisk rdot read record rem rename resume rgr rmouse rplay rpt rreg rspcolor rsppos rsprite save scnclr sleep slow sound spc sprcolor "
+   75 rw$(6)=" sprite sprsav sys tab tempo troff tron type usr verify vol xor key vsync rcursor t@& c@& rgraphic fread pointer chardef "
    85 dc$=" bload bsave dload to save dir collect dopen dclose backup fread get "
    90 gosub7020: rem get filename
   100 bank128:poke 0,65
