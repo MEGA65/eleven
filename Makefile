@@ -1,5 +1,5 @@
 all:
-	cp /c/Users/phuon/AppData/Roaming/xemu-lgb/mega65/hdos/11.D81 .
+	# cp /c/Users/phuon/AppData/Roaming/xemu-lgb/mega65/hdos/11.D81 .
 	c1541 -attach 11.D81 -read 11.defaults -read 11.edit -read 11.parse -read 11.post -read 11.settings -read autoboot.c65 -read readme,s
 	petcat -65 -o 11.defaults.bas -- 11.defaults
 	petcat -65 -o 11.edit.bas -- 11.edit
