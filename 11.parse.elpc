@@ -128,10 +128,10 @@ tokens$(0)=" print input if then else do loop while until gosub goto open close 
   tokens$(1) = " background set abs sin cos tan log fre cursor pixel window rwindow line box circle ellipse palette restore data err$ er el cursor on off"
   tokens$(1) = tokens$(1) + " val scratch return rnd stop bank ti do or st if el er on to pen get end int not ds run using dot "
   tokens$(2) = " append atn auto backup bload boot bsave bump bverify catalog change char cmd collision color concat cont copy wpoke wpeek setbit clrbit "
-  tokens$(3) = " dclear deffn delete fn dir disk dload dma dmode dpat dsave dverify edma envelope erase exit exp fast filter find go64 header help highlight "
-  tokens$(4) = " joy list load locate lpen mod monitor mouse movspr new paint play pointer polygon pos pot pudef "
-  tokens$(5) = " rcolor rdot read record rem rename resume rgr rmouse rplay rreg rspcolor rsppos rsprite save scnclr sleep slow sound spc sprcolor "
-  tokens$(6) = " sprite sprsav sys tab tempo troff tron type usr verify vol xor key vsync rcursor t@& c@& rgraphic fread pointer "
+  tokens$(3) = " dclear deffn delete fn dir disk dload dma dmode dpat dsave dverify edma envelope erase exit exp fast filter find go go64 header help highlight "
+  tokens$(4) = " hasbit joy let list load log10 log2 locate lpen mod monitor mouse movspr new paint play pointer polygon pos pot pudef "
+  tokens$(5) = " rcolor rdisk rdot read record rem rename resume rgraphic rmouse rplay rpt$ rreg rspcolor rsppos rsprite save scnclr sleep slow sound spc sprcolor "
+  tokens$(6) = " sprite sprsav sys tab tempo troff tron type usr verify vol xor key vsync rcursor t@& c@& rgraphic fread pointer chardef "
   dumb_cmds$ = " bload bsave dload to save dir collect dopen dclose backup fread get "
 
   gosub get_filename
@@ -755,8 +755,9 @@ tokens$(0)=" print input if then else do loop while until gosub goto open close 
   ' check for dumb commands
   ' - - - - - - - - - - - -
   if instr(dumb_cmds$, lc$) <> 0 and {x5F}
-    (cur_tok$ = "r" or cur_tok$ = "p" 
-     or cur_tok$ = "u8" or cur_tok$ = "w") then begin
+    (cur_tok$ = "r" or cur_tok$ = "p" {x5F}
+     or cur_tok$ = "u8" or cur_tok$ = "w"
+     or cur_tok$ = "l" or cur_tok$ = "u") then begin
 
     return
   bend
