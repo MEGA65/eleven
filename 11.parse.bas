@@ -7,7 +7,7 @@
    10 rw$(0)=" print input if then else do loop while until gosub goto open close dopen dclose for next getkey hex$ dim peek poke wait dec chr$ asc sgn sqr str$"
    20 rw$(0)=rw$(0)+" graphic clr screen def begin bend len mid$ right$ left$ instr for next step trap border and foreground "
    30 rw$(1)=" background set abs sin cos tan log fre cursor pixel window rwindow line box circle ellipse palette restore data err$ er el cursor on off"
-   35 rw$(1)=rw$(1)+" val scratch return rnd stop bank ti do or st if el er on to pen get end int not ds run using dot "
+   35 rw$(1)=rw$(1)+" val scratch return rnd stop bank ti do or st if el er on to pen get end int not ds ds$ run using dot "
    70 rw$(2)=" append atn auto backup bload boot bsave bump bverify catalog change char cmd collision color concat cont copy wpoke wpeek setbit clrbit "
    71 rw$(3)=" dclear deffn delete fn dir disk dload dma dmode dpat dsave dverify edma envelope erase exit exp fast filter find go go64 header help highlight "
    72 rw$(4)=" hasbit joy let list load locate log10 log2 lpen mod monitor mouse movspr new paint play pointer polygon pos pot pudef "
@@ -456,4 +456,8 @@
 10045     si=si+1
 10050   next id
 10060 next ty
-10070 return
+10070 for id = 0 to lc
+10080   print#1, str$(si) + " rem l"+mid$(str$(ll(id)),2) + " = ." + lb$(id)
+10085   si=si+1
+10090 next id
+10100 return

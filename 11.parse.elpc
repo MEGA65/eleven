@@ -126,7 +126,7 @@
 tokens$(0)=" print input if then else do loop while until gosub goto open close dopen dclose for next getkey hex$ dim peek poke wait dec chr$ asc sgn sqr str$"
   tokens$(0) = tokens$(0) + " graphic clr screen def begin bend len mid$ right$ left$ instr for next step trap border and foreground "
   tokens$(1) = " background set abs sin cos tan log fre cursor pixel window rwindow line box circle ellipse palette restore data err$ er el cursor on off"
-  tokens$(1) = tokens$(1) + " val scratch return rnd stop bank ti do or st if el er on to pen get end int not ds run using dot "
+  tokens$(1) = tokens$(1) + " val scratch return rnd stop bank ti do or st if el er on to pen get end int not ds ds$ run using dot "
   tokens$(2) = " append atn auto backup bload boot bsave bump bverify catalog change char cmd collision color concat cont copy wpoke wpeek setbit clrbit "
   tokens$(3) = " dclear deffn delete fn dir disk dload dma dmode dpat dsave dverify edma envelope erase exit exp fast filter find go go64 header help highlight "
   tokens$(4) = " hasbit joy let list load log10 log2 locate lpen mod monitor mouse movspr new paint play pointer polygon pos pot pudef "
@@ -1312,5 +1312,14 @@ tokens$(0)=" print input if then else do loop while until gosub goto open close 
       cur_dest_lineno = cur_dest_lineno + 1
     next id
   next ty
+
+  for id = 0 to label_cnt
+    print#1, str$(cur_dest_lineno) + " rem l" {x5F}
+      + mid$(str$(label_lineno(id)), 2) + " = ." {x5F}
+      + label_name$(id)
+
+      cur_dest_lineno = cur_dest_lineno + 1
+  next id
+
   return
 ÿ
