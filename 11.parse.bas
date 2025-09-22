@@ -72,7 +72,7 @@
   671       gosub9600:rem check for creation of struct object
   672       if right$(l$,1)="_" then l$=left$(l$,len(l$)-1):nl=0:cn=1:else cn=0
   675       gosub 9800:rem safe add l$+s$ to current or next li$(ln)
-  732       if right$(s$,4)="bend" or right$(s$,6)="return" or left$(s$,2)="if" thennl=1
+  732       if right$(s$,4)="bend" or right$(s$,6)="return" or left$(s$,2)="if" or left$(s$,4)="data" thennl=1
   735     bend : rem endif dl=0
   740   bend : rem endif c$<>""
   750   sl=sl+1 : rem increase source code line (for error msgs...)
