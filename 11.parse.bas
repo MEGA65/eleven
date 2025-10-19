@@ -247,7 +247,7 @@
  4002 if c$="0" thenc$=".":return        : rem stupid ms basic optimization
  4005 if tg and dz=0 thengosub4500:tg=0:return   : rem replace label
  4006 if c$="goto" thennl=1
- 4007 if c$="goto" or c$="gosub" or c$="trap" thentg=1
+ 4007 if c$="goto" or c$="gosub" or c$="trap" or c$="restore" thentg=1
  4008 dr=0 : rem did replace flag
  4009 if left$(c$,1)="$" thenhx$=mid$(c$,2):gosub4900:return
  4010 if left$(c$,1)="%" thenbi$=mid$(c$,2):gosub4800:return
