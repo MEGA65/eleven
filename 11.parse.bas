@@ -271,7 +271,10 @@
  4077 next id
  4078 if ci<>-1 then return:else if asc(c$)=222 then return:rem pi
  4079 if instr(dc$, lc$)<>0 and (c$="r" or c$="p" or c$="u8" or c$="w" or c$="l" or c$="u") then return
- 4080 pe$="?unresolved identifier: '"+c$+"' in line "+str$(sl):sleep 1:goto 1800
+ 4080 rem can use 'on x gosub/goto' if all labels are already defined earlier
+ 4081 pe$="@":gosub4505
+ 4082 pe$="":if dr=1 thenreturn
+ 4083 pe$="?unresolved identifier: '"+c$+"' in line "+str$(sl):sleep 1:goto 1800
  4090 return
  4091 :
  4092 :
@@ -283,7 +286,7 @@
  4510 for id=0 to lc-1
  4520 if c$=lb$(id) thenc$=str$(ll(id)):id=lc:dr=1
  4530 next id
- 4540 if dr thenreturn
+ 4540 if dr=1 or pe$="@" thenreturn
  4550 pe$="?unresolved label: '"+c$+"' in line"+str$(ln%(si-1)):sleep 1:goto1800
  4567 return
  4800 rem --- convert binary
