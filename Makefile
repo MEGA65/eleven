@@ -35,6 +35,7 @@ to_personal_d81:
 	c1541 -attach $(PERSONAL_D81) -delete 11.post  -write 11.post 
 	c1541 -attach $(PERSONAL_D81) -delete 11.settings  -write 11.settings 
 	c1541 -attach $(PERSONAL_D81) -delete autoboot.c65 -write autoboot.c65
+	c1541 -attach $(PERSONAL_D81) -delete readme -write readme readme,s
 
 to_official_d81:
 	$(MAKE) bas_to_prg
@@ -44,6 +45,7 @@ to_official_d81:
 	c1541 -attach 11.D81 -delete 11.post  -write 11.post 
 	c1541 -attach 11.D81 -delete 11.settings  -write 11.settings 
 	c1541 -attach 11.D81 -delete autoboot.c65 -write autoboot.c65
+	c1541 -attach 11.D81 -delete readme -write readme readme,s
 
 prg_to_bas:
 	petcat -65 -o 11.edit.bas -- 11.edit
