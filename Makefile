@@ -29,7 +29,7 @@ bas_to_prg:
 
 to_personal_d81:
 	$(MAKE) bas_to_prg
-	c1541 -attach $(PERSONAL_D81) -delete 11.defaults -write 11.defaults
+	# c1541 -attach $(PERSONAL_D81) -delete 11.defaults -write 11.defaults
 	c1541 -attach $(PERSONAL_D81) -delete 11.edit -write 11.edit 
 	c1541 -attach $(PERSONAL_D81) -delete 11.parse -write 11.parse 
 	c1541 -attach $(PERSONAL_D81) -delete 11.post  -write 11.post 
