@@ -740,10 +740,21 @@
 10135     nl=nl-(me-ms+1):for a=nl+1 to nl+(me-ms+1):li$(a)="":next a
 10136     yc=ms:if yc-ct<0 then ly=ms:gosub 6600
 10138   bend
-10140   iv=0:mf=0:cs=me-ms+1:ms=0:me=0
-10150 bend
-10155 gosub 5150
-10160 return
+10139   iv=0:mf=0:cs=me-ms+1:ms=0:me=0
+10140 bend
+10141 if t$=chr$(27) then mf = 0
+10151 if t$="<" then begin:dr=1:if me<ms then dr=-1
+10152   for a=ms to me step dr
+10153     if left$(li$(a),2) = "  " then li$(a) = mid$(li$(a),3)
+10154   next a
+10155 bend
+10156 if t$ = ">" then begin:dr=1:if me<ms then dr=-1
+10157   for a=ms to me step dr
+10158     li$(a) = "  " + li$(a)
+10159   next a
+10160 bend
+10161 gosub 5150
+10162 return
 10200 rem *** paste ***
 10210 for iv=cs-1 to 0 step -1
 10220   rem insert a line at yc

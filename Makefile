@@ -1,6 +1,6 @@
 all:  from_personal_d81
 
-PERSONAL_D81 = /c/Users/phuon/AppData/Roaming/xemu-lgb/mega65/hdos/11.D81
+PERSONAL_D81 = /c/Users/phuon/AppData/Roaming/xemu-lgb/mega65/hdos/112.D81
 
 FORCE: ;
 
