@@ -220,7 +220,7 @@
  5170 if ct<0 thenct=0
  5180 for i=0 to sl
  5190   cursor 0,i
- 5195   if ct>2000 then ct=1
+ 5195   if ct+i>2000 then ct=1
  5200   a$=li$(ct+i)
  5210   print chr$(27)+"q";:zy=yc:yc=ct+i:gosub10000:yc=zy:gosub1
  5220 next i
