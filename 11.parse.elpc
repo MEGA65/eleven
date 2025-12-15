@@ -19,9 +19,9 @@
 ' 4.FF09  (2 bytes) line number for autojump
 '
 ' 4.FF10  current file name
-' 4.FF20  output file name
+' 4.FF30  output file name
 '
-' 4.FF30- reserved
+' 4.FF40- reserved
 ' 4.FF7F
 '
 ' Attic RAM cache usage
