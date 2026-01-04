@@ -52,6 +52,7 @@
   580   s$=cl$:gosub2050:cl$=s$
   585   if cl$<>"" thenbegin
   586     dl=0 : rem delete line flag
+  587 sy=0 : rem turn off sys flag
   590     if vb thenprint ">>"ln;sl;cl$
   600     if left$(cl$,1)="." thennl=1:gosub1500: rem label
   601     if left$(cl$,1)="#" thenbegin
@@ -245,6 +246,7 @@
  4000 if c$="" or c$="_" thenreturn
  4001 if val(c$)<>0 thentg=0: return     : rem never change numbers
  4002 if c$="0" thenc$=".":return        : rem stupid ms basic optimization
+ 4003 if sy=1 and (c$="to" or c$="a" or c$="x" or c$="y" or c$="z" or c$="s" or c$="i0" or c$="i1") then return : rem workaround for new sys stuff
  4005 if tg and dz=0 thengosub4500:tg=0:return   : rem replace label
  4006 if c$="goto" thennl=1
  4007 if c$="goto" or c$="gosub" or c$="trap" or c$="restore" thentg=1
@@ -279,6 +281,7 @@
  4091 :
  4092 :
  4100 rem check if command triggers shitty syntax mode
+ 4105 if lc$="sys" then sy=1
  4110 rem todo: compare ubik's logic here versus my own 4079 lc$="dopen" logic
  4120 return
  4500 c$=mk$+c$+mk$ : return : rem mark label
