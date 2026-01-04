@@ -18,7 +18,7 @@ xemu:
 	/c/projs/xemu/build/bin/xmega65.native -rom /c/projs/mega65-rom/newrom.bin -hdosvirt -uartmon :4510 -8 11.D81 &> /dev/null &
 
 xemu_personal:
-	/c/projs/xemu/build/bin/xmega65.native -rom /c/projs/mega65-rom/newrom.bin -hdosvirt -uartmon :4510 -8 /c/Users/phuon/AppData/Roaming/xemu-lgb/mega65/hdos/112.D81 &> /dev/null &
+	/c/projs/xemu/build/bin/xmega65.native -rom /c/projs/mega65-rom/newrom.bin -hdosvirt -uartmon :4510 -8 $(PERSONAL_D81) &> /dev/null &
 
 oldparse:
 	c1541 -attach $(PERSONAL_D81) -delete 11.parse -write 11.parse 
